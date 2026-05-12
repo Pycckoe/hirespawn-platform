@@ -8,19 +8,23 @@ use Illuminate\Support\Facades\Schema;
  * One-time orphan cleanup.
  *
  * The first production deploy left marketplace tables in an inconsistent
- * state: the `agents` table existed in the database but no row for its
- * migration sat in `migrations`, so the create migration tried to run a
- * second time and crashed on a duplicate-table error.
+ * state: an `agents` table existed, but with foreign keys from `agent_*`
+ * tables that aren't in this codebase at all (`agent_subscriptions`,
+ * `agent_reviews`), so a plain `dropIfExists('agents')` failed with
+ * `cannot drop table agents because other objects depend on it`.
  *
- * This guard runs once, before the marketplace migrations. It drops every
- * marketplace table (no-op on a clean database) and deletes any matching
- * rows from the migrations log so the subsequent create migrations always
- * run from a known state. After it lands it gets recorded in `migrations`
- * itself and never executes again.
+ * This guard now drops every marketplace table with `CASCADE` on Postgres
+ * — that removes the dependent FK constraints from any unknown legacy
+ * table — and falls back to `Schema::dropIfExists` on other drivers
+ * (SQLite locally) where CASCADE isn't supported. It also enumerates the
+ * known orphan `agent_*` tables so they get dropped fully.
+ *
+ * After it lands it sits in `migrations` and never runs again.
  */
 return new class extends Migration
 {
     private const TABLES = [
+        // Current schema, reverse FK order.
         'disputes',
         'reviews',
         'payouts',
@@ -36,6 +40,9 @@ return new class extends Migration
         'agent_categories',
         'buyer_profiles',
         'seller_profiles',
+        // Known legacy orphan tables from a prior schema attempt.
+        'agent_subscriptions',
+        'agent_reviews',
     ];
 
     private const MIGRATION_PREFIXES = [
@@ -58,8 +65,14 @@ return new class extends Migration
 
     public function up(): void
     {
+        $driver = DB::connection()->getDriverName();
+
         foreach (self::TABLES as $table) {
-            Schema::dropIfExists($table);
+            if ($driver === 'pgsql') {
+                DB::statement('DROP TABLE IF EXISTS "'.$table.'" CASCADE');
+            } else {
+                Schema::dropIfExists($table);
+            }
         }
 
         if (Schema::hasTable('migrations')) {
