@@ -1,5 +1,5 @@
 import '@/setup';
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -79,7 +79,7 @@ const AgentDetail = (() => {
   );
 
   // Header — hero of the agent
-  const AgentHeader = ({ agent }) => (
+  const AgentHeader = ({ agent, isSubscribed = false, isAuthenticated = false }) => (
     <div style={{ padding: '40px 40px 28px' }}>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5, textTransform: 'uppercase' }}>
@@ -143,9 +143,27 @@ const AgentDetail = (() => {
             </div>
           </div>
 
-          <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
-            Deploy {agent.name} →
-          </button>
+          {isAuthenticated && isSubscribed ? (
+            <button
+              onClick={() => router.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true })}
+              style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              ✓ Deployed · Cancel
+            </button>
+          ) : isAuthenticated ? (
+            <button
+              onClick={() => router.post(`/agent/${agent.id}/subscribe`)}
+              style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Deploy {agent.name} →
+            </button>
+          ) : (
+            <a href={`/login?intended=${encodeURIComponent('/agent/' + agent.id)}`} style={{ display: 'block', textDecoration: 'none' }}>
+              <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
+                Sign in to deploy →
+              </button>
+            </a>
+          )}
           <button style={{ width: '100%', padding: '12px', borderRadius: 10, marginTop: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>
             Try in sandbox
           </button>
@@ -373,7 +391,7 @@ const AgentDetail = (() => {
 
   // Page
   const Page = () => {
-    const { agent = null, relatedAgents = [] } = usePage().props;
+    const { agent = null, relatedAgents = [], isSubscribed = false, isAuthenticated = false } = usePage().props;
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
@@ -381,7 +399,7 @@ const AgentDetail = (() => {
           <Nav />
           {!agent ? <NotFound /> : (
             <>
-              <AgentHeader agent={agent} />
+              <AgentHeader agent={agent} isSubscribed={isSubscribed} isAuthenticated={isAuthenticated} />
               <SpecStrip agent={agent} />
               <Reveal><Capabilities agent={agent} /></Reveal>
               <Reveal><SampleTasks agent={agent} /></Reveal>
