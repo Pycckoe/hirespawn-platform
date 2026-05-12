@@ -5,6 +5,7 @@ use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunController;
+use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\VendorController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +34,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/onboarding', [PageController::class, 'onboarding'])->name('onboarding');
     Route::get('/settings', [PageController::class, 'settings'])->name('settings');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
+
+    Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');
+    Route::delete('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'destroy'])->name('subscription.destroy');
 });
 
 Route::middleware('auth')->group(function () {
