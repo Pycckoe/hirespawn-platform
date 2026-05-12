@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\AgentCategory;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -31,9 +32,17 @@ class AgentController extends Controller
         ]);
     }
 
-    public function show(Agent $agent): Response
+    public function show(Request $request, Agent $agent): Response
     {
         $agent->load(['category', 'seller', 'pricingTiers', 'screenshots', 'reviews.buyer']);
+
+        $user = $request->user();
+        $isSubscribed = $user
+            ? $user->subscriptions()
+                ->where('agent_id', $agent->id)
+                ->whereIn('status', ['active', 'paused'])
+                ->exists()
+            : false;
 
         $related = Agent::query()
             ->with('category')
@@ -51,6 +60,8 @@ class AgentController extends Controller
 
         return Inertia::render('AgentDetail', [
             'relatedAgents' => $related,
+            'isSubscribed' => $isSubscribed,
+            'isAuthenticated' => (bool) $user,
             'agent' => array_merge($this->transformForCard($agent), [
                 'description' => $agent->description,
                 'manifestUrl' => $agent->manifest_url,
