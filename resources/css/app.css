@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Hirespawn design tokens — Command Center direction ===
+ * Tokens are CSS custom properties driven by [data-theme] on <html>. */
+:root[data-theme="dark"] {
+    --p-bg0: #05070a;
+    --p-bg1: #0a0e14;
+    --p-glass: rgba(255, 255, 255, 0.04);
+    --p-glass-strong: rgba(255, 255, 255, 0.07);
+    --p-border: rgba(255, 255, 255, 0.08);
+    --p-border-strong: rgba(255, 255, 255, 0.14);
+    --p-text: #e8edf2;
+    --p-text-dim: rgba(232, 237, 242, 0.62);
+    --p-text-mute: rgba(232, 237, 242, 0.38);
+    --p-accent: #b4f25b;
+    --p-accent-dim: rgba(180, 242, 91, 0.22);
+    --p-amber: #f5b14a;
+    --p-red: #ff5c5c;
+    --p-cyan: #7dd3ff;
+    --p-on-accent: #0a0e14;
+    --p-grid-stroke: rgba(255, 255, 255, 0.08);
+    --p-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 60px rgba(0, 0, 0, 0.4);
+    --p-mesh-1: rgba(180, 242, 91, 0.12);
+    --p-mesh-2: rgba(245, 177, 74, 0.10);
+    --p-mesh-3: rgba(80, 140, 255, 0.10);
+    --p-scrollbar-thumb: rgba(255, 255, 255, 0.15);
+    --p-page-bg: #0a0a0a;
+    --p-inset: rgba(0, 0, 0, 0.30);
+    --p-inset-soft: rgba(0, 0, 0, 0.20);
+    --p-inset-strong: rgba(0, 0, 0, 0.40);
+    --p-track: rgba(255, 255, 255, 0.06);
+    --p-track-fill: rgba(255, 255, 255, 0.30);
+    --p-chip: rgba(255, 255, 255, 0.05);
+    color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+    --p-bg0: #f3f1ea;
+    --p-bg1: #faf8f1;
+    --p-glass: rgba(255, 255, 255, 0.55);
+    --p-glass-strong: rgba(255, 255, 255, 0.80);
+    --p-border: rgba(20, 24, 29, 0.10);
+    --p-border-strong: rgba(20, 24, 29, 0.20);
+    --p-text: #14181d;
+    --p-text-dim: rgba(20, 24, 29, 0.66);
+    --p-text-mute: rgba(20, 24, 29, 0.42);
+    --p-accent: #5a8c1f;
+    --p-accent-dim: rgba(90, 140, 31, 0.16);
+    --p-amber: #b06b0c;
+    --p-red: #c9322f;
+    --p-cyan: #1e6fa4;
+    --p-on-accent: #f6fbe8;
+    --p-grid-stroke: rgba(20, 24, 29, 0.07);
+    --p-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 12px 36px rgba(20, 30, 40, 0.08);
+    --p-mesh-1: rgba(90, 140, 31, 0.10);
+    --p-mesh-2: rgba(176, 107, 12, 0.08);
+    --p-mesh-3: rgba(30, 111, 164, 0.08);
+    --p-scrollbar-thumb: rgba(20, 24, 29, 0.20);
+    --p-page-bg: #efece4;
+    --p-inset: rgba(20, 24, 29, 0.05);
+    --p-inset-soft: rgba(20, 24, 29, 0.03);
+    --p-inset-strong: rgba(20, 24, 29, 0.08);
+    --p-track: rgba(20, 24, 29, 0.10);
+    --p-track-fill: rgba(20, 24, 29, 0.30);
+    --p-chip: rgba(20, 24, 29, 0.05);
+    color-scheme: light;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--p-page-bg);
+    color: var(--p-text);
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: background 0.4s ease;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--p-scrollbar-thumb);
+    border-radius: 4px;
+}
+
+@keyframes dirA-drift {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+    100% {
+        transform: translate(2%, -2%) scale(1.05);
+    }
+}
