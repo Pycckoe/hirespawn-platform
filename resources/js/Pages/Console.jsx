@@ -1,4 +1,5 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -8,6 +9,10 @@ import {
 // =====================================================================
 // CLIENT DASHBOARD (Console) — post-login workspace
 // Power balance, burn-rate chart, active agents, live ops, billing
+//
+// Live data: reads `subscriptions` and `powerBalance` from
+// ConsoleController. Other sections (live ops, billing, team, API keys)
+// still render the design's demo data until their own features land.
 // =====================================================================
 
 const Dashboard = (() => {
@@ -28,8 +33,10 @@ const Dashboard = (() => {
     eurSpent30d: 4384,
   };
 
-  // Active agents the org has deployed
-  const ACTIVE_AGENTS = [
+  // Active agents the org has deployed — fallback demo data used when the
+  // signed-in buyer has no real subscriptions yet (controller still passes
+  // an empty list in that case).
+  const DEMO_AGENTS = [
     { id: 'sdr-pro',  name: 'AI SDR',           role: 'Cold Outreach', tone: 'sales',   power: 12, perUnit: 'lead',        runs24h: 412, runs7d: 2880,  failRate: 0.002, latency: '0.4s', spend24h: 4944, status: 'on'  },
     { id: 'review',   name: 'AI Code Reviewer', role: 'Engineering',   tone: 'eng',     power: 38, perUnit: 'PR',          runs24h: 84,  runs7d: 612,   failRate: 0.001, latency: '78s',  spend24h: 3192, status: 'on'  },
     { id: 'support',  name: 'AI Support Agent', role: 'Customer Care', tone: 'support', power: 6,  perUnit: 'ticket',      runs24h: 1241,runs7d: 8420,  failRate: 0.004, latency: '22s',  spend24h: 7446, status: 'on'  },
@@ -67,10 +74,10 @@ const Dashboard = (() => {
     { date: 'Nov 14, 2025', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
   ];
 
-  // ---- Sidebar nav ----
-  const SIDE_ITEMS = [
+  // ---- Sidebar nav (depends on active agents count, built per-render) ----
+  const buildSideItems = (activeAgents) => [
     { id: 'overview', label: 'Overview',     icon: '◆', count: null },
-    { id: 'agents',   label: 'Active agents', icon: '◇', count: ACTIVE_AGENTS.filter(a => a.status === 'on').length },
+    { id: 'agents',   label: 'Active agents', icon: '◇', count: activeAgents.filter(a => a.status === 'on').length },
     { id: 'ops',      label: 'Live ops',     icon: '▸', count: null, live: true },
     { id: 'billing',  label: 'Billing',      icon: '⚡', count: null },
     { id: 'team',     label: 'Team',         icon: '◈', count: 5 },
@@ -126,9 +133,9 @@ const Dashboard = (() => {
   };
 
   // ---- Sidebar ----
-  const Sidebar = ({ tab, setTab }) => (
+  const Sidebar = ({ tab, setTab, items = [], powerBalance = 0 }) => (
     <div style={{ width: 220, borderRight: `1px solid ${palette.border}`, padding: '28px 14px', display: 'flex', flexDirection: 'column', gap: 4, position: 'sticky', top: 65, alignSelf: 'flex-start', height: 'calc(100vh - 65px)' }}>
-      {SIDE_ITEMS.map(s => {
+      {items.map(s => {
         const sel = tab === s.id;
         return (
           <button key={s.id} onClick={() => setTab(s.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: sel ? palette.accentDim : 'transparent', border: 0, color: sel ? palette.accent : palette.textDim, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', fontWeight: sel ? 600 : 400, transition: 'all 0.2s' }}>
@@ -140,7 +147,7 @@ const Dashboard = (() => {
       })}
       <div style={{ marginTop: 'auto', padding: 12, borderRadius: 8, background: 'rgba(180,242,91,0.05)', border: `1px solid ${palette.accentDim}` }}>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>Power balance</div>
-        <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 4 }}>{ACCOUNT.powerBalance.toLocaleString()}<span style={{ fontSize: 14, color: palette.accent, marginLeft: 4 }}>⚡</span></div>
+        <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 4 }}>{powerBalance.toLocaleString()}<span style={{ fontSize: 14, color: palette.accent, marginLeft: 4 }}>⚡</span></div>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, marginTop: 2 }}>refresh {ACCOUNT.nextRefresh}</div>
       </div>
       <style>{`@keyframes dirA-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
@@ -241,19 +248,19 @@ const Dashboard = (() => {
     );
   };
 
-  const ActiveAgents = () => (
+  const ActiveAgents = ({ agents = [] }) => (
     <Glass style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Deployed agents</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{ACTIVE_AGENTS.length} on roster · {ACTIVE_AGENTS.filter(a => a.status === 'on').length} active</div>
+          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{agents.length} on roster · {agents.filter(a => a.status === 'on').length} active</div>
         </div>
         <a href="#/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>+ Hire another</a>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.9fr 0.7fr 1fr 80px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
         <span>Agent</span><span>Volume</span><span>Power 24h</span><span>Latency</span><span>Fail rate</span><span>Trend</span><span>Status</span>
       </div>
-      {ACTIVE_AGENTS.map(a => <AgentRow key={a.id} a={a} />)}
+      {agents.map(a => <AgentRow key={a.id} a={a} />)}
     </Glass>
   );
 
@@ -359,6 +366,10 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
+    const { subscriptions = [], powerBalance = 0 } = usePage().props;
+    const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
+    const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
+    const sideItems = buildSideItems(liveAgents);
     const [tab, setTab] = useState('overview');
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
@@ -366,13 +377,13 @@ const Dashboard = (() => {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <TopBar />
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', maxWidth: 1600, margin: '0 auto' }}>
-            <Sidebar tab={tab} setTab={setTab} />
+            <Sidebar tab={tab} setTab={setTab} items={sideItems} powerBalance={effectiveBalance} />
 
             <div style={{ padding: '32px 40px 60px', minWidth: 0 }}>
               {/* Greeting */}
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, gap: 24, flexWrap: 'wrap' }}>
                 <div>
-                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● 5 agents on duty · burning {Math.round(ACCOUNT.burn24h / 24)}⚡/hr</Pill>
+                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {liveAgents.filter(a => a.status === 'on').length} agents on duty · burning {Math.round(ACCOUNT.burn24h / 24)}⚡/hr</Pill>
                   <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, lineHeight: 1.1, fontWeight: 600, letterSpacing: -1.4, margin: 0, color: palette.text }}>
                     Good evening, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52, letterSpacing: -1 }}>Mara</span>.
                   </h1>
@@ -382,10 +393,10 @@ const Dashboard = (() => {
 
               {/* KPI strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                <Kpi label="Power balance" value={`${(ACCOUNT.powerBalance/1000).toFixed(1)}k`} sub={`of ${(ACCOUNT.powerPack).toLocaleString()}⚡ pack · refresh ${ACCOUNT.nextRefresh}`} />
+                <Kpi label="Power balance" value={`${(effectiveBalance/1000).toFixed(1)}k`} sub={`of ${(ACCOUNT.powerPack).toLocaleString()}⚡ pack · refresh ${ACCOUNT.nextRefresh}`} />
                 <Kpi label="Burned (24h)" value={ACCOUNT.burn24h.toLocaleString()} sub={`≈ €${Math.round(ACCOUNT.burn24h * 0.009)} at Pro rate`} sparkData={BURN_SERIES} />
                 <Kpi label="Burned (30d)" value={`${(ACCOUNT.burn30d/1000).toFixed(0)}k`} sub={`avg ${Math.round(ACCOUNT.burn30d/30).toLocaleString()}⚡/day`} sparkData={BURN_30D} />
-                <Kpi label="Active agents" value={`${ACTIVE_AGENTS.filter(a => a.status === 'on').length} / ${ACTIVE_AGENTS.length}`} sub={`${ACTIVE_AGENTS.reduce((s,a) => s + a.runs24h, 0).toLocaleString()} tasks today`} color={palette.cyan} sparkColor={palette.cyan} sparkData={[8, 14, 21, 18, 26, 32, 28, 35, 42, 38, 45, 51, 48, 55, 62]} />
+                <Kpi label="Active agents" value={`${liveAgents.filter(a => a.status === 'on').length} / ${liveAgents.length}`} sub={`${liveAgents.reduce((s,a) => s + (a.runs24h || 0), 0).toLocaleString()} tasks today`} color={palette.cyan} sparkColor={palette.cyan} sparkData={[8, 14, 21, 18, 26, 32, 28, 35, 42, 38, 45, 51, 48, 55, 62]} />
               </div>
 
               {/* Burn chart + live ops */}
@@ -395,7 +406,7 @@ const Dashboard = (() => {
               </div>
 
               {/* Active agents table */}
-              <div style={{ marginBottom: 22 }}><ActiveAgents /></div>
+              <div style={{ marginBottom: 22 }}><ActiveAgents agents={liveAgents} /></div>
 
               {/* Quick actions */}
               <div style={{ marginBottom: 22 }}><QuickActions /></div>

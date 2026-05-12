@@ -1,35 +1,23 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 // =====================================================================
 // CATALOG / ROSTER PAGE
 // Full marketplace — search, filters, sort, rich agent cards, sidebar
+// Live data: reads `agents` + `categories` from Inertia props
+// (see AgentController@index).
 // =====================================================================
 
 const Catalog = (() => {
   const { palette, Glass, Pill, Mesh, Nav, SectionLabel, Reveal, Footer } = DirA;
 
-  // ---- Extended roster (more agents than landing) ----
-  const ROSTER_EXT = [
-    ...AGENTS,
-    { id: 'pm-pilot',    name: 'AI Product Manager', role: 'Product Ops',    rank: 'O-3', vendor: 'Roadmap.ai',    power: 32, perUnit: 'spec',        rating: 4.7,  deployed: 312,  langs: ['EN','DE'],         tone: 'eng',      int: ['linear','notion','figma'],     spec: 'spec → ticket in 2min' },
-    { id: 'mktg-copy',   name: 'AI Copywriter',      role: 'Marketing',      rank: 'E-6', vendor: 'Wordforge',     power: 8,  perUnit: '500 words',   rating: 4.6,  deployed: 1820, langs: ['EN','RU','ES','DE'],tone: 'sales',   int: ['notion','hubspot','wordpress'],spec: 'brand-tuned'           },
-    { id: 'qa-bot',      name: 'AI QA Engineer',     role: 'Engineering',    rank: 'E-7', vendor: 'TestForge',     power: 18, perUnit: 'test run',    rating: 4.85, deployed: 940,  langs: ['ANY'],              tone: 'eng',     int: ['github','playwright','linear'],spec: 'flaky-test detection'  },
-    { id: 'fin-fcst',    name: 'AI Forecaster',      role: 'Finance',        rank: 'O-4', vendor: 'Ledger.ai',     power: 44, perUnit: 'scenario',    rating: 4.8,  deployed: 187,  langs: ['EN'],               tone: 'finance', int: ['snowflake','xero','stripe'],   spec: 'monte-carlo, 12mo'     },
-    { id: 'ops-ticket',  name: 'AI Triager',         role: 'Customer Care',  rank: 'E-5', vendor: 'Helpdesk AI',   power: 3,  perUnit: 'ticket',      rating: 4.65, deployed: 4221, langs: ['EN','RU','DE','FR'],tone: 'support', int: ['zendesk','intercom','slack'],  spec: 'routes in 200ms'       },
-    { id: 'comp-mon',    name: 'AI Competitor Watch',role: 'Research',       rank: 'O-2', vendor: 'Querium',       power: 16, perUnit: 'report',      rating: 4.5,  deployed: 410,  langs: ['EN','DE'],          tone: 'research',int: ['notion','slack','rss'],        spec: 'daily digest'          },
-    { id: 'design-bran', name: 'AI Brand Stylist',   role: 'Design',         rank: 'O-2', vendor: 'Mockstar',      power: 36, perUnit: 'asset pack',  rating: 4.55, deployed: 156,  langs: ['EN'],               tone: 'design',  int: ['figma','notion'],              spec: 'on-brand 99%'          },
-    { id: 'legal-priv',  name: 'AI Privacy Officer', role: 'Compliance',     rank: 'O-3', vendor: 'Quill Legal',   power: 52, perUnit: 'audit',       rating: 4.7,  deployed: 88,   langs: ['EN','DE','FR'],     tone: 'legal',   int: ['notion','docusign'],           spec: 'GDPR + DSA + AI Act'   },
-    { id: 'hr-onboard',  name: 'AI Onboarder',       role: 'HR',             rank: 'E-6', vendor: 'Cohort Labs',   power: 14, perUnit: 'new hire',    rating: 4.8,  deployed: 521,  langs: ['EN','DE'],          tone: 'hr',      int: ['greenhouse','slack','notion'], spec: '14-day program'        },
-    { id: 'sec-watch',   name: 'AI SecOps',          role: 'Security',       rank: 'O-5', vendor: 'PullRequest',   power: 26, perUnit: 'alert',       rating: 4.9,  deployed: 712,  langs: ['ANY'],              tone: 'eng',     int: ['github','datadog','slack'],    spec: 'CVE + SAST'            },
-  ];
-
   // ---- Filter state ----
-  const useCatalogState = () => {
+  const useCatalogState = (roster) => {
     const [query, setQuery]     = useState('');
     const [cat, setCat]         = useState('all');     // category key
     const [maxPower, setMax]    = useState(80);        // filter cap
@@ -37,12 +25,12 @@ const Catalog = (() => {
     const [view, setView]       = useState('grid');    // grid|table
 
     const filtered = useMemo(() => {
-      let r = ROSTER_EXT.filter(a => {
+      let r = (roster || []).filter(a => {
         if (cat !== 'all' && a.tone !== cat) return false;
         if (a.power > maxPower) return false;
         if (query.trim()) {
           const q = query.toLowerCase();
-          if (!(a.name.toLowerCase().includes(q) || a.role.toLowerCase().includes(q) || a.vendor.toLowerCase().includes(q) || a.spec.toLowerCase().includes(q))) return false;
+          if (!(a.name.toLowerCase().includes(q) || a.role.toLowerCase().includes(q) || a.vendor.toLowerCase().includes(q) || (a.spec || '').toLowerCase().includes(q))) return false;
         }
         return true;
       });
@@ -54,7 +42,7 @@ const Catalog = (() => {
         'deployed':   (a,b) => b.deployed - a.deployed,
       };
       return r.sort(sorters[sort] || sorters.popular);
-    }, [query, cat, maxPower, sort]);
+    }, [query, cat, maxPower, sort, roster]);
 
     return { query, setQuery, cat, setCat, maxPower, setMax, sort, setSort, view, setView, filtered };
   };
@@ -110,18 +98,18 @@ const Catalog = (() => {
   );
 
   // ---- Sidebar filters ----
-  const Sidebar = ({ cat, setCat, maxPower, setMax }) => {
+  const Sidebar = ({ cat, setCat, maxPower, setMax, roster, categories }) => {
     const counts = useMemo(() => {
-      const m = { all: ROSTER_EXT.length };
-      CATEGORIES.forEach(c => { m[c.key] = ROSTER_EXT.filter(a => a.tone === c.key).length; });
+      const m = { all: (roster || []).length };
+      (categories || []).forEach(c => { m[c.key] = (roster || []).filter(a => a.tone === c.key).length; });
       return m;
-    }, []);
+    }, [roster, categories]);
 
     return (
       <Glass style={{ padding: 20, position: 'sticky', top: 100 }}>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Category</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 24 }}>
-          {[{ key: 'all', label: 'All agents', icon: '◆' }, ...CATEGORIES].map(c => {
+          {[{ key: 'all', label: 'All agents', icon: '◆' }, ...(categories || [])].map(c => {
             const sel = cat === c.key;
             return (
               <button key={c.key} onClick={() => setCat(c.key)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 8, background: sel ? palette.accentDim : 'transparent', border: 0, color: sel ? palette.accent : palette.textDim, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', fontWeight: sel ? 600 : 400 }}>
@@ -240,9 +228,9 @@ const Catalog = (() => {
   );
 
   // ---- Hero strip ----
-  const CatalogHero = () => (
+  const CatalogHero = ({ rosterCount = 0 }) => (
     <div style={{ padding: '50px 40px 30px' }}>
-      <Pill dot color={palette.amber} style={{ marginBottom: 14 }}>The roster · {ROSTER_EXT.length} agents on duty</Pill>
+      <Pill dot color={palette.amber} style={{ marginBottom: 14 }}>The roster · {rosterCount} agents on duty</Pill>
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 40, alignItems: 'end' }}>
         <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 76, lineHeight: 0.95, fontWeight: 600, letterSpacing: -2.5, margin: 0, color: palette.text }}>
           Browse the roster.<br/>
@@ -267,17 +255,19 @@ const Catalog = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const s = useCatalogState();
+    const { agents = [], categories = [] } = usePage().props;
+    const effectiveCategories = categories.length ? categories : CATEGORIES;
+    const s = useCatalogState(agents);
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 1440, margin: '0 auto' }}>
           <Nav />
-          <CatalogHero />
+          <CatalogHero rosterCount={agents.length} />
           <CatalogHeader filteredCount={s.filtered.length} query={s.query} setQuery={s.setQuery} sort={s.sort} setSort={s.setSort} view={s.view} setView={s.setView} />
 
           <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 20, padding: '24px 40px 60px', alignItems: 'start' }}>
-            <Sidebar cat={s.cat} setCat={s.setCat} maxPower={s.maxPower} setMax={s.setMax} />
+            <Sidebar cat={s.cat} setCat={s.setCat} maxPower={s.maxPower} setMax={s.setMax} roster={agents} categories={effectiveCategories} />
 
             <div>
               {s.filtered.length === 0 ? <EmptyState /> :
@@ -305,7 +295,7 @@ const Catalog = (() => {
     );
   };
 
-  return { Page, ROSTER_EXT };
+  return { Page };
 })();
 
 export default Catalog.Page;

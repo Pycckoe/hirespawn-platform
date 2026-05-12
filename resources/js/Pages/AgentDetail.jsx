@@ -1,7 +1,8 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
@@ -68,9 +69,6 @@ const AgentDetail = (() => {
     research: ['SQL → chart + narrative', 'Multi-source synthesis', 'Daily monitoring digests', 'Cohort + funnel analysis', 'Citation-grade outputs'],
     design:   ['Brand-tuned variants', 'Locale adaptation', 'Layout exploration', 'Asset packs (Figma)', 'Email + ad creatives'],
   };
-
-  // Use ROSTER_EXT from Catalog (full 18 agents) so detail pages exist for every catalog entry
-  const ALL = (window.Catalog && window.Catalog.ROSTER_EXT) ? window.Catalog.ROSTER_EXT : AGENTS;
 
   const NotFound = () => (
     <div style={{ padding: '120px 40px', textAlign: 'center' }}>
@@ -344,8 +342,8 @@ const AgentDetail = (() => {
   );
 
   // Related agents from same vendor / category
-  const RelatedAgents = ({ agent }) => {
-    const same = ALL.filter(a => a.id !== agent.id && (a.vendor === agent.vendor || a.tone === agent.tone)).slice(0, 4);
+  const RelatedAgents = ({ related = [] }) => {
+    const same = related.slice(0, 4);
     if (same.length === 0) return null;
     return (
       <div style={{ padding: '0 40px 80px' }}>
@@ -374,8 +372,8 @@ const AgentDetail = (() => {
   };
 
   // Page
-  const Page = ({ agentId }) => {
-    const agent = ALL.find(a => a.id === agentId);
+  const Page = () => {
+    const { agent = null, relatedAgents = [] } = usePage().props;
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
@@ -390,7 +388,7 @@ const AgentDetail = (() => {
               <Reveal><Integrations agent={agent} /></Reveal>
               <Reveal><SlaPanel agent={agent} /></Reveal>
               <Reveal><DeployFlow agent={agent} /></Reveal>
-              <Reveal><RelatedAgents agent={agent} /></Reveal>
+              <Reveal><RelatedAgents related={relatedAgents} /></Reveal>
             </>
           )}
           <Footer />

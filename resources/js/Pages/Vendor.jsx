@@ -1,4 +1,5 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -40,7 +41,8 @@ const SellerDash = (() => {
   const REV_24H = Array.from({length: 24}).map((_, i) => 200 + Math.round(Math.sin(i / 3) * 120 + Math.random() * 80) * (i > 8 && i < 22 ? 2 : 1));
 
   // ---- The seller's agent listings ----
-  const LISTINGS = [
+  // Fallback demo data used when the signed-in seller has no agents yet.
+  const DEMO_LISTINGS = [
     { id: 'sdr-pro',     name: 'AI SDR',           cat: 'Sales',       icon: '◇', power: 12, perUnit: 'lead',        status: 'live',    subs: 42, runs30d: 14200, rev30d: 170400, rating: 4.91, rev_share: 70 },
     { id: 'enricher',    name: 'AI Lead Enricher', cat: 'Sales',       icon: '◇', power: 3,  perUnit: 'record',      status: 'live',    subs: 28, runs30d: 89400, rev30d: 268200, rating: 4.85, rev_share: 70 },
     { id: 'dialer',      name: 'AI Dialer',        cat: 'Sales',       icon: '◇', power: 24, perUnit: 'call',        status: 'review',  subs: 0,  runs30d: 0,     rev30d: 0,      rating: null, rev_share: 70 },
@@ -58,7 +60,8 @@ const SellerDash = (() => {
   ];
 
   // ---- Payout history ----
-  const PAYOUTS = [
+  // Fallback demo data used when the seller has no real payouts yet.
+  const DEMO_PAYOUTS = [
     { date: 'Feb 05, 2026', period: 'Jan 2026',  power: 384200, eur: 3457, fee: 0,    status: 'paid',     ref: 'PO-26-02-A41' },
     { date: 'Jan 05, 2026', period: 'Dec 2025',  power: 412800, eur: 3715, fee: 0,    status: 'paid',     ref: 'PO-26-01-A41' },
     { date: 'Dec 05, 2025', period: 'Nov 2025',  power: 348100, eur: 3133, fee: 0,    status: 'paid',     ref: 'PO-25-12-A41' },
@@ -80,10 +83,10 @@ const SellerDash = (() => {
     { listing: 'AI Closer',        runs: 184,   success: 96.20, avgLatency: '2.1s',  rating: 4.62 },
   ];
 
-  // ---- Sidebar items ----
-  const SIDE = [
+  // ---- Sidebar items (built per-render to reflect runtime listing count) ----
+  const buildSideItems = (listings) => [
     { id: 'overview',  label: 'Overview',      icon: '◆' },
-    { id: 'listings',  label: 'Listings',      icon: '◇', count: LISTINGS.length },
+    { id: 'listings',  label: 'Listings',      icon: '◇', count: listings.length },
     { id: 'subs',      label: 'Subscriptions', icon: '◈', count: SUBS.length },
     { id: 'perf',      label: 'Performance',   icon: '▲' },
     { id: 'payouts',   label: 'Payouts',       icon: '⚡' },
@@ -131,9 +134,9 @@ const SellerDash = (() => {
   };
 
   // ---- Sidebar ----
-  const Sidebar = ({ tab, setTab }) => (
+  const Sidebar = ({ tab, setTab, items = [] }) => (
     <div style={{ width: 220, borderRight: `1px solid ${palette.border}`, padding: '28px 14px', display: 'flex', flexDirection: 'column', gap: 4, position: 'sticky', top: 65, alignSelf: 'flex-start', height: 'calc(100vh - 65px)' }}>
-      {SIDE.map(s => {
+      {items.map(s => {
         const sel = tab === s.id;
         return (
           <button key={s.id} onClick={() => setTab(s.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: sel ? palette.accentDim : 'transparent', border: 0, color: sel ? palette.accent : palette.textDim, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', fontWeight: sel ? 600 : 400 }}>
@@ -218,23 +221,23 @@ const SellerDash = (() => {
   };
 
   // ---- Listings manager ----
-  const Listings = () => (
+  const Listings = ({ items = [] }) => (
     <Glass style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Manage listings</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{LISTINGS.length} agents · {LISTINGS.filter(l => l.status === 'live').length} live</div>
+          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{items.length} agents · {items.filter(l => l.status === 'live').length} live</div>
         </div>
         <button style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>+ Publish new</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.8fr 0.9fr 1fr 1fr 0.8fr 100px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
         <span>Listing</span><span>Price</span><span>Subs</span><span>Runs (30d)</span><span>Revenue</span><span>Rating</span><span>Status</span>
       </div>
-      {LISTINGS.map((l, i) => {
+      {items.map((l, i) => {
         const stColor = l.status === 'live' ? palette.accent : l.status === 'review' ? palette.cyan : palette.amber;
         const stBg = l.status === 'live' ? palette.accentDim : l.status === 'review' ? 'rgba(125,211,255,0.12)' : 'rgba(255,184,77,0.12)';
         return (
-          <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.8fr 0.9fr 1fr 1fr 0.8fr 100px', gap: 14, padding: '16px 20px', borderBottom: i < LISTINGS.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center', opacity: l.status === 'paused' ? 0.6 : 1 }}>
+          <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.8fr 0.9fr 1fr 1fr 0.8fr 100px', gap: 14, padding: '16px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center', opacity: l.status === 'paused' ? 0.6 : 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{l.icon}</div>
               <div>
@@ -294,7 +297,7 @@ const SellerDash = (() => {
   );
 
   // ---- Payouts ----
-  const Payouts = () => (
+  const Payouts = ({ items = [] }) => (
     <Glass style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
         <div>
@@ -309,15 +312,15 @@ const SellerDash = (() => {
         </div>
         <div style={{ borderLeft: `1px solid ${palette.border}`, paddingLeft: 20 }}>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Lifetime earned</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 28, fontWeight: 500, color: palette.text, marginTop: 4 }}>€{(PAYOUTS.reduce((s,p) => s + p.eur, 0) + SELLER.eurEarned30d).toLocaleString()}</div>
-          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, marginTop: 4 }}>across {PAYOUTS.length + 1} payout cycles</div>
+          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 28, fontWeight: 500, color: palette.text, marginTop: 4 }}>€{(items.reduce((s,p) => s + p.eur, 0) + SELLER.eurEarned30d).toLocaleString()}</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, marginTop: 4 }}>across {items.length + 1} payout cycles</div>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 1fr 0.8fr 0.8fr 0.6fr', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
         <span>Date</span><span>Period</span><span>Reference</span><span>Power</span><span>Fee</span><span>Net €</span><span>Status</span>
       </div>
-      {PAYOUTS.map((p, i) => (
-        <div key={p.ref} style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 1fr 0.8fr 0.8fr 0.6fr', gap: 14, padding: '14px 20px', borderBottom: i < PAYOUTS.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
+      {items.map((p, i) => (
+        <div key={p.ref} style={{ display: 'grid', gridTemplateColumns: '120px 100px 1fr 1fr 0.8fr 0.8fr 0.6fr', gap: 14, padding: '14px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{p.date}</span>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.text }}>{p.period}</span>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textMute }}>{p.ref}</span>
@@ -388,6 +391,10 @@ const SellerDash = (() => {
 
   // ---- Page ----
   const Page = () => {
+    const { listings = [], payouts = [] } = usePage().props;
+    const liveListings = listings.length ? listings : DEMO_LISTINGS;
+    const livePayouts = payouts.length ? payouts : DEMO_PAYOUTS;
+    const sideItems = buildSideItems(liveListings);
     const [tab, setTab] = useState('overview');
 
     return (
@@ -396,7 +403,7 @@ const SellerDash = (() => {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <TopBar />
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', maxWidth: 1600, margin: '0 auto' }}>
-            <Sidebar tab={tab} setTab={setTab} />
+            <Sidebar tab={tab} setTab={setTab} items={sideItems} />
 
             <div style={{ padding: '32px 40px 60px', minWidth: 0 }}>
               {/* Greeting */}
@@ -425,7 +432,7 @@ const SellerDash = (() => {
               </div>
 
               {/* Listings manager */}
-              <div style={{ marginBottom: 22 }}><Listings /></div>
+              <div style={{ marginBottom: 22 }}><Listings items={liveListings} /></div>
 
               {/* Subscriptions */}
               <div style={{ marginBottom: 22 }}><Subs /></div>
@@ -434,7 +441,7 @@ const SellerDash = (() => {
               <div style={{ marginBottom: 22 }}><Performance /></div>
 
               {/* Payouts */}
-              <Payouts />
+              <Payouts items={livePayouts} />
             </div>
           </div>
         </div>

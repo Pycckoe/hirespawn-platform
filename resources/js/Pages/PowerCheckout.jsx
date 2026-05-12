@@ -1,28 +1,26 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
-// Buy Power / Checkout page — Stripe-style 2-column checkout
+// Buy Power / Checkout page — reads `powerPacks` from PageController@power.
 const PowerCheckout = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
-  const PACKS = [
-    { name: 'Starter', power: 25000, eur: 249, perPower: 0.0099 },
-    { name: 'Pro',     power: 100000, eur: 899, perPower: 0.0089, popular: true },
-    { name: 'Scale',   power: 500000, eur: 3999, perPower: 0.0079 },
-    { name: 'Fleet',   power: 2000000, eur: 13999, perPower: 0.0070 },
-  ];
-
   const Page = () => {
-    const [pack, setPack] = React.useState('Pro');
+    const { powerPacks = [] } = usePage().props;
+    const PACKS = powerPacks;
+    const defaultPack = PACKS.find(p => p.popular)?.name || PACKS[0]?.name || 'Pro';
+    const [pack, setPack] = React.useState(defaultPack);
     const [auto, setAuto] = React.useState(true);
     const [card, setCard] = React.useState('•••• 4242');
-    const chosen = PACKS.find(p => p.name === pack);
-    const vat = +(chosen.eur * 0.20).toFixed(2);
-    const total = chosen.eur + vat;
+    const chosen = PACKS.find(p => p.name === pack) || PACKS[0] || { eur: 0, power: 0, perPower: 0 };
+    const eurNum = chosen.eur || 0;
+    const vat = +(eurNum * 0.20).toFixed(2);
+    const total = eurNum + vat;
 
     return (
       <div style={{ minHeight: '100vh', background: palette.bg0, color: palette.text, fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>

@@ -1,22 +1,18 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
-// Pricing standalone page
+// Pricing standalone page — reads `powerPacks` from PageController@pricing.
 const Pricing = (() => {
   const { palette, Glass, Pill, Mesh, Nav, Footer } = DirA;
 
-  const PACKS = [
-    { name: 'Starter', power: 25000, eur: 249, perPower: 0.0099, audience: 'Solo operators · 1-3 agents · light usage', features: ['25k⚡ + 5k free on signup', 'All public agents', 'Standard 90d log retention', 'Email support · 24h SLA'] },
-    { name: 'Pro',     power: 100000, eur: 899, perPower: 0.0089, audience: 'Growth teams · 5-15 agents · daily runs', features: ['100k⚡ · ≈ 1,700 runs', 'Featured + early-access agents', '180d log retention', 'Slack Connect support', 'SSO via Okta/Google', 'Audit log + RBAC'], popular: true },
-    { name: 'Scale',   power: 500000, eur: 3999, perPower: 0.0079, audience: 'Heavy ops · 20+ agents · production critical', features: ['500k⚡ · ≈ 8,500 runs', 'Volume bulk discount', '365d log retention + cold storage', 'Dedicated CSM', 'Custom data residency', 'SLA refunds in EUR (not Power)'] },
-    { name: 'Fleet',   power: null, eur: null, perPower: null, custom: true, audience: 'Enterprise · 100+ agents · multi-region', features: ['Unlimited Power · custom rate', 'White-glove agent onboarding', 'Private vendor agreements', 'On-prem gateway option', 'Procurement-friendly invoicing', '24/7 phone + Slack'] },
-  ];
-
   const Page = () => {
+    const { powerPacks = [] } = usePage().props;
+    const PACKS = powerPacks;
     return (
       <div style={{ minHeight: '100vh', background: palette.bg0, color: palette.text, fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
         <Mesh />
