@@ -366,16 +366,27 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0 } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {} } = usePage().props;
     const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
     const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
     const sideItems = buildSideItems(liveAgents);
     const [tab, setTab] = useState('overview');
+    const [flashMsg, setFlashMsg] = useState(flash?.status || null);
+    useEffect(() => {
+      if (!flashMsg) return;
+      const t = setTimeout(() => setFlashMsg(null), 4000);
+      return () => clearTimeout(t);
+    }, [flashMsg]);
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <TopBar />
+          {flashMsg && (
+            <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 50, padding: '12px 18px', background: palette.accentDim, border: `1px solid ${palette.accent}`, color: palette.accent, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.32)' }}>
+              {flashMsg}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', maxWidth: 1600, margin: '0 auto' }}>
             <Sidebar tab={tab} setTab={setTab} items={sideItems} powerBalance={effectiveBalance} />
 
