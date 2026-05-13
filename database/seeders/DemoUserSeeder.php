@@ -28,6 +28,7 @@ class DemoUserSeeder extends Seeder
                 'name' => 'Hirespawn Admin',
                 'password' => Hash::make($password),
                 'email_verified_at' => now(),
+                'is_admin' => true,
             ],
         );
 
