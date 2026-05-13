@@ -241,7 +241,7 @@ const SellerDash = (() => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{l.icon}</div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{l.name}</div>
+                <Link href={route('vendor.publish.edit', l.id)} style={{ fontSize: 14, fontWeight: 600, color: palette.text, textDecoration: 'none' }}>{l.name}</Link>
                 <div style={{ fontSize: 11, color: palette.textMute }}>{l.cat} · rev share {l.rev_share}%</div>
               </div>
             </div>
@@ -252,7 +252,7 @@ const SellerDash = (() => {
             <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{l.rating ? `★ ${l.rating}` : '—'}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ padding: '3px 8px', background: stBg, color: stColor, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>● {l.status}</span>
-              <button style={{ background: 'none', border: 0, color: palette.textMute, fontSize: 14, cursor: 'pointer' }}>⋯</button>
+              <Link href={route('vendor.publish.edit', l.id)} title="Edit listing" style={{ background: 'none', border: 0, color: palette.textMute, fontSize: 14, cursor: 'pointer', textDecoration: 'none' }}>✎</Link>
             </span>
           </div>
         );
