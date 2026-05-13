@@ -11,6 +11,7 @@ use App\Http\Controllers\RunController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\VendorPayoutController;
 use App\Http\Controllers\VendorPublishController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/vendor/agents', [VendorPublishController::class, 'store'])->name('vendor.publish.store');
     Route::get('/vendor/agents/{agent:slug}/edit', [VendorPublishController::class, 'edit'])->name('vendor.publish.edit');
     Route::patch('/vendor/agents/{agent:slug}', [VendorPublishController::class, 'update'])->name('vendor.publish.update');
+    Route::post('/vendor/payout-methods', [VendorPayoutController::class, 'storeMethod'])->name('vendor.payout.methods.store');
+    Route::post('/vendor/payout-methods/{method}/default', [VendorPayoutController::class, 'defaultMethod'])->name('vendor.payout.methods.default');
+    Route::delete('/vendor/payout-methods/{method}', [VendorPayoutController::class, 'destroyMethod'])->name('vendor.payout.methods.destroy');
+    Route::post('/vendor/payouts', [VendorPayoutController::class, 'requestPayout'])->name('vendor.payout.request');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');

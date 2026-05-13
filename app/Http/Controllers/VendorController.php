@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\Payout;
+use App\Models\PayoutMethod;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
 use Illuminate\Http\Request;
@@ -59,7 +60,7 @@ class VendorController extends Controller
 
         $payouts = $user
             ? $user->payouts()
-                ->latest('paid_at')
+                ->latest('id')
                 ->limit(12)
                 ->get()
                 ->map(fn (Payout $payout) => $this->transformPayout($payout))
@@ -70,9 +71,23 @@ class VendorController extends Controller
         $totalPower30d = (int) $events30d->sum('power_consumed');
         $sellerEur30d = (int) round($totalPower30d * self::EUR_CENTS_PER_POWER / 100 * self::SELLER_SHARE);
 
+        $payoutMethods = $user
+            ? $user->payoutMethods()
+                ->orderByDesc('is_default')
+                ->latest('id')
+                ->get()
+                ->map(fn (PayoutMethod $m) => $this->transformMethod($m))
+                ->values()
+                ->all()
+            : [];
+
+        $cashOut = $this->cashOutSummary($user, $agentIds);
+
         return Inertia::render('Vendor', [
             'listings' => $listings,
             'payouts' => $payouts,
+            'payoutMethods' => $payoutMethods,
+            'cashOut' => $cashOut,
             'metrics' => [
                 'powerEarned30d' => $totalPower30d,
                 'eurEarned30d' => $sellerEur30d,
@@ -81,6 +96,64 @@ class VendorController extends Controller
                 'avgRating' => $this->avgRating($ownedAgents),
             ],
         ]);
+    }
+
+    private function transformMethod(PayoutMethod $m): array
+    {
+        return [
+            'id' => $m->id,
+            'type' => $m->type,
+            'label' => $m->label,
+            'display' => $m->display(),
+            'holderName' => $m->holder_name,
+            'country' => $m->country,
+            'currency' => $m->currency,
+            'isDefault' => $m->is_default,
+            'verifiedAt' => $m->verified_at?->format('M d, Y'),
+            'createdAt' => $m->created_at?->format('M d, Y'),
+        ];
+    }
+
+    /**
+     * Available cents = lifetime earned − already-pending − already-paid.
+     */
+    private function cashOutSummary($user, array $agentIds): array
+    {
+        if (! $user || empty($agentIds)) {
+            return [
+                'availableCents' => 0,
+                'lifetimeEarnedCents' => 0,
+                'pendingCents' => 0,
+                'paidCents' => 0,
+                'minCashoutCents' => 1000,
+                'feePercent' => 1,
+            ];
+        }
+
+        $totalPower = (int) UsageEvent::query()
+            ->whereHas('subscription', fn ($q) => $q->whereIn('agent_id', $agentIds))
+            ->sum('power_consumed');
+
+        $lifetimeCents = (int) round($totalPower * self::EUR_CENTS_PER_POWER * self::SELLER_SHARE);
+
+        $pendingCents = (int) Payout::query()
+            ->where('seller_id', $user->id)
+            ->whereIn('status', ['pending', 'processing'])
+            ->sum('gross_cents');
+
+        $paidCents = (int) Payout::query()
+            ->where('seller_id', $user->id)
+            ->where('status', 'paid')
+            ->sum('gross_cents');
+
+        return [
+            'availableCents' => max(0, $lifetimeCents - $pendingCents - $paidCents),
+            'lifetimeEarnedCents' => $lifetimeCents,
+            'pendingCents' => $pendingCents,
+            'paidCents' => $paidCents,
+            'minCashoutCents' => 1000,
+            'feePercent' => 1,
+        ];
     }
 
     private function transformListing(Agent $agent, $events30d, int $activeSubs): array
@@ -114,12 +187,15 @@ class VendorController extends Controller
     private function transformPayout(Payout $payout): array
     {
         return [
-            'date' => $payout->paid_at?->format('M d, Y') ?? '—',
+            'date' => $payout->paid_at?->format('M d, Y')
+                ?? $payout->created_at?->format('M d, Y')
+                ?? '—',
             'period' => $payout->period_start?->format('M Y') ?? '—',
             'power' => 0,
             'eur' => intdiv((int) $payout->net_cents, 100),
             'fee' => intdiv((int) $payout->platform_fee_cents, 100),
             'status' => $payout->status,
+            'method' => $payout->payment_method,
             'ref' => $payout->reference ?? "PO-{$payout->id}",
         ];
     }

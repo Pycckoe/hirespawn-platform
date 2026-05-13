@@ -66,4 +66,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(WorkspaceMember::class, 'owner_id');
     }
+
+    public function payoutMethods(): HasMany
+    {
+        return $this->hasMany(PayoutMethod::class);
+    }
 }
