@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payout;
-use App\Models\PaymentMethodType;
 use App\Models\PayoutMethod;
+use App\Models\PayoutMethodType;
 use App\Models\UsageEvent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -117,7 +117,7 @@ class VendorPayoutController extends Controller
 
         // Look up the catalog row for this method's type to read live
         // fee_percent / fee_flat_cents / min_amount_cents from admin.
-        $type = PaymentMethodType::where('key', $method->type)
+        $type = PayoutMethodType::where('key', $method->type)
             ->where('is_active', true)
             ->first();
 
