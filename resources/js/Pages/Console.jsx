@@ -11,9 +11,9 @@ import {
 // CLIENT DASHBOARD (Console) — post-login workspace
 // Power balance, burn-rate chart, active agents, live ops, billing
 //
-// Live data: reads `subscriptions` and `powerBalance` from
-// ConsoleController. Other sections (live ops, billing, team, API keys)
-// still render the design's demo data until their own features land.
+// Live data: reads `subscriptions`, `powerBalance`, `metrics` from
+// ConsoleController. When the buyer has no UsageEvents yet the page
+// falls back to the design's demo series so it never reads as empty.
 // =====================================================================
 
 const Dashboard = (() => {
@@ -45,15 +45,15 @@ const Dashboard = (() => {
     { id: 'analyst',  name: 'AI Data Analyst',  role: 'Research',      tone: 'research',power: 22, perUnit: 'query',       runs24h: 28,  runs7d: 184,   failRate: 0.011, latency: '15s',  spend24h: 616,  status: 'paused' },
   ];
 
-  // Burn-rate sparkline data (24 points = last 24h)
+  // Burn-rate sparkline data (24 points = last 24h) — demo fallback
   const BURN_SERIES = [320, 410, 380, 290, 250, 220, 180, 240, 310, 480, 620, 740, 820, 880, 920, 1040, 1180, 1220, 1140, 1020, 980, 860, 720, 610];
-  // Per-day burn for last 30 days
+  // Per-day burn for last 30 days — demo fallback
   const BURN_30D = [
     9200, 11400, 12100, 14200, 13800, 12400, 11900, 13200, 15400, 16800, 17200, 18900, 19400, 18700, 17400,
     16100, 14800, 16400, 18200, 19800, 21200, 22400, 21800, 20100, 18700, 19400, 20800, 22100, 21400, 18472,
   ];
 
-  // Recent ops events
+  // Recent ops events — demo fallback when no real UsageEvents exist yet
   const OPS = [
     { agent: 'AI SDR',        verb: 'sent personalized email to', obj: 'lead@northwind.io',    cost: 12, t: '2s ago',  status: 'ok' },
     { agent: 'AI Support',    verb: 'resolved ticket',             obj: '#88472 (refund)',      cost: 6,  t: '4s ago',  status: 'ok' },
@@ -65,7 +65,7 @@ const Dashboard = (() => {
     { agent: 'AI Data Analyst',verb: 'answered',                   obj: '"MRR by region Q1"',   cost: 22, t: '1m ago',  status: 'ok' },
   ];
 
-  // Billing events
+  // Billing events — still demo, real invoices arrive with Stripe later
   const BILLING = [
     { date: 'Feb 14, 2026', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
     { date: 'Feb 03, 2026', desc: 'Top-up (overflow)',     power: 10000,  eur: 90,    kind: 'topup' },
@@ -234,10 +234,10 @@ const Dashboard = (() => {
     </Glass>
   );
 
-  // ---- Burn-rate chart ----
-  const BurnChart = () => {
+  // ---- Burn-rate chart — fed by series24h/series30d props ----
+  const BurnChart = ({ series24h, series30d }) => {
     const [range, setRange] = useState('30d');
-    const data = range === '24h' ? BURN_SERIES : BURN_30D;
+    const data = range === '24h' ? series24h : series30d;
     const labels = range === '24h'
       ? Array.from({ length: 24 }).map((_, i) => `${String((i + 0) % 24).padStart(2, '0')}:00`)
       : Array.from({ length: 30 }).map((_, i) => `${30 - i}d`);
@@ -266,14 +266,14 @@ const Dashboard = (() => {
         {/* Bar chart */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160, padding: '10px 0', borderBottom: `1px solid ${palette.border}` }}>
           {data.map((v, i) => {
-            const h = (v / max) * 140;
-            const isPeak = v === max;
+            const h = max > 0 ? (v / max) * 140 : 0;
+            const isPeak = v === max && v > 0;
             return (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }} title={`${labels[i]}: ${v.toLocaleString()}⚡`}>
                 <div style={{
                   width: '100%', height: `${h}px`,
                   background: isPeak ? palette.accent : `linear-gradient(180deg, ${palette.accent}, ${palette.accent}80)`,
-                  opacity: isPeak ? 1 : 0.5 + (v / max) * 0.5,
+                  opacity: isPeak ? 1 : 0.5 + (v / (max || 1)) * 0.5,
                   borderRadius: '3px 3px 0 0',
                   transition: 'all 0.5s cubic-bezier(.2,.7,.2,1)',
                 }} />
@@ -312,7 +312,7 @@ const Dashboard = (() => {
             <span style={{ width: 6, height: 6, borderRadius: 99, background: a.status === 'on' ? palette.accent : palette.textMute, boxShadow: a.status === 'on' ? `0 0 6px ${palette.accent}` : 'none' }} />
             {a.status}
           </span>
-          <a href={`#/agent/${a.id}`} style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>›</a>
+          <a href={`/agent/${a.id}`} style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>›</a>
         </div>
       </div>
     );
@@ -325,7 +325,7 @@ const Dashboard = (() => {
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Deployed agents</div>
           <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{agents.length} on roster · {agents.filter(a => a.status === 'on').length} active</div>
         </div>
-        <a href="#/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>+ Hire another</a>
+        <a href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>+ Hire another</a>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.9fr 0.7fr 1fr 80px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
         <span>Agent</span><span>Volume</span><span>Power 24h</span><span>Latency</span><span>Fail rate</span><span>Trend</span><span>Status</span>
@@ -334,11 +334,17 @@ const Dashboard = (() => {
     </Glass>
   );
 
-  // ---- Live ops feed (auto-rotating) ----
-  const LiveOps = () => {
-    const [items, setItems] = useState(OPS.slice(0, 6));
+  // ---- Live ops feed — real UsageEvents from props, falls back to demo
+  // OPS rotation when the user has no events yet.
+  const LiveOps = ({ events = [] }) => {
+    const hasReal = events.length > 0;
+    const [items, setItems] = useState(hasReal ? events.slice(0, 6) : OPS.slice(0, 6));
     const idx = useRef(6);
     useEffect(() => {
+      if (hasReal) {
+        setItems(events.slice(0, 6));
+        return;
+      }
       const t = setInterval(() => {
         setItems(prev => {
           const next = OPS[idx.current % OPS.length];
@@ -347,7 +353,7 @@ const Dashboard = (() => {
         });
       }, 2200);
       return () => clearInterval(t);
-    }, []);
+    }, [hasReal, events]);
 
     return (
       <Glass style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
@@ -415,10 +421,10 @@ const Dashboard = (() => {
   const QuickActions = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       {[
-        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',         href: '#/' },
-        { icon: '◇', t: 'Hire agent',    d: '18 in roster',           href: '#/roster' },
-        { icon: '⌘', t: 'Create API key', d: '3 keys active',         href: '#/' },
-        { icon: '◈', t: 'Invite team',    d: '5 of 5 seats used',     href: '#/' },
+        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',         href: '/power' },
+        { icon: '◇', t: 'Hire agent',    d: '18 in roster',           href: '/roster' },
+        { icon: '⌘', t: 'Create API key', d: 'coming soon',          href: '/settings' },
+        { icon: '◈', t: 'Invite team',    d: 'coming soon',          href: '/settings' },
       ].map(a => (
         <a key={a.t} href={a.href} style={{ textDecoration: 'none' }}>
           <Glass style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color 0.2s' }}>
@@ -436,13 +442,23 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace' } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null } = usePage().props;
     const user = auth?.user || null;
     const isAdmin = !!user?.is_admin;
     const firstName = (user?.name || '').split(/\s+/)[0] || 'operator';
     const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
     const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
     const sideItems = buildSideItems(liveAgents);
+
+    // Real metrics if the controller shipped any (and at least one event exists),
+    // otherwise fall back to the design's demo series so the page is never empty.
+    const hasRealEvents = (metrics?.opsFeed?.length || 0) > 0;
+    const burn24h = hasRealEvents ? metrics.burn24h : ACCOUNT.burn24h;
+    const burn30d = hasRealEvents ? metrics.burn30d : ACCOUNT.burn30d;
+    const series24h = hasRealEvents ? metrics.burnSeries24h : BURN_SERIES;
+    const series30d = hasRealEvents ? metrics.burnSeries30d : BURN_30D;
+    const opsEvents = hasRealEvents ? metrics.opsFeed : [];
+
     const [tab, setTab] = useState('overview');
     const [flashMsg, setFlashMsg] = useState(flash?.status || null);
     useEffect(() => {
@@ -467,7 +483,7 @@ const Dashboard = (() => {
               {/* Greeting */}
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, gap: 24, flexWrap: 'wrap' }}>
                 <div>
-                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {liveAgents.filter(a => a.status === 'on').length} agents on duty · burning {Math.round(ACCOUNT.burn24h / 24)}⚡/hr</Pill>
+                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {liveAgents.filter(a => a.status === 'on').length} agents on duty · burning {Math.round(burn24h / 24)}⚡/hr</Pill>
                   <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, lineHeight: 1.1, fontWeight: 600, letterSpacing: -1.4, margin: 0, color: palette.text }}>
                     Good evening, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52, letterSpacing: -1 }}>{firstName}</span>.
                   </h1>
@@ -477,16 +493,16 @@ const Dashboard = (() => {
 
               {/* KPI strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                <Kpi label="Power balance" value={`${(effectiveBalance/1000).toFixed(1)}k`} sub={`of ${(ACCOUNT.powerPack).toLocaleString()}⚡ pack · refresh ${ACCOUNT.nextRefresh}`} />
-                <Kpi label="Burned (24h)" value={ACCOUNT.burn24h.toLocaleString()} sub={`≈ €${Math.round(ACCOUNT.burn24h * 0.009)} at Pro rate`} sparkData={BURN_SERIES} />
-                <Kpi label="Burned (30d)" value={`${(ACCOUNT.burn30d/1000).toFixed(0)}k`} sub={`avg ${Math.round(ACCOUNT.burn30d/30).toLocaleString()}⚡/day`} sparkData={BURN_30D} />
+                <Kpi label="Power balance" value={`${(effectiveBalance/1000).toFixed(1)}k`} sub={powerBalance > 0 ? 'live balance' : `of ${(ACCOUNT.powerPack).toLocaleString()}⚡ pack · refresh ${ACCOUNT.nextRefresh}`} />
+                <Kpi label="Burned (24h)" value={burn24h.toLocaleString()} sub={`≈ €${Math.round(burn24h * 0.009)} at Pro rate`} sparkData={series24h} />
+                <Kpi label="Burned (30d)" value={`${(burn30d/1000).toFixed(burn30d < 10000 ? 1 : 0)}k`} sub={`avg ${Math.round(burn30d/30).toLocaleString()}⚡/day`} sparkData={series30d} />
                 <Kpi label="Active agents" value={`${liveAgents.filter(a => a.status === 'on').length} / ${liveAgents.length}`} sub={`${liveAgents.reduce((s,a) => s + (a.runs24h || 0), 0).toLocaleString()} tasks today`} color={palette.cyan} sparkColor={palette.cyan} sparkData={[8, 14, 21, 18, 26, 32, 28, 35, 42, 38, 45, 51, 48, 55, 62]} />
               </div>
 
               {/* Burn chart + live ops */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14, marginBottom: 22 }}>
-                <BurnChart />
-                <LiveOps />
+                <BurnChart series24h={series24h} series30d={series30d} />
+                <LiveOps events={opsEvents} />
               </div>
 
               {/* Active agents table */}
