@@ -2,9 +2,10 @@ import '@/setup';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 
-// Vendor → Publish new agent. Single-page form that POSTs to
-// VendorPublishController@store. On success the user lands back on
-// /vendor with a flash toast and their new listing visible.
+// Vendor → Publish new agent (or edit existing). Single-page form that
+// posts to VendorPublishController@store on create or PATCHes to
+// @update on edit. On success the user lands back on /vendor with a
+// flash toast.
 const VendorPublish = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
@@ -12,25 +13,30 @@ const VendorPublish = (() => {
   const KNOWN_INTEGRATIONS = ['hubspot', 'salesforce', 'slack', 'gmail', 'github', 'gitlab', 'linear', 'notion', 'figma', 'jira', 'snowflake', 'stripe', 'zendesk', 'intercom'];
 
   const Page = () => {
-    const { categories = [], ranks = [], defaults = {}, flash = {} } = usePage().props;
+    const { categories = [], ranks = [], defaults = {}, mode = 'create', agent = null, flash = {} } = usePage().props;
+    const isEdit = mode === 'edit' && agent;
 
-    const { data, setData, post, processing, errors } = useForm({
-      name: '',
-      vendor: defaults.vendor || '',
-      category: categories[0]?.slug || '',
-      role: '',
-      rank: defaults.rank || 'E-6',
-      tagline: '',
-      description: '',
-      powerCost: 10,
-      perUnit: 'task',
-      languages: defaults.languages || ['EN'],
-      integrations: defaults.integrations || [],
+    const { data, setData, post, patch, processing, errors } = useForm({
+      name: agent?.name ?? '',
+      vendor: agent?.vendor ?? defaults.vendor ?? '',
+      category: agent?.category ?? categories[0]?.slug ?? '',
+      role: agent?.role ?? '',
+      rank: agent?.rank ?? defaults.rank ?? 'E-6',
+      tagline: agent?.tagline ?? '',
+      description: agent?.description ?? '',
+      powerCost: agent?.powerCost ?? 10,
+      perUnit: agent?.perUnit ?? 'task',
+      languages: agent?.languages ?? defaults.languages ?? ['EN'],
+      integrations: agent?.integrations ?? defaults.integrations ?? [],
     });
 
     const submit = (e) => {
       e.preventDefault();
-      post(route('vendor.publish.store'));
+      if (isEdit) {
+        patch(route('vendor.publish.update', agent.slug));
+      } else {
+        post(route('vendor.publish.store'));
+      }
     };
 
     const toggleArrayValue = (key, value) => {
@@ -40,11 +46,11 @@ const VendorPublish = (() => {
       setData(key, next);
     };
 
-    const slug = (data.name || 'new-agent').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'new-agent';
+    const slug = isEdit ? agent.slug : ((data.name || 'new-agent').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'new-agent');
 
     return (
       <>
-        <Head title="Publish agent" />
+        <Head title={isEdit ? `Edit · ${agent.name}` : 'Publish agent'} />
         <div style={{ minHeight: '100vh', background: palette.bg0, color: palette.text, fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
           <Mesh />
           <div style={{ position: 'relative', zIndex: 2 }}>
@@ -55,7 +61,7 @@ const VendorPublish = (() => {
                 <span style={{ color: palette.textMute }}>/</span>
                 <Link href={route('vendor')} style={{ fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Vendor</Link>
                 <span style={{ color: palette.textMute }}>/</span>
-                <span style={{ fontSize: 12, color: palette.text, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>Publish new</span>
+                <span style={{ fontSize: 12, color: palette.text, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>{isEdit ? 'Edit listing' : 'Publish new'}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <ThemeToggle size={32} />
@@ -63,10 +69,17 @@ const VendorPublish = (() => {
             </div>
 
             <div style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px 80px' }}>
-              <Pill dot color={palette.accent} style={{ marginBottom: 14 }}>Roster · enlist a new agent</Pill>
-              <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1.4, margin: '0 0 8px 0' }}>Publish an agent.</h1>
+              <Pill dot color={isEdit ? palette.cyan : palette.accent} style={{ marginBottom: 14 }}>
+                {isEdit ? `Edit · status: ${agent.status}` : 'Roster · enlist a new agent'}
+              </Pill>
+              <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1.4, margin: '0 0 8px 0' }}>
+                {isEdit ? `Edit ${agent.name}.` : 'Publish an agent.'}
+              </h1>
               <p style={{ color: palette.textDim, fontSize: 15, marginBottom: 36, lineHeight: 1.55 }}>
-                Goes live in the catalog immediately. You'll show up at <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>/agent/{slug}</code> and buyers can deploy you on the spot.
+                {isEdit
+                  ? <>Changes save immediately. The agent's slug <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>/agent/{slug}</code> stays fixed.</>
+                  : <>New listings go into the admin review queue. Once approved you'll show up at <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>/agent/{slug}</code> and buyers can deploy you.</>
+                }
               </p>
 
               <form onSubmit={submit}>
@@ -107,7 +120,7 @@ const VendorPublish = (() => {
                     Cancel
                   </Link>
                   <button type="submit" disabled={processing} style={{ padding: '12px 28px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.6 : 1 }}>
-                    {processing ? 'Publishing…' : 'Publish to catalog →'}
+                    {processing ? (isEdit ? 'Saving…' : 'Submitting…') : (isEdit ? 'Save changes' : 'Submit for review →')}
                   </button>
                 </div>
               </form>
