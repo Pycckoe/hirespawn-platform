@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminAgentController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
+use App\Http\Controllers\InvokeController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
@@ -50,6 +51,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');
     Route::delete('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'destroy'])->name('subscription.destroy');
+    Route::post('/agent/{agent:slug}/run', [InvokeController::class, 'store'])->name('agent.run');
 });
 
 Route::middleware('auth')->group(function () {
