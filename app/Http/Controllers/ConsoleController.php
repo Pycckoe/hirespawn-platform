@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApiKey;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
+use App\Models\WorkspaceMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -93,6 +95,18 @@ class ConsoleController extends Controller
             ];
         })->values()->all();
 
+        $sidebarCounts = $user ? [
+            // Owner counts as 1 + active members
+            'team' => 1 + WorkspaceMember::query()
+                ->where('owner_id', $user->id)
+                ->whereIn('status', ['active', 'invited'])
+                ->count(),
+            'keys' => ApiKey::query()
+                ->where('user_id', $user->id)
+                ->whereNull('revoked_at')
+                ->count(),
+        ] : ['team' => 0, 'keys' => 0];
+
         return Inertia::render('Console', [
             'subscriptions' => $live,
             'powerBalance' => (int) ($user?->buyerProfile?->power_balance ?? 0),
@@ -105,6 +119,7 @@ class ConsoleController extends Controller
                 'burnSeries30d' => $burnSeries30d,
                 'opsFeed' => $opsFeed,
             ],
+            'sidebarCounts' => $sidebarCounts,
         ]);
     }
 

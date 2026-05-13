@@ -36,6 +36,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
+                'apiKeySecret' => fn () => $request->session()->get('apiKeySecret'),
             ],
         ];
     }

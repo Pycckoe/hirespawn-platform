@@ -56,4 +56,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Invoice::class, 'buyer_id');
     }
+
+    public function apiKeys(): HasMany
+    {
+        return $this->hasMany(ApiKey::class);
+    }
+
+    public function workspaceMembers(): HasMany
+    {
+        return $this->hasMany(WorkspaceMember::class, 'owner_id');
+    }
 }

@@ -47,6 +47,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');
     Route::patch('/settings/workspace', [SettingsController::class, 'updateWorkspace'])->name('settings.workspace.update');
+    Route::post('/settings/keys', [SettingsController::class, 'storeKey'])->name('settings.keys.store');
+    Route::delete('/settings/keys/{apiKey}', [SettingsController::class, 'revokeKey'])->name('settings.keys.revoke');
+    Route::post('/settings/members', [SettingsController::class, 'storeMember'])->name('settings.members.store');
+    Route::delete('/settings/members/{member}', [SettingsController::class, 'destroyMember'])->name('settings.members.destroy');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
 
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');
