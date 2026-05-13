@@ -28,7 +28,10 @@ Route::get('/blog', [PageController::class, 'blogIndex'])->name('blog.index');
 Route::get('/blog/{slug}', [PageController::class, 'blogPost'])->name('blog.show');
 
 // === Authenticated app ===
-Route::middleware(['auth', 'verified'])->group(function () {
+// Note: email verification not gated yet — we send the Registered event so
+// the welcome email goes out, but we don't block onboarding/console on a
+// click-through. Re-add the `verified` middleware once we wire that flow.
+Route::middleware(['auth'])->group(function () {
     Route::get('/console', [ConsoleController::class, 'index'])->name('console');
     Route::get('/vendor', [VendorController::class, 'index'])->name('vendor');
     Route::get('/onboarding', [PageController::class, 'onboarding'])->name('onboarding');
