@@ -1,6 +1,6 @@
 import '@/setup';
 import { useEffect, useRef, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -109,30 +109,98 @@ const Dashboard = (() => {
   };
 
   // ---- Top bar ----
-  const TopBar = ({ isAdmin = false }) => {
+  const TopBar = ({ isAdmin = false, user = null, workspaceName = 'Workspace' }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
+    const initials = (user?.name || 'U')
+      .split(/\s+/)
+      .map(w => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'rgba(5,7,10,0.7)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 9 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <a href="#/" style={{ textDecoration: 'none' }}><Logo /></a>
+          <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>/ console</span>
-          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, padding: '4px 9px', background: 'var(--p-chip)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>{ACCOUNT.org}</span>
-          <span style={{ padding: '3px 8px', background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, borderRadius: 4 }}>{ACCOUNT.plan.toUpperCase()}</span>
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, padding: '4px 9px', background: 'var(--p-chip)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>{workspaceName}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
           <span style={{ color: palette.accent }}>● LIVE</span>
           <span>UTC {time.toISOString().slice(11,19)}</span>
           <ThemeToggle size={32} />
-          {isAdmin && <a href="/admin/agents" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
-          <a href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Hire agent</a>
-          <a href="/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Vendor view →</a>
-          <a href="/power" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>Buy Power +</a>
-          <div style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #b4f25b, #7dd3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent }}>ML</div>
+          {isAdmin && <Link href="/admin/agents" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</Link>}
+          <Link href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Hire agent</Link>
+          <Link href="/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Vendor view →</Link>
+          <Link href="/power" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
+          <UserMenu user={user} initials={initials} />
         </div>
       </div>
     );
   };
+
+  // Avatar dropdown — Profile / Settings / Sign out
+  const UserMenu = ({ user, initials }) => {
+    const [open, setOpen] = useState(false);
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+      if (!open) return;
+      const onClick = (e) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+      };
+      document.addEventListener('mousedown', onClick);
+      return () => document.removeEventListener('mousedown', onClick);
+    }, [open]);
+
+    const signOut = () => {
+      setOpen(false);
+      router.post('/logout');
+    };
+
+    return (
+      <div ref={wrapperRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label="Account menu"
+          style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #b4f25b, #7dd3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent, border: 0, cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+        {open && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220, background: 'var(--p-glass-strong, rgba(15,17,23,0.95))', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', border: `1px solid ${palette.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 30 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${palette.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{user?.name || 'You'}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>{user?.email || ''}</div>
+            </div>
+            <MenuLink href="/profile" label="Profile" />
+            <MenuLink href="/settings" label="Settings" />
+            <div style={{ height: 1, background: palette.border, margin: '4px 6px' }} />
+            <button
+              onClick={signOut}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 0, background: 'transparent', color: palette.red, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 6 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,99,99,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MenuLink = ({ href, label }) => (
+    <Link
+      href={href}
+      style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(180,242,91,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      {label}
+    </Link>
+  );
 
   // ---- Sidebar ----
   const Sidebar = ({ tab, setTab, items = [], powerBalance = 0 }) => (
@@ -368,8 +436,10 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {}, auth } = usePage().props;
-    const isAdmin = !!auth?.user?.is_admin;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace' } = usePage().props;
+    const user = auth?.user || null;
+    const isAdmin = !!user?.is_admin;
+    const firstName = (user?.name || '').split(/\s+/)[0] || 'operator';
     const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
     const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
     const sideItems = buildSideItems(liveAgents);
@@ -384,7 +454,7 @@ const Dashboard = (() => {
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <TopBar isAdmin={isAdmin} />
+          <TopBar isAdmin={isAdmin} user={user} workspaceName={workspaceName} />
           {flashMsg && (
             <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 50, padding: '12px 18px', background: palette.accentDim, border: `1px solid ${palette.accent}`, color: palette.accent, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.32)' }}>
               {flashMsg}
@@ -399,7 +469,7 @@ const Dashboard = (() => {
                 <div>
                   <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {liveAgents.filter(a => a.status === 'on').length} agents on duty · burning {Math.round(ACCOUNT.burn24h / 24)}⚡/hr</Pill>
                   <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, lineHeight: 1.1, fontWeight: 600, letterSpacing: -1.4, margin: 0, color: palette.text }}>
-                    Good evening, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52, letterSpacing: -1 }}>Mara</span>.
+                    Good evening, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52, letterSpacing: -1 }}>{firstName}</span>.
                   </h1>
                   <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>Here's what your roster shipped while you were away.</p>
                 </div>
