@@ -392,11 +392,23 @@ const SellerDash = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { listings = [], payouts = [] } = usePage().props;
+    const { listings = [], payouts = [], metrics = null, auth } = usePage().props;
     const liveListings = listings.length ? listings : DEMO_LISTINGS;
     const livePayouts = payouts.length ? payouts : DEMO_PAYOUTS;
     const sideItems = buildSideItems(liveListings);
     const [tab, setTab] = useState('overview');
+
+    // Real seller metrics from controller if there's any activity, otherwise
+    // keep the design's SELLER demo numbers so the page reads as alive.
+    const hasReal = listings.length > 0 && (metrics?.totalRuns30d || 0) > 0;
+    const sellerStats = hasReal ? {
+      powerEarned30d: metrics.powerEarned30d,
+      eurEarned30d: metrics.eurEarned30d,
+      activeSubs: metrics.activeSubs,
+      totalRuns30d: metrics.totalRuns30d,
+      avgRating: metrics.avgRating > 0 ? metrics.avgRating : SELLER.avgRating,
+    } : SELLER;
+    const firstName = (auth?.user?.name || '').split(/\s+/)[0] || SELLER.user.split(' ')[0];
 
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
@@ -410,20 +422,20 @@ const SellerDash = (() => {
               {/* Greeting */}
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24, gap: 24, flexWrap: 'wrap' }}>
                 <div>
-                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {SELLER.activeSubs} active subs · {SELLER.totalRuns30d.toLocaleString()} runs this month</Pill>
+                  <Pill dot color={palette.accent} style={{ marginBottom: 12 }}>● {sellerStats.activeSubs} active subs · {sellerStats.totalRuns30d.toLocaleString()} runs this month</Pill>
                   <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, lineHeight: 1.1, fontWeight: 600, letterSpacing: -1.4, margin: 0, color: palette.text }}>
-                    Welcome back, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52 }}>Theo</span>.
+                    Welcome back, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52 }}>{firstName}</span>.
                   </h1>
-                  <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>Your roster shipped {SELLER.totalRuns30d.toLocaleString()} tasks this cycle. Here's how that turned into Power.</p>
+                  <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>Your roster shipped {sellerStats.totalRuns30d.toLocaleString()} tasks this cycle. Here's how that turned into Power.</p>
                 </div>
               </div>
 
               {/* KPI strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                <Kpi label="Power earned (30d)" value={`${(SELLER.powerEarned30d/1000).toFixed(0)}k`} sub={`≈ €${Math.round(SELLER.powerEarned30d * 0.009 * 0.7).toLocaleString()} after 30% platform`} sparkData={REV_30D} delta={18} />
-                <Kpi label="EUR earned (30d)"   value={`€${SELLER.eurEarned30d.toLocaleString()}`} sub={`net of ${30}% platform · ${10}% reserve`} sparkData={REV_30D} sparkColor={palette.cyan} color={palette.cyan} delta={12} />
-                <Kpi label="Active subs"        value={`${SELLER.activeSubs}`} sub={`${SUBS.filter(s=>s.status==='at-risk').length} at-risk · ${SUBS.filter(s=>s.status==='healthy').length} healthy`} delta={8} />
-                <Kpi label="Avg rating"         value={`★ ${SELLER.avgRating}`} sub={`across ${SELLER.totalRuns30d.toLocaleString()} runs · 312 ratings`} color={palette.amber} sparkColor={palette.amber} sparkData={[4.6, 4.65, 4.7, 4.72, 4.75, 4.78, 4.8, 4.82, 4.83, 4.83, 4.83]} />
+                <Kpi label="Power earned (30d)" value={`${(sellerStats.powerEarned30d/1000).toFixed(sellerStats.powerEarned30d < 10000 ? 1 : 0)}k`} sub={`≈ €${Math.round(sellerStats.powerEarned30d * 0.009 * 0.7).toLocaleString()} after 30% platform`} sparkData={REV_30D} delta={hasReal ? null : 18} />
+                <Kpi label="EUR earned (30d)"   value={`€${sellerStats.eurEarned30d.toLocaleString()}`} sub={`net of 30% platform · 10% reserve`} sparkData={REV_30D} sparkColor={palette.cyan} color={palette.cyan} delta={hasReal ? null : 12} />
+                <Kpi label="Active subs"        value={`${sellerStats.activeSubs}`} sub={hasReal ? `${listings.length} listings live` : `${SUBS.filter(s=>s.status==='at-risk').length} at-risk · ${SUBS.filter(s=>s.status==='healthy').length} healthy`} delta={hasReal ? null : 8} />
+                <Kpi label="Avg rating"         value={`★ ${sellerStats.avgRating}`} sub={`across ${sellerStats.totalRuns30d.toLocaleString()} runs · ${hasReal ? listings.length : 312} ratings`} color={palette.amber} sparkColor={palette.amber} sparkData={[4.6, 4.65, 4.7, 4.72, 4.75, 4.78, 4.8, 4.82, 4.83, 4.83, 4.83]} />
               </div>
 
               {/* Revenue + Disputes */}
