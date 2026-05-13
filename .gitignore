@@ -32,3 +32,6 @@ Thumbs.db
 /public/css/filament
 /public/js/filament
 /public/fonts/filament
+
+# composer.lock excluded until git proxy unblock — Composer regenerates on deploy
+/composer.lock
