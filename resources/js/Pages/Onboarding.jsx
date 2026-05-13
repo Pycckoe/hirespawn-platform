@@ -71,11 +71,12 @@ const Onboarding = (() => {
                   {errors.workspace && <div style={{ fontSize: 11, color: palette.red, marginTop: 6, fontFamily: 'Geist Mono, monospace' }}>{errors.workspace}</div>}
                 </label>
                 <div style={{ marginTop: 18, fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textMute }}>URL · <span style={{ color: palette.accent }}>{(data.workspace || 'workspace').toLowerCase().replace(/\s+/g,'-')}.hirespawn.io</span></div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 28 }}>
+                <div style={{ marginTop: 22, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Defaults · editable later in Settings</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 8 }}>
                   {[{ l: 'Team size', v: '5–20' }, { l: 'Use case', v: 'Sales · Marketing' }, { l: 'Region', v: 'EU · West-1' }].map(c => (
-                    <div key={c.l} style={{ padding: 14, background: 'var(--p-inset-soft)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
+                    <div key={c.l} style={{ padding: 14, background: 'var(--p-inset-soft)', borderRadius: 10, border: `1px solid ${palette.border}`, opacity: 0.7 }}>
                       <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>{c.l}</div>
-                      <div style={{ fontSize: 14, color: palette.text, marginTop: 4 }}>{c.v}</div>
+                      <div style={{ fontSize: 14, color: palette.textDim, marginTop: 4 }}>{c.v}</div>
                     </div>
                   ))}
                 </div>
