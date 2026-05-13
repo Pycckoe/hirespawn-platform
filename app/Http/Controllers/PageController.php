@@ -92,11 +92,6 @@ class PageController extends Controller
         return Inertia::render('Emails');
     }
 
-    public function onboarding(): Response
-    {
-        return Inertia::render('Onboarding');
-    }
-
     public function settings(): Response
     {
         return Inertia::render('Settings');

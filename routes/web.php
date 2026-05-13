@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunController;
@@ -34,7 +35,8 @@ Route::get('/blog/{slug}', [PageController::class, 'blogPost'])->name('blog.show
 Route::middleware(['auth'])->group(function () {
     Route::get('/console', [ConsoleController::class, 'index'])->name('console');
     Route::get('/vendor', [VendorController::class, 'index'])->name('vendor');
-    Route::get('/onboarding', [PageController::class, 'onboarding'])->name('onboarding');
+    Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [PageController::class, 'settings'])->name('settings');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
 
