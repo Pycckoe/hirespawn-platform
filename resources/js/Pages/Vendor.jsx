@@ -1,4 +1,5 @@
 import '@/setup';
+import { useEffect, useState } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
