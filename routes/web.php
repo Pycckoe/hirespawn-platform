@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminAgentController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\OnboardingController;
@@ -39,6 +40,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/vendor', [VendorController::class, 'index'])->name('vendor');
     Route::get('/vendor/agents/new', [VendorPublishController::class, 'create'])->name('vendor.publish.create');
     Route::post('/vendor/agents', [VendorPublishController::class, 'store'])->name('vendor.publish.store');
+    Route::get('/vendor/agents/{agent:slug}/edit', [VendorPublishController::class, 'edit'])->name('vendor.publish.edit');
+    Route::patch('/vendor/agents/{agent:slug}', [VendorPublishController::class, 'update'])->name('vendor.publish.update');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');
@@ -53,6 +56,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+// === Admin review queue (is_admin only) ===
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/agents', [AdminAgentController::class, 'index'])->name('admin.agents');
+    Route::post('/agents/{agent:slug}/approve', [AdminAgentController::class, 'approve'])->name('admin.agents.approve');
+    Route::post('/agents/{agent:slug}/reject', [AdminAgentController::class, 'reject'])->name('admin.agents.reject');
+    Route::post('/agents/{agent:slug}/suspend', [AdminAgentController::class, 'suspend'])->name('admin.agents.suspend');
 });
 
 // Map the legacy /dashboard URL Breeze installs to our console page.

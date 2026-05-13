@@ -51,6 +51,9 @@ class VendorController extends Controller
             'status' => match ($agent->status) {
                 'approved' => 'live',
                 'suspended' => 'paused',
+                'pending_review' => 'review',
+                'rejected' => 'rejected',
+                'draft' => 'draft',
                 default => $agent->status,
             },
             'subs' => (int) $agent->subscribers_count,
