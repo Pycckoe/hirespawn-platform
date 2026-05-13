@@ -29,8 +29,6 @@ class SubscriptionsTable
                 TextColumn::make('started_at')
                     ->dateTime()
                     ->sortable(),
-                TextColumn::make('agent.name')
-                    ->searchable(),
                 TextColumn::make('current_period_start')
                     ->dateTime()
                     ->sortable(),
