@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AdminAgentController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\InvokeController;
@@ -69,13 +68,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// === Admin review queue (is_admin only) ===
-Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-    Route::get('/agents', [AdminAgentController::class, 'index'])->name('admin.agents');
-    Route::post('/agents/{agent:slug}/approve', [AdminAgentController::class, 'approve'])->name('admin.agents.approve');
-    Route::post('/agents/{agent:slug}/reject', [AdminAgentController::class, 'reject'])->name('admin.agents.reject');
-    Route::post('/agents/{agent:slug}/suspend', [AdminAgentController::class, 'suspend'])->name('admin.agents.suspend');
-});
+// Admin review queue + CMS now lives in the Filament panel at /admin
+// (see App\Providers\Filament\AdminPanelProvider). Only users with
+// is_admin=true can sign in; non-admins get a 403.
 
 // Map the legacy /dashboard URL Breeze installs to our console page.
 Route::redirect('/dashboard', '/console')->middleware(['auth', 'verified'])->name('dashboard');
