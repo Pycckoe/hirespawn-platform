@@ -1,5 +1,5 @@
 import '@/setup';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
@@ -131,11 +131,74 @@ const SellerDash = (() => {
           <ThemeToggle size={32} />
           <Link href="/console" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Switch to buyer</Link>
           <Link href={route('vendor.publish.create')} style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>+ New listing</Link>
-          <div style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #ff9f4a, #b4f25b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent }}>{initials}</div>
+          <UserMenu user={user} initials={initials} />
         </div>
       </div>
     );
   };
+
+  // Avatar dropdown — Profile / Settings / Sign out. Same pattern as Console.
+  const UserMenu = ({ user, initials }) => {
+    const [open, setOpen] = useState(false);
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+      if (!open) return;
+      const onClick = (e) => {
+        if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+      };
+      document.addEventListener('mousedown', onClick);
+      return () => document.removeEventListener('mousedown', onClick);
+    }, [open]);
+
+    const signOut = () => {
+      setOpen(false);
+      router.post('/logout');
+    };
+
+    return (
+      <div ref={wrapperRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label="Account menu"
+          style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #ff9f4a, #b4f25b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent, border: 0, cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+        {open && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220, background: 'var(--p-glass-strong, rgba(15,17,23,0.95))', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', border: `1px solid ${palette.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 30 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${palette.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{user?.name || 'You'}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>{user?.email || ''}</div>
+            </div>
+            <MenuLink href="/profile" label="Profile" />
+            <MenuLink href="/settings" label="Settings" />
+            <MenuLink href="/console" label="Switch to buyer" />
+            <div style={{ height: 1, background: palette.border, margin: '4px 6px' }} />
+            <button
+              onClick={signOut}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 0, background: 'transparent', color: palette.red, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 6 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,99,99,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MenuLink = ({ href, label }) => (
+    <Link
+      href={href}
+      style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(180,242,91,0.08)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+    >
+      {label}
+    </Link>
+  );
 
   // ---- Sidebar ----
   const Sidebar = ({ tab, setTab, items = [], availableCents = 0, lifetimeCents = 0 }) => (
