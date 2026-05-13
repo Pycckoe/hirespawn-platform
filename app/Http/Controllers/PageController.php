@@ -92,11 +92,6 @@ class PageController extends Controller
         return Inertia::render('Emails');
     }
 
-    public function settings(): Response
-    {
-        return Inertia::render('Settings');
-    }
-
     public function blogIndex(): Response
     {
         return Inertia::render('Blog/Index');
