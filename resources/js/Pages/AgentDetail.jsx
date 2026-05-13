@@ -1,5 +1,6 @@
 import '@/setup';
-import { router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -172,6 +173,50 @@ const AgentDetail = (() => {
       </div>
     </div>
   );
+
+  // Run-task panel — only shown to subscribed buyers. Posts to
+  // /agent/{slug}/run which debits power and logs a UsageEvent.
+  const RunTaskPanel = ({ agent }) => {
+    const { data, setData, post, processing, errors, reset } = useForm({ input: '' });
+    const submit = (e) => {
+      e.preventDefault();
+      post(route('agent.run', agent.id), {
+        preserveScroll: true,
+        onSuccess: () => reset('input'),
+      });
+    };
+
+    return (
+      <div style={{ padding: '0 40px 36px' }}>
+        <Glass style={{ padding: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● Run a task</div>
+              <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, color: palette.text, margin: '6px 0 0' }}>Send work to {agent.name}.</h3>
+              <p style={{ fontSize: 13, color: palette.textDim, margin: '4px 0 0' }}>One run · burns <span style={{ color: palette.accent }}>{agent.power}⚡</span> · ≈ €{(agent.power * 0.009).toFixed(3)} at Pro rate.</p>
+            </div>
+          </div>
+          <form onSubmit={submit}>
+            <textarea
+              value={data.input}
+              onChange={(e) => setData('input', e.target.value)}
+              placeholder={`What should ${agent.name} do? — e.g. "${agent.spec}"`}
+              rows={4}
+              maxLength={4000}
+              style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${errors.input ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
+            />
+            {errors.input && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{errors.input}</div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>{data.input.length} / 4000</div>
+              <button type="submit" disabled={processing || !data.input.trim()} style={{ padding: '12px 24px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: processing || !data.input.trim() ? 'not-allowed' : 'pointer', opacity: processing || !data.input.trim() ? 0.5 : 1 }}>
+                {processing ? 'Running…' : `Run · ${agent.power}⚡`}
+              </button>
+            </div>
+          </form>
+        </Glass>
+      </div>
+    );
+  };
 
   // Spec strip — quick stats row under header
   const SpecStrip = ({ agent }) => (
@@ -400,6 +445,7 @@ const AgentDetail = (() => {
           {!agent ? <NotFound /> : (
             <>
               <AgentHeader agent={agent} isSubscribed={isSubscribed} isAuthenticated={isAuthenticated} />
+              {isSubscribed && <RunTaskPanel agent={agent} />}
               <SpecStrip agent={agent} />
               <Reveal><Capabilities agent={agent} /></Reveal>
               <Reveal><SampleTasks agent={agent} /></Reveal>
