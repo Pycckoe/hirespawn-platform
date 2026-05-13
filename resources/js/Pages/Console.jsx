@@ -132,7 +132,9 @@ const Dashboard = (() => {
           <span style={{ color: palette.accent }}>● LIVE</span>
           <span>UTC {time.toISOString().slice(11,19)}</span>
           <ThemeToggle size={32} />
-          {isAdmin && <Link href="/admin/agents" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</Link>}
+          {/* Plain <a> — /admin is the Filament panel, not an Inertia page.
+              Inertia's <Link> would XHR-fetch it and render the fragment as a modal. */}
+          {isAdmin && <a href="/admin" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
           <Link href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Hire agent</Link>
           <Link href="/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Vendor view →</Link>
           <Link href="/power" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
