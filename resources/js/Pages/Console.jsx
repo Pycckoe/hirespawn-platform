@@ -108,7 +108,7 @@ const Dashboard = (() => {
   };
 
   // ---- Top bar ----
-  const TopBar = () => {
+  const TopBar = ({ isAdmin = false }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
     return (
@@ -123,9 +123,10 @@ const Dashboard = (() => {
           <span style={{ color: palette.accent }}>● LIVE</span>
           <span>UTC {time.toISOString().slice(11,19)}</span>
           <ThemeToggle size={32} />
-          <a href="#/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Hire agent</a>
-          <a href="#/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Vendor view →</a>
-          <button style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power +</button>
+          {isAdmin && <a href="/admin/agents" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
+          <a href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Hire agent</a>
+          <a href="/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>Vendor view →</a>
+          <a href="/power" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>Buy Power +</a>
           <div style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #b4f25b, #7dd3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent }}>ML</div>
         </div>
       </div>
@@ -366,7 +367,8 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {} } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth } = usePage().props;
+    const isAdmin = !!auth?.user?.is_admin;
     const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
     const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
     const sideItems = buildSideItems(liveAgents);
@@ -381,7 +383,7 @@ const Dashboard = (() => {
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <TopBar />
+          <TopBar isAdmin={isAdmin} />
           {flashMsg && (
             <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 50, padding: '12px 18px', background: palette.accentDim, border: `1px solid ${palette.accent}`, color: palette.accent, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.32)' }}>
               {flashMsg}
