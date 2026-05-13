@@ -25,6 +25,8 @@ class ConsoleController extends Controller
         return Inertia::render('Console', [
             'subscriptions' => $subscriptions,
             'powerBalance' => (int) ($user?->buyerProfile?->power_balance ?? 0),
+            'workspaceName' => $user?->buyerProfile?->company_name
+                ?? ($user?->name ? "{$user->name}'s workspace" : 'Workspace'),
         ]);
     }
 
