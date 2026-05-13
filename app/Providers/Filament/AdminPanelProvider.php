@@ -6,7 +6,6 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationGroup;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -33,11 +32,13 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Lime,
                 'gray' => Color::Zinc,
             ])
+            // Group icons removed: Filament refuses to render groups whose
+            // items also have their own icons (one or the other, not both).
             ->navigationGroups([
-                NavigationGroup::make('Marketplace')->icon('heroicon-o-cube'),
-                NavigationGroup::make('Money')->icon('heroicon-o-banknotes'),
-                NavigationGroup::make('People')->icon('heroicon-o-users'),
-                NavigationGroup::make('Operations')->icon('heroicon-o-cog'),
+                'Marketplace',
+                'Money',
+                'People',
+                'Operations',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
