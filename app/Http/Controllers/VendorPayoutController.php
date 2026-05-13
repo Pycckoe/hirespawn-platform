@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payout;
+use App\Models\PaymentMethodType;
 use App\Models\PayoutMethod;
 use App\Models\UsageEvent;
 use Illuminate\Http\RedirectResponse;
@@ -38,7 +39,7 @@ class VendorPayoutController extends Controller
             'label' => ['required', 'string', 'max:80'],
             'holderName' => ['nullable', 'string', 'max:120'],
             'country' => ['nullable', 'string', 'size:2'],
-            'currency' => ['required', 'string', 'size:3'],
+            'currency' => ['required', 'string', 'min:3', 'max:8'],
             'identifier' => ['required', 'string', 'max:200'], // IBAN / card / email / wallet
             'routingHint' => ['nullable', 'string', 'max:64'],
             'makeDefault' => ['nullable', 'boolean'],
@@ -107,12 +108,31 @@ class VendorPayoutController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'amountCents' => ['required', 'integer', 'min:'.self::MIN_CASHOUT_CENTS],
+            'amountCents' => ['required', 'integer', 'min:1'],
             'methodId' => ['required', 'integer', 'exists:payout_methods,id'],
         ]);
 
         $method = PayoutMethod::find($validated['methodId']);
         abort_unless($method && $method->user_id === $user->id, 403);
+
+        // Look up the catalog row for this method's type to read live
+        // fee_percent / fee_flat_cents / min_amount_cents from admin.
+        $type = PaymentMethodType::where('key', $method->type)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $type) {
+            throw ValidationException::withMessages([
+                'methodId' => "This payout method type is no longer available. Pick another destination.",
+            ]);
+        }
+
+        $minCents = (int) $type->min_amount_cents;
+        if ($validated['amountCents'] < $minCents) {
+            throw ValidationException::withMessages([
+                'amountCents' => 'Minimum payout for '.$type->label.' is €'.number_format($minCents / 100, 2).'.',
+            ]);
+        }
 
         $available = $this->availableCents($user);
         if ($validated['amountCents'] > $available) {
@@ -121,8 +141,7 @@ class VendorPayoutController extends Controller
             ]);
         }
 
-        // Platform takes a flat 1% on out-of-cycle payouts to cover gateway fees.
-        $feeCents = (int) round($validated['amountCents'] * 0.01);
+        $feeCents = $type->calculateFeeCents($validated['amountCents']);
         $netCents = $validated['amountCents'] - $feeCents;
 
         DB::transaction(function () use ($user, $method, $validated, $feeCents, $netCents) {

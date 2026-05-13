@@ -42,13 +42,14 @@ class AdminCmsSeeder extends Seeder
             Currency::updateOrCreate(['code' => $row['code']], $row + ['is_active' => true]);
         }
 
-        // ---- Payment method types (admin-controlled allow-list) ----
+        // ---- Payment method types (admin-controlled allow-list + fees) ----
+        // Fees mirror market gateway rates as defaults. Admin can tune in /admin.
         $methods = [
-            ['key' => 'bank',    'label' => 'Bank · SEPA',      'audience' => 'both',   'icon' => '🏦', 'description' => 'IBAN bank account · 1-3 business days', 'sort' => 1],
-            ['key' => 'card',    'label' => 'Debit / credit',   'audience' => 'buyer',  'icon' => '💳', 'description' => 'Card top-ups (Stripe pending)',         'sort' => 2],
-            ['key' => 'paypal',  'label' => 'PayPal',           'audience' => 'both',   'icon' => '🅿', 'description' => 'Instant transfers via PayPal',          'sort' => 3],
-            ['key' => 'wise',    'label' => 'Wise',             'audience' => 'seller', 'icon' => '⚡', 'description' => 'Wise multi-currency account',           'sort' => 4],
-            ['key' => 'crypto',  'label' => 'Crypto wallet',    'audience' => 'seller', 'icon' => '₿', 'description' => 'USDC / ETH wallet, ~1h settlement',     'sort' => 5],
+            ['key' => 'bank',    'label' => 'Bank · SEPA',      'audience' => 'both',   'icon' => '🏦', 'description' => 'IBAN bank account · 1-3 business days',  'fee_percent' => 0.50, 'fee_flat_cents' => 0,   'min_amount_cents' => 1000, 'sort' => 1],
+            ['key' => 'card',    'label' => 'Debit / credit',   'audience' => 'buyer',  'icon' => '💳', 'description' => 'Card top-ups · Stripe-rate',             'fee_percent' => 2.90, 'fee_flat_cents' => 30,  'min_amount_cents' => 500,  'sort' => 2],
+            ['key' => 'paypal',  'label' => 'PayPal',           'audience' => 'both',   'icon' => '🅿', 'description' => 'Instant transfers via PayPal',           'fee_percent' => 2.00, 'fee_flat_cents' => 30,  'min_amount_cents' => 500,  'sort' => 3],
+            ['key' => 'wise',    'label' => 'Wise',             'audience' => 'seller', 'icon' => '⚡', 'description' => 'Wise multi-currency account',            'fee_percent' => 0.80, 'fee_flat_cents' => 0,   'min_amount_cents' => 1000, 'sort' => 4],
+            ['key' => 'crypto',  'label' => 'Crypto wallet',    'audience' => 'seller', 'icon' => '₿', 'description' => 'USDC / ETH wallet, ~1h settlement',      'fee_percent' => 1.50, 'fee_flat_cents' => 100, 'min_amount_cents' => 2000, 'sort' => 5],
         ];
         foreach ($methods as $row) {
             PaymentMethodType::updateOrCreate(['key' => $row['key']], $row + ['is_active' => true]);

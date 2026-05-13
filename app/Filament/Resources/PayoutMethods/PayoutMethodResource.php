@@ -25,6 +25,23 @@ class PayoutMethodResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
+    /**
+     * PayoutMethod rows are PER-USER saved destinations (specific IBAN /
+     * PayPal email / wallet). Users add their own in /vendor → Payouts.
+     * Admin does not CRUD these — only inspects in audit views. The
+     * catalog of *allowed types* (and their fees) lives in the
+     * "Payment method types" resource under Content.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return PayoutMethodForm::configure($schema);

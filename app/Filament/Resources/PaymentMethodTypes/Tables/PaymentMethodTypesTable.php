@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PaymentMethodTypes\Tables;
 
+use App\Models\PaymentMethodType;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -28,10 +29,6 @@ class PaymentMethodTypesTable
                     ->color('gray')
                     ->copyable()
                     ->toggleable(),
-                TextColumn::make('description')
-                    ->limit(50)
-                    ->placeholder('—')
-                    ->toggleable(),
                 TextColumn::make('audience')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
@@ -40,13 +37,30 @@ class PaymentMethodTypesTable
                         'both' => 'warning',
                         default => 'gray',
                     }),
+                TextColumn::make('fee_percent')
+                    ->label('Fee %')
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2).'%')
+                    ->sortable(),
+                TextColumn::make('fee_flat_cents')
+                    ->label('Flat')
+                    ->money('EUR', divideBy: 100)
+                    ->sortable(),
+                TextColumn::make('min_amount_cents')
+                    ->label('Min')
+                    ->money('EUR', divideBy: 100)
+                    ->sortable()
+                    ->toggleable(),
+                TextColumn::make('description')
+                    ->limit(40)
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
                 TextColumn::make('sort')
                     ->numeric()
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('audience')->options([
