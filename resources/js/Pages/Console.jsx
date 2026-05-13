@@ -76,14 +76,16 @@ const Dashboard = (() => {
   ];
 
   // ---- Sidebar nav (depends on active agents count, built per-render) ----
-  const buildSideItems = (activeAgents) => [
+  // Items with `href` navigate to another page (Inertia Link).
+  // Items without `href` toggle the local Console tab.
+  const buildSideItems = (activeAgents, counts = {}) => [
     { id: 'overview', label: 'Overview',     icon: '◆', count: null },
     { id: 'agents',   label: 'Active agents', icon: '◇', count: activeAgents.filter(a => a.status === 'on').length },
     { id: 'ops',      label: 'Live ops',     icon: '▸', count: null, live: true },
-    { id: 'billing',  label: 'Billing',      icon: '⚡', count: null },
-    { id: 'team',     label: 'Team',         icon: '◈', count: 5 },
-    { id: 'keys',     label: 'API keys',     icon: '⌘', count: 3 },
-    { id: 'settings', label: 'Settings',     icon: '◌', count: null },
+    { id: 'billing',  label: 'Billing',      icon: '⚡', count: null, href: '/settings?tab=billing' },
+    { id: 'team',     label: 'Team',         icon: '◈', count: counts.team ?? null, href: '/settings?tab=members' },
+    { id: 'keys',     label: 'API keys',     icon: '⌘', count: counts.keys ?? null, href: '/settings?tab=keys' },
+    { id: 'settings', label: 'Settings',     icon: '◌', count: null, href: '/settings' },
   ];
 
   // ---- Sparkline component (SVG line) ----
@@ -206,14 +208,18 @@ const Dashboard = (() => {
   const Sidebar = ({ tab, setTab, items = [], powerBalance = 0 }) => (
     <div style={{ width: 220, borderRight: `1px solid ${palette.border}`, padding: '28px 14px', display: 'flex', flexDirection: 'column', gap: 4, position: 'sticky', top: 65, alignSelf: 'flex-start', height: 'calc(100vh - 65px)' }}>
       {items.map(s => {
-        const sel = tab === s.id;
-        return (
-          <button key={s.id} onClick={() => setTab(s.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: sel ? palette.accentDim : 'transparent', border: 0, color: sel ? palette.accent : palette.textDim, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', fontWeight: sel ? 600 : 400, transition: 'all 0.2s' }}>
+        const sel = !s.href && tab === s.id;
+        const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: sel ? palette.accentDim : 'transparent', border: 0, color: sel ? palette.accent : palette.textDim, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', fontWeight: sel ? 600 : 400, transition: 'all 0.2s', textDecoration: 'none' };
+        const inner = (
+          <>
             <span><span style={{ marginRight: 10, fontFamily: 'Geist Mono, monospace', color: sel ? palette.accent : palette.textMute }}>{s.icon}</span>{s.label}</span>
             {s.count != null && <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: sel ? palette.accent : palette.textMute }}>{s.count}</span>}
             {s.live && <span style={{ width: 6, height: 6, borderRadius: 99, background: palette.accent, boxShadow: `0 0 6px ${palette.accent}`, animation: 'dirA-pulse 1.4s ease-in-out infinite' }} />}
-          </button>
+          </>
         );
+        return s.href
+          ? <Link key={s.id} href={s.href} style={rowStyle}>{inner}</Link>
+          : <button key={s.id} onClick={() => setTab(s.id)} style={rowStyle}>{inner}</button>;
       })}
       <div style={{ marginTop: 'auto', padding: 12, borderRadius: 8, background: 'rgba(180,242,91,0.05)', border: `1px solid ${palette.accentDim}` }}>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>Power balance</div>
@@ -442,13 +448,13 @@ const Dashboard = (() => {
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {} } = usePage().props;
     const user = auth?.user || null;
     const isAdmin = !!user?.is_admin;
     const firstName = (user?.name || '').split(/\s+/)[0] || 'operator';
     const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
     const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
-    const sideItems = buildSideItems(liveAgents);
+    const sideItems = buildSideItems(liveAgents, sidebarCounts);
 
     // Real metrics if the controller shipped any (and at least one event exists),
     // otherwise fall back to the design's demo series so the page is never empty.
@@ -500,19 +506,23 @@ const Dashboard = (() => {
               </div>
 
               {/* Burn chart + live ops */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14, marginBottom: 22 }}>
-                <BurnChart series24h={series24h} series30d={series30d} />
-                <LiveOps events={opsEvents} />
-              </div>
+              {(tab === 'overview' || tab === 'ops') && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14, marginBottom: 22 }}>
+                  <BurnChart series24h={series24h} series30d={series30d} />
+                  <LiveOps events={opsEvents} />
+                </div>
+              )}
 
               {/* Active agents table */}
-              <div style={{ marginBottom: 22 }}><ActiveAgents agents={liveAgents} /></div>
+              {(tab === 'overview' || tab === 'agents') && (
+                <div style={{ marginBottom: 22 }}><ActiveAgents agents={liveAgents} /></div>
+              )}
 
-              {/* Quick actions */}
-              <div style={{ marginBottom: 22 }}><QuickActions /></div>
+              {/* Quick actions — overview only */}
+              {tab === 'overview' && <div style={{ marginBottom: 22 }}><QuickActions /></div>}
 
-              {/* Billing */}
-              <Billing />
+              {/* Billing — overview only (full billing lives in /settings?tab=billing) */}
+              {tab === 'overview' && <Billing />}
             </div>
           </div>
         </div>
