@@ -162,15 +162,28 @@ const DirA = (() => {
     );
   };
 
-  const Logo = () => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <path d="M13 2 L24 8 V18 L13 24 L2 18 V8 Z" stroke={palette.accent} strokeWidth="1.5" fill="rgba(180,242,91,0.06)" />
-        <path d="M13 7 L19 10.5 V15.5 L13 19 L7 15.5 V10.5 Z" fill={palette.accent} opacity="0.85" />
-      </svg>
-      <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: -0.4, color: palette.text }}>hirespawn</span>
-    </div>
-  );
+  const Logo = () => {
+    // Admin-uploaded site_logo wins; otherwise we render the original
+    // inline-SVG mark + wordmark. Uploaded asset is rendered at the same
+    // 26px height so layout doesn't shift.
+    const logoUrl = usePage().props?.cms?.settings?.site_logo;
+    if (logoUrl) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src={logoUrl} alt="Hirespawn" style={{ height: 26, width: 'auto', display: 'block' }} />
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+          <path d="M13 2 L24 8 V18 L13 24 L2 18 V8 Z" stroke={palette.accent} strokeWidth="1.5" fill="rgba(180,242,91,0.06)" />
+          <path d="M13 7 L19 10.5 V15.5 L13 19 L7 15.5 V10.5 Z" fill={palette.accent} opacity="0.85" />
+        </svg>
+        <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: -0.4, color: palette.text }}>hirespawn</span>
+      </div>
+    );
+  };
 
   // Sun/moon theme toggle — flips html[data-theme] attribute (CSS vars do the rest)
   const ThemeToggle = ({ size = 36 }) => {
