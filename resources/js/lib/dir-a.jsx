@@ -918,15 +918,34 @@ const DirA = (() => {
     </div>
   );
 
-  // Inline icon registry for social + payment brands. Plain SVG / text so
-  // we don't pull a heavy icon lib for a handful of marks. Admin assigns
-  // these by typing the key (e.g. 'visa') into a menu item's icon field.
-  // Pass size='lg' for payment-logo rows (≈96×60), default for social (14×14).
-  const FooterIcon = ({ k, size = 'sm' }) => {
+  // Footer icon resolver — prefers an admin-uploaded image over the
+  // built-in inline-SVG registry. Pass `iconImage` (URL to PNG/SVG/WebP
+  // uploaded via Filament) — if present, render <img>. Otherwise fall
+  // back to the keyed inline SVG. Pass size='lg' for payment rows.
+  const FooterIcon = ({ k, iconImage, label, size = 'sm' }) => {
     const stroke = 'currentColor';
     const isLg = size === 'lg';
     const w = isLg ? 96 : 22;
     const h = isLg ? 60 : 14;
+
+    // Uploaded image takes priority — render at the same target dimensions,
+    // letting object-fit: contain handle the aspect ratio of whatever the
+    // admin uploaded (Visa logos are 16:9-ish, PayPal is taller, etc.).
+    if (iconImage) {
+      return (
+        <img
+          src={iconImage}
+          alt={label || k || ''}
+          style={{
+            width: isLg ? 96 : 20,
+            height: isLg ? 60 : 20,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+      );
+    }
+
     const common = { width: w, height: h, viewBox: '0 0 38 24', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' };
     switch (k) {
       case 'visa':       return <svg {...common}><rect width="38" height="24" rx="3" fill="#1a1f71"/><text x="19" y="16" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter">VISA</text></svg>;
@@ -1026,7 +1045,7 @@ const DirA = (() => {
                   <a key={i} href={s.url || '#'} target={s.target || '_self'} aria-label={s.label} style={{ width: 36, height: 36, borderRadius: 8, background: palette.glassStrong, border: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
                      onMouseEnter={e => e.currentTarget.style.color = palette.accent}
                      onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>
-                    <FooterIcon k={s.icon || 'link'} />
+                    <FooterIcon k={s.icon || 'link'} iconImage={s.icon_image} label={s.label} />
                   </a>
                 ))}
               </div>
@@ -1067,7 +1086,7 @@ const DirA = (() => {
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
               {payments.map((p, i) => (
                 <span key={i} title={p.label} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FooterIcon k={p.icon || 'card'} size="lg" />
+                  <FooterIcon k={p.icon || 'card'} iconImage={p.icon_image} label={p.label} size="lg" />
                 </span>
               ))}
             </div>
