@@ -4,6 +4,7 @@
 // =====================================================================
 import '@/setup';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { usePage } from '@inertiajs/react';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
@@ -917,10 +918,49 @@ const DirA = (() => {
     </div>
   );
 
+  // Inline icon registry for social + payment brands. Plain SVG / text so
+  // we don't pull a heavy icon lib for a handful of marks. Admin assigns
+  // these by typing the key (e.g. 'visa') into a menu item's icon field.
+  const FooterIcon = ({ k }) => {
+    const stroke = 'currentColor';
+    const common = { width: 22, height: 14, viewBox: '0 0 38 24', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' };
+    switch (k) {
+      case 'visa':       return <svg {...common}><rect width="38" height="24" rx="3" fill="#1a1f71"/><text x="19" y="16" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter">VISA</text></svg>;
+      case 'mastercard': return <svg {...common}><rect width="38" height="24" rx="3" fill="#000"/><circle cx="15" cy="12" r="6" fill="#eb001b"/><circle cx="23" cy="12" r="6" fill="#f79e1b" fillOpacity="0.85"/></svg>;
+      case 'amex':       return <svg {...common}><rect width="38" height="24" rx="3" fill="#2e77bb"/><text x="19" y="16" textAnchor="middle" fontSize="6" fontWeight="700" fill="#fff" fontFamily="Inter">AMEX</text></svg>;
+      case 'applepay':   return <svg {...common}><rect width="38" height="24" rx="3" fill="#000"/><text x="19" y="16" textAnchor="middle" fontSize="8" fontWeight="600" fill="#fff" fontFamily="Inter"> Pay</text></svg>;
+      case 'googlepay':  return <svg {...common}><rect width="38" height="24" rx="3" fill="#fff" stroke="#dadce0"/><text x="19" y="15.5" textAnchor="middle" fontSize="7" fontWeight="700" fontFamily="Inter"><tspan fill="#4285f4">G</tspan><tspan fill="#34a853">P</tspan><tspan fill="#fbbc05">a</tspan><tspan fill="#ea4335">y</tspan></text></svg>;
+      case 'paypal':     return <svg {...common}><rect width="38" height="24" rx="3" fill="#fff" stroke="#dadce0"/><text x="19" y="16" textAnchor="middle" fontSize="7" fontWeight="700" fill="#003087" fontFamily="Inter">PayPal</text></svg>;
+      case 'x':          return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>;
+      case 'linkedin':   return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.339 18.337v-8.59H5.667v8.59zm-1.336-9.745a1.55 1.55 0 1 0 0-3.1 1.55 1.55 0 0 0 0 3.1zm11.327 9.745v-4.7c0-2.59-1.379-3.795-3.219-3.795-1.483 0-2.146.815-2.515 1.387v-1.19H9.926c.035.755 0 8.59 0 8.59h2.671v-4.8c0-.24.018-.48.088-.65.193-.479.633-.975 1.371-.975.967 0 1.354.735 1.354 1.811v4.614z"/></svg>;
+      case 'github':     return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>;
+      case 'youtube':    return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>;
+      case 'rss':        return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M6.503 20.752c0 1.794-1.456 3.248-3.251 3.248-1.796 0-3.252-1.454-3.252-3.248 0-1.794 1.456-3.248 3.252-3.248 1.795.001 3.251 1.454 3.251 3.248zm-6.503-12.572v4.811c6.05.062 10.96 4.966 11.022 11.009h4.817c-.062-8.71-7.118-15.758-15.839-15.82zm0-3.368c10.58.046 19.152 8.594 19.183 19.188h4.817c-.03-13.231-10.755-23.954-24-24v4.812z"/></svg>;
+      default:           return <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>{k?.slice(0, 3)}</span>;
+    }
+  };
+
   const Footer = () => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
     const burned = useCountUp(2104893, 1800);
+    const cms = usePage().props?.cms || { menus: {}, settings: {} };
+    const menus = cms.menus || {};
+    const settings = cms.settings || {};
+    // The five footer column slugs — ordered. Admin can edit each via the
+    // Menus → Items relation manager. Falls back gracefully if a slug
+    // hasn't been seeded yet.
+    const columns = [
+      { key: 'footer_marketplace', heading: 'Marketplace' },
+      { key: 'footer_power',       heading: 'Power' },
+      { key: 'footer_sellers',     heading: 'Sellers' },
+      { key: 'footer_resources',   heading: 'Resources' },
+      { key: 'footer_company',     heading: 'Company' },
+    ];
+    const socials  = menus.footer_social   || [];
+    const payments = menus.footer_payments || [];
+    const legals   = menus.footer_legal    || [];
+    const copyright = settings.footer_copyright || '© HIRESPAWN SIA · RIGA · 2026';
 
     return (
       <div style={{ position: 'relative', marginTop: 80, borderTop: `1px solid ${palette.borderStrong}`, overflow: 'hidden' }}>
@@ -977,15 +1017,13 @@ const DirA = (() => {
               <div style={{ marginTop: 14, fontSize: 13, color: palette.textDim, lineHeight: 1.55, maxWidth: 280 }}>
                 The marketplace for AI employees. Buy Power once. Burn it across whichever specialists you hire.
               </div>
-              <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
-                {[
-                  { l: 'X',  k: 'twitter' },
-                  { l: 'in', k: 'linkedin' },
-                  { l: 'gh', k: 'github' },
-                  { l: 'yt', k: 'youtube' },
-                  { l: 'rss',k: 'rss' },
-                ].map(s => (
-                  <a key={s.k} style={{ width: 36, height: 36, borderRadius: 8, background: palette.glassStrong, border: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: palette.textDim, fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.l}</a>
+              <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {socials.map((s, i) => (
+                  <a key={i} href={s.url || '#'} target={s.target || '_self'} aria-label={s.label} style={{ width: 36, height: 36, borderRadius: 8, background: palette.glassStrong, border: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
+                     onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                     onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>
+                    <FooterIcon k={s.icon || 'link'} />
+                  </a>
                 ))}
               </div>
               {/* Newsletter */}
@@ -999,26 +1037,36 @@ const DirA = (() => {
               </div>
             </div>
 
-            {[
-              { h: 'Marketplace', l: ['Roster','New arrivals','Top performers','By category','By integration','Compare agents'] },
-              { h: 'Power',       l: ['Buy Power','Calculator','Volume pricing','Refund policy','Audit log','Rate cards'] },
-              { h: 'Sellers',     l: ['Apply','Manifest spec','Revenue share','Top earners','Seller console','Disputes'] },
-              { h: 'Resources',   l: ['Docs','API reference','Changelog','Status','Brand kit','Press kit'] },
-              { h: 'Company',     l: ['Manifesto','Careers','Customers','Security','DPA','Contact'] },
-            ].map(c => (
-              <div key={c.h}>
-                <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>{c.h}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {c.l.map(x => (
-                    <a key={x} style={{ fontSize: 13, color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
-                       onMouseEnter={e => e.currentTarget.style.color = palette.accent}
-                       onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>{x}</a>
-                  ))}
+            {columns.map(col => {
+              const items = menus[col.key] || [];
+              if (items.length === 0) return null;
+              return (
+                <div key={col.key}>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>{col.heading}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {items.map((it, i) => (
+                      <a key={i} href={it.url || '#'} target={it.target || '_self'} style={{ fontSize: 13, color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
+                         onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                         onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>{it.label}</a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
+
+        {/* Payment logos — admin-managed via /admin/menus footer_payments */}
+        {payments.length > 0 && (
+          <div style={{ position: 'relative', padding: '22px 40px', borderTop: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1.5, textTransform: 'uppercase' }}>We accept</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              {payments.map((p, i) => (
+                <span key={i} title={p.label} style={{ display: 'inline-flex' }}><FooterIcon k={p.icon || 'card'} /></span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Mil-style ribbon */}
         <div style={{ position: 'relative', padding: '14px 40px', borderTop: `1px solid ${palette.border}`, borderBottom: `1px solid ${palette.border}`, background: 'var(--p-inset-strong)', display: 'flex', alignItems: 'center', gap: 32, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 2, textTransform: 'uppercase', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -1036,13 +1084,12 @@ const DirA = (() => {
         {/* Bottom: legal */}
         <div style={{ position: 'relative', padding: '22px 40px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            <span>© HIRESPAWN SIA · RIGA · 2026</span>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Terms</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Privacy</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>DPA</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>AUP</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Cookies</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Subprocessors</a>
+            <span>{copyright}</span>
+            {legals.map((l, i) => (
+              <a key={i} href={l.url || '#'} target={l.target || '_self'} style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer', transition: 'color 0.15s' }}
+                 onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                 onMouseLeave={e => e.currentTarget.style.color = palette.textMute}>{l.label}</a>
+            ))}
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <span>UTC {time.toISOString().slice(11,19)}</span>
