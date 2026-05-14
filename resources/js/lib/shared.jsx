@@ -1,6 +1,19 @@
 // Shared data and small utilities across all three directions
 import '@/setup';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { usePage } from '@inertiajs/react';
+
+// Translation hook — returns a t(key, fallback) function. Reads the
+// translations map shared from Laravel via HandleInertiaRequests
+// (i18n.translations). Keys are namespaced "namespace.key"; calls
+// without a "." default to the "site" namespace.
+const useT = () => {
+  const map = usePage().props?.i18n?.translations || {};
+  return (key, fallback = null) => {
+    const full = key.includes('.') ? key : `site.${key}`;
+    return map[full] ?? (fallback ?? full);
+  };
+};
 
 // === Theme: dark/light. Tokens live in Hirespawn.html as CSS vars on :root[data-theme]. ===
 const THEME_KEY = 'hirespawn-theme';
@@ -126,11 +139,11 @@ const fmtCurrency = (n) => '€' + n.toLocaleString();
 if (typeof window !== 'undefined') {
     Object.assign(window, {
         AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-        useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+        useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
     });
 }
 
 export {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
 };

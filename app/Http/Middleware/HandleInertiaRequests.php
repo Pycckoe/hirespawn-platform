@@ -4,7 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\Menu;
 use App\Models\SiteSetting;
+use App\Models\Translation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
@@ -48,6 +50,13 @@ class HandleInertiaRequests extends Middleware
                 'menus' => Menu::allForRender(),
                 'settings' => SiteSetting::all_keyed(),
             ]),
+            // i18n — translations for the active locale + the list of
+            // available locales. Frontend useTranslation() reads from here.
+            'i18n' => fn () => [
+                'locale' => App::getLocale(),
+                'available' => Translation::availableLocales() ?: [App::getLocale()],
+                'translations' => Translation::forLocale(App::getLocale()),
+            ],
         ];
     }
 }

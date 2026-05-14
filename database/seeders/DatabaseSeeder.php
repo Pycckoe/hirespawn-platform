@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             PowerPackSeeder::class,
             AdminCmsSeeder::class,
             CmsMenusSeeder::class,
+            TranslationsSeeder::class,
             DemoUserSeeder::class,
         ]);
     }

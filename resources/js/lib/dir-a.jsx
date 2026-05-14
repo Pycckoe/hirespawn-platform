@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 const DirA = (() => {
@@ -249,10 +249,14 @@ const DirA = (() => {
     const mp = useMouseParallax();
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
-    const settings = usePage().props?.cms?.settings || {};
-    const pillCopy = settings.hero_pill || '● Live · 12,847 agents on duty';
-    const subtitleCopy = settings.hero_subtitle || 'The marketplace for AI employees. No subscriptions, no headcount. Buy Power once — every agent in the roster runs on it. Pay only for tasks executed.';
-    const ctaPrimary = settings.hero_cta || 'Buy Power →';
+    const t = useT();
+    const pillCopy = t('hero.pill', '● Live · 12,847 agents on duty');
+    const subtitleCopy = t('hero.subtitle', 'The marketplace for AI employees. No subscriptions, no headcount. Buy Power once — every agent in the roster runs on it. Pay only for tasks executed.');
+    const ctaPrimary = t('hero.cta_primary', 'Buy Power →');
+    const ctaBrowse = t('hero.cta_browse', 'Browse the roster');
+    const statAgents = t('hero.stat_agents', 'Agents on duty');
+    const statBurned = t('hero.stat_burned', 'Power burned (24h)');
+    const statCirc = t('hero.stat_circ', 'Power in circulation');
     return (
       <div style={{ position: 'relative', padding: '60px 40px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 40, alignItems: 'start' }}>
@@ -270,13 +274,13 @@ const DirA = (() => {
             <p style={{ fontSize: 19, lineHeight: 1.5, color: palette.textDim, maxWidth: 540, marginTop: 28, marginBottom: 36 }}>{subtitleCopy}</p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 40 }}>
               <a href="/power" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>{ctaPrimary}</button></a>
-              <a href="/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>Browse the roster</button></a>
+              <a href="/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>{ctaBrowse}</button></a>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
-                { label: 'Agents on duty',       val: deployed.toLocaleString() },
-                { label: 'Power burned (24h)',   val: (burned/1000).toFixed(0)+'k' },
-                { label: 'Power in circulation', val: (power/1000000).toFixed(1)+'M' },
+                { label: statAgents, val: deployed.toLocaleString() },
+                { label: statBurned, val: (burned/1000).toFixed(0)+'k' },
+                { label: statCirc,   val: (power/1000000).toFixed(1)+'M' },
               ].map(s => (
                 <div key={s.label} style={{ borderTop: `1px solid ${palette.border}`, paddingTop: 14 }}>
                   <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</div>
@@ -355,9 +359,10 @@ const DirA = (() => {
     const a = AGENTS.find(x => x.id === picked);
     const tasks = 1000;
     const cost = a.power * tasks * 0.009;
+    const t = useT();
     return (
       <div style={{ padding: '80px 40px' }}>
-        <SectionLabel kicker="Power · the unit of work" title={<>One currency.<br/><span style={{ color: palette.accent }}>Every agent. Every task.</span></>} sub="No more subscriptions per agent. Buy a Power pack once. Allocate it across whichever specialists you hire. Each agent declares its Power cost upfront — fair, predictable, audited." />
+        <SectionLabel kicker={t('power.kicker', 'Power · the unit of work')} title={<>One currency.<br/><span style={{ color: palette.accent }}>Every agent. Every task.</span></>} sub={t('power.sub', 'No more subscriptions per agent. Buy a Power pack once. Allocate it across whichever specialists you hire. Each agent declares its Power cost upfront — fair, predictable, audited.')} />
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 24 }}>
           <Glass style={{ padding: 28 }}>
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Power cost · per task</div>
@@ -399,9 +404,10 @@ const DirA = (() => {
   // === Power packs (3 packs, Enterprise removed in favor of calculator) ===
   const PowerPacks = () => {
     const packs = POWER_PACKS.filter(p => p.price !== null);
+    const t = useT();
     return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Pricing" title={<>Buy Power. <span style={{ color: palette.textDim }}>That's it.</span></>} sub="Volume discount built in. Higher pack = lower €/Power. Power rolls over (90 days Starter, 12 months Pro & Scale)." />
+      <SectionLabel kicker={t('pricing.kicker', 'Pricing')} title={<>Buy Power. <span style={{ color: palette.textDim }}>That's it.</span></>} sub={t('pricing.sub', 'Volume discount built in. Higher pack = lower €/Power. Power rolls over (90 days Starter, 12 months Pro & Scale).')} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {packs.map((p, idx) => (
           <Reveal key={p.name} delay={idx * 80} y={28}>
@@ -568,10 +574,12 @@ const DirA = (() => {
   };
 
   // === Roster ===
-  const Roster = () => (
+  const Roster = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 32, gap: 24 }}>
-        <SectionLabel kicker="The roster" title={<>Eight battalions.<br/><span style={{ color: palette.textDim }}>Ready to deploy.</span></>} />
+        <SectionLabel kicker={t('roster.kicker', 'The roster')} title={<>Eight battalions.<br/><span style={{ color: palette.textDim }}>Ready to deploy.</span></>} />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: 380, justifyContent: 'flex-end' }}>
           {CATEGORIES.map(c => (
             <span key={c.key} style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${palette.border}`, background: palette.glass, fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 0.5 }}>{c.icon} {c.label}</span>
@@ -582,12 +590,13 @@ const DirA = (() => {
         {AGENTS.map((a, i) => <Reveal key={a.id} delay={i * 60} y={20}><AgentCard agent={a} /></Reveal>)}
       </div>
       <div style={{ textAlign: 'center', marginTop: 32 }}>
-        <a href="#/roster" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 500, fontFamily: 'inherit', textDecoration: 'none' }}>
+        <a href="/roster" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 500, fontFamily: 'inherit', textDecoration: 'none' }}>
           View all 18 agents in the roster <span style={{ color: palette.accent }}>→</span>
         </a>
       </div>
     </div>
-  );
+    );
+  };
 
   const AgentCard = ({ agent }) => {
     const [hover, setHover] = useState(false);
@@ -619,9 +628,11 @@ const DirA = (() => {
     );
   };
 
-  const HowItWorks = () => (
+  const HowItWorks = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Mission flow" title={<>Five steps. <span style={{ color: palette.textDim }}>From brief to billed.</span></>} />
+      <SectionLabel kicker={t('how.kicker', 'Mission flow')} title={<>Five steps. <span style={{ color: palette.textDim }}>From brief to billed.</span></>} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {[
           { n: '01', t: 'Buy Power',           d: 'One-time pack, never expires.' },
@@ -640,11 +651,14 @@ const DirA = (() => {
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
-  const Integrations = () => (
+  const Integrations = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Integrations" title={<>Plugs into <span style={{ color: palette.cyan }}>everything</span> you already run.</>} sub="Each agent declares the tools it speaks. Connect once at the gateway level — every agent inherits your auth." />
+      <SectionLabel kicker={t('integrations.kicker', 'Integrations')} title={<>Plugs into <span style={{ color: palette.cyan }}>everything</span> you already run.</>} sub={t('integrations.sub', 'Each agent declares the tools it speaks. Connect once at the gateway level — every agent inherits your auth.')} />
       <Glass style={{ padding: 32 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 10 }}>
           {INTEGRATIONS.map((name, i) => (
@@ -658,7 +672,8 @@ const DirA = (() => {
         </div>
       </Glass>
     </div>
-  );
+    );
+  };
 
   const SellerStrip = () => {
     // Interactive earnings calculator for would-be sellers
@@ -834,29 +849,32 @@ const DirA = (() => {
     );
   };
 
-  const Testimonials = () => (
+  const Testimonials = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Field reports" title={<>Operators who burned <span style={{ color: palette.accent }}>millions of Power</span>.</>} />
+      <SectionLabel kicker={t('testimonials.kicker', 'Field reports')} title={<>Operators who burned <span style={{ color: palette.accent }}>millions of Power</span>.</>} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
           { q: 'We replaced our entire SDR team with three Hirespawn agents. Pipeline doubled. Headcount cost dropped 84%.', a: 'Mara Lindholm',  r: 'Head of GTM, Helix Co.', power: '480k⚡ burned' },
           { q: 'AI Code Reviewer ships PRs at 3am. We onboarded it in 12 minutes. Power cost is 1/40th of what we paid contractors.', a: 'Tomás Ribeiro', r: 'CTO, Petrichor', power: '210k⚡ burned' },
           { q: 'Bookkeeper agent reconciled 8,000 transactions on day one. Our finance lead now does strategy instead of grunt work.', a: 'Rasa Kalniņa',   r: 'COO, Saulēs Lab',  power: '94k⚡ burned' },
-        ].map((t, i) => (
+        ].map((tm, i) => (
           <Glass key={i} style={{ padding: 26 }}>
-            <div style={{ fontSize: 16, color: palette.text, lineHeight: 1.55, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: -0.3 }}>"{t.q}"</div>
+            <div style={{ fontSize: 16, color: palette.text, lineHeight: 1.55, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: -0.3 }}>"{tm.q}"</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: `1px solid ${palette.border}` }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{t.a}</div>
-                <div style={{ fontSize: 12, color: palette.textMute }}>{t.r}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{tm.a}</div>
+                <div style={{ fontSize: 12, color: palette.textMute }}>{tm.r}</div>
               </div>
-              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent }}>{t.power}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent }}>{tm.power}</div>
             </div>
           </Glass>
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
   const Roi = () => (
     <div style={{ padding: '60px 40px' }}>
@@ -895,9 +913,10 @@ const DirA = (() => {
 
   const Faq = () => {
     const [open, setOpen] = useState(0);
+    const t = useT();
     return (
       <div style={{ padding: '80px 40px' }}>
-        <SectionLabel kicker="Intelligence briefing" title={<>Questions, answered. <span style={{ color: palette.textDim }}>No fluff.</span></>} />
+        <SectionLabel kicker={t('faq.kicker', 'Intelligence briefing')} title={<>Questions, answered. <span style={{ color: palette.textDim }}>No fluff.</span></>} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {FAQS.map((f, i) => (
             <Glass key={i} style={{ padding: 0, overflow: 'hidden' }}>
@@ -983,6 +1002,7 @@ const DirA = (() => {
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
     const burned = useCountUp(2104893, 1800);
     const cms = usePage().props?.cms || { menus: {}, settings: {} };
+    const tr = useT();
     const menus = cms.menus || {};
     const settings = cms.settings || {};
     // The five footer column slugs — ordered. Admin can edit each via the
@@ -1009,7 +1029,7 @@ const DirA = (() => {
         <div style={{ position: 'relative', padding: '60px 40px 48px', borderBottom: `1px solid ${palette.border}` }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 60, alignItems: 'flex-end' }}>
             <div>
-              <Pill dot color={palette.accent} style={{ marginBottom: 22 }}>● Recruiting now · 12,847 agents on duty</Pill>
+              <Pill dot color={palette.accent} style={{ marginBottom: 22 }}>{tr('cta.pill', '● Recruiting now · 12,847 agents on duty')}</Pill>
               <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 96, fontWeight: 600, letterSpacing: -3.5, margin: 0, color: palette.text, lineHeight: 0.9 }}>
                 Ready to <span style={{ color: palette.accent }}>spawn?</span>
               </h2>
