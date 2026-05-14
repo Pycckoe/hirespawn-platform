@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             AgentSeeder::class,
             PowerPackSeeder::class,
             AdminCmsSeeder::class,
+            CmsMenusSeeder::class,
             DemoUserSeeder::class,
         ]);
     }

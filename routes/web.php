@@ -32,6 +32,9 @@ Route::get('/emails', [PageController::class, 'emails'])->name('emails');
 Route::get('/blog', [PageController::class, 'blogIndex'])->name('blog.index');
 Route::get('/blog/{slug}', [PageController::class, 'blogPost'])->name('blog.show');
 
+// CMS markdown pages (Terms, Privacy, DPA, AUP, etc. — admin-editable).
+Route::get('/p/{slug}', [PageController::class, 'showPage'])->name('cms.page');
+
 // === Authenticated app ===
 // Note: email verification not gated yet — we send the Registered event so
 // the welcome email goes out, but we don't block onboarding/console on a

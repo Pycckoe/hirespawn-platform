@@ -2,15 +2,43 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Page;
 use App\Models\PowerPack;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class PageController extends Controller
 {
     public function home(): Response
     {
         return Inertia::render('Home');
+    }
+
+    /**
+     * Render a CMS markdown page at /p/{slug}.
+     */
+    public function showPage(string $slug): Response
+    {
+        $page = Page::query()
+            ->where('slug', $slug)
+            ->where('is_published', true)
+            ->first();
+
+        if (! $page) {
+            throw new NotFoundHttpException();
+        }
+
+        return Inertia::render('CmsPage', [
+            'page' => [
+                'title' => $page->title,
+                'metaTitle' => $page->meta_title,
+                'metaDescription' => $page->meta_description,
+                'bodyHtml' => $page->renderedBody(),
+                'publishedAt' => $page->published_at?->format('M d, Y'),
+                'updatedAt' => $page->updated_at?->format('M d, Y'),
+            ],
+        ]);
     }
 
     public function pricing(): Response

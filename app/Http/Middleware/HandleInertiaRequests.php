@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Menu;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -38,6 +41,13 @@ class HandleInertiaRequests extends Middleware
                 'status' => fn () => $request->session()->get('status'),
                 'apiKeySecret' => fn () => $request->session()->get('apiKeySecret'),
             ],
+            // CMS content — menus + site copy. Cached for 60s so the admin
+            // sees edits within a minute without slamming Postgres on every
+            // navigation. Lazy: only resolved when a page asks for it.
+            'cms' => fn () => Cache::remember('cms.shared', 60, fn () => [
+                'menus' => Menu::allForRender(),
+                'settings' => SiteSetting::all_keyed(),
+            ]),
         ];
     }
 }

@@ -24,4 +24,11 @@ class SiteSetting extends Model
     {
         return static::query()->pluck('value', 'key')->all();
     }
+
+    protected static function booted(): void
+    {
+        $forget = fn () => \Illuminate\Support\Facades\Cache::forget('cms.shared');
+        static::saved($forget);
+        static::deleted($forget);
+    }
 }
