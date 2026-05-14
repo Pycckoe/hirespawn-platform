@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pages\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\MarkdownEditor;
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
@@ -38,12 +38,18 @@ class PageForm
 
                 Section::make('Content')
                     ->schema([
-                        MarkdownEditor::make('body')
+                        // RichEditor (TipTap-based) — what-you-see-is-what-you-get.
+                        // Stores HTML in `body`. Page::renderedBody() returns it as-is.
+                        RichEditor::make('body')
                             ->toolbarButtons([
-                                'attachFiles', 'blockquote', 'bold', 'bulletList', 'codeBlock',
-                                'heading', 'italic', 'link', 'orderedList', 'redo', 'strike',
-                                'table', 'undo',
+                                ['bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'link'],
+                                ['h1', 'h2', 'h3', 'blockquote', 'codeBlock', 'bulletList', 'orderedList'],
+                                ['alignStart', 'alignCenter', 'alignEnd'],
+                                ['table', 'attachFiles'],
+                                ['undo', 'redo', 'clearFormatting'],
                             ])
+                            ->fileAttachmentsDisk('public')
+                            ->fileAttachmentsDirectory('page-attachments')
                             ->columnSpanFull(),
                     ]),
 

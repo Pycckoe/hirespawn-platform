@@ -15,10 +15,18 @@ class Page extends Model
     ];
 
     /**
-     * Convert markdown body to safe HTML for rendering.
+     * Page body is stored as HTML by Filament's RichEditor — return as-is.
+     * Legacy markdown bodies (from before the editor swap) are detected by
+     * the absence of any HTML tag and converted on read.
      */
     public function renderedBody(): string
     {
-        return $this->body ? Str::markdown($this->body) : '';
+        if (! $this->body) {
+            return '';
+        }
+
+        $looksLikeHtml = preg_match('/<[a-z][\s\S]*>/i', $this->body) === 1;
+
+        return $looksLikeHtml ? $this->body : Str::markdown($this->body);
     }
 }

@@ -27,6 +27,12 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'seller_share_pct','group' => 'rates','label' => 'Seller revenue share %','type' => 'text',  'value' => '70',                                                'sort' => 1],
             ['key' => 'eur_cents_per_power','group' => 'rates','label' => 'EUR cents per ⚡','type' => 'text',     'value' => '0.9',                                               'sort' => 2],
             ['key' => 'min_cashout_eur','group' => 'rates','label' => 'Min cash-out (€)',    'type' => 'text',     'value' => '10',                                                'sort' => 3],
+
+            // Brand assets — admin uploads PNG / SVG via Filament. Empty
+            // value means the frontend falls back to the inline SVG logo
+            // and the bundled favicon.
+            ['key' => 'site_logo',     'group' => 'brand','label' => 'Site logo',           'type' => 'image',    'value' => null,                                                'sort' => 1],
+            ['key' => 'site_favicon',  'group' => 'brand','label' => 'Site favicon',        'type' => 'image',    'value' => null,                                                'sort' => 2],
         ];
         foreach ($settings as $row) {
             SiteSetting::updateOrCreate(['key' => $row['key']], $row);
