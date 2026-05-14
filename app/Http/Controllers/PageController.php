@@ -12,7 +12,9 @@ class PageController extends Controller
 {
     public function home(): Response
     {
-        return Inertia::render('Home');
+        return Inertia::render('Home', [
+            'powerPacks' => $this->powerPacks(),
+        ]);
     }
 
     /**
@@ -60,22 +62,36 @@ class PageController extends Controller
         ]);
     }
 
+    /**
+     * Single source of truth for Power-pack data shown on the landing
+     * page (DirA `PowerPacks` + `PowerCalculator`), the /pricing page,
+     * and /power checkout. Emits both `eur`+`features` (used by Pricing
+     * / Checkout) and `price`+`perks` (used by DirA marketing widgets)
+     * so all three surfaces consume the same admin-edited rows.
+     */
     private function powerPacks(): array
     {
         return PowerPack::query()
             ->orderBy('sort_order')
             ->get()
-            ->map(fn (PowerPack $p) => [
-                'name' => $p->name,
-                'slug' => $p->slug,
-                'power' => $p->power,
-                'eur' => $p->price_cents !== null ? intdiv($p->price_cents, 100) : null,
-                'perPower' => (float) $p->per_power_eur,
-                'popular' => (bool) $p->is_popular,
-                'audience' => $p->audience,
-                'features' => $p->perks ?? [],
-                'custom' => $p->price_cents === null,
-            ])
+            ->map(function (PowerPack $p) {
+                $eur = $p->price_cents !== null ? intdiv($p->price_cents, 100) : null;
+                $perks = $p->perks ?? [];
+
+                return [
+                    'name' => $p->name,
+                    'slug' => $p->slug,
+                    'power' => $p->power,
+                    'eur' => $eur,
+                    'price' => $eur,
+                    'perPower' => (float) $p->per_power_eur,
+                    'popular' => (bool) $p->is_popular,
+                    'audience' => $p->audience,
+                    'features' => $perks,
+                    'perks' => $perks,
+                    'custom' => $p->price_cents === null,
+                ];
+            })
             ->values()
             ->all();
     }

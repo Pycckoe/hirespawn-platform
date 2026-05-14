@@ -401,9 +401,15 @@ const DirA = (() => {
     );
   };
 
-  // === Power packs (3 packs, Enterprise removed in favor of calculator) ===
+  // === Power packs (admin-managed via /admin/power-packs) ===
+  // Reads `powerPacks` from Inertia props (shipped by PageController@home).
+  // Falls back to the hardcoded POWER_PACKS shape if a page renders this
+  // component without shipping the prop. Custom / "talk to sales" packs
+  // (price === null) are filtered out so the grid shows priced ones.
   const PowerPacks = () => {
-    const packs = POWER_PACKS.filter(p => p.price !== null);
+    const dbPacks = usePage().props?.powerPacks;
+    const source = Array.isArray(dbPacks) && dbPacks.length ? dbPacks : POWER_PACKS;
+    const packs = source.filter(p => p.price !== null && p.price !== undefined);
     const t = useT();
     return (
     <div style={{ padding: '80px 40px' }}>
@@ -458,7 +464,9 @@ const DirA = (() => {
     }).filter(Boolean);
 
     const totalPower = expanded.reduce((s, r) => s + r.power, 0);
-    const packs = POWER_PACKS.filter(p => p.price !== null);
+    const dbPacks = usePage().props?.powerPacks;
+    const source = Array.isArray(dbPacks) && dbPacks.length ? dbPacks : POWER_PACKS;
+    const packs = source.filter(p => p.price !== null && p.price !== undefined);
     // recommended pack: smallest pack whose power >= totalPower, else largest
     const rec = packs.find(p => p.power >= totalPower) || packs[packs.length - 1];
     const recCost = rec.price;
