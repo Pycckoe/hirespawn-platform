@@ -28,7 +28,7 @@ class Menu extends Model
      * Return ALL menus keyed by their `key`, each as an array of active
      * items ready for JSON-encoding into Inertia props.
      *
-     * @return array<string, array<int, array{label: string, url: ?string, icon: ?string, target: string}>>
+     * @return array<string, array<int, array{label: string, url: ?string, icon: ?string, icon_image: ?string, target: string}>>
      */
     public static function allForRender(): array
     {
@@ -40,6 +40,11 @@ class Menu extends Model
                     'label' => $i->label,
                     'url' => $i->url,
                     'icon' => $i->icon,
+                    // Public URL to uploaded icon, if any. Frontend prefers
+                    // this over the inline-SVG `icon` key when present.
+                    'icon_image' => $i->icon_image
+                        ? \Illuminate\Support\Facades\Storage::disk('public')->url($i->icon_image)
+                        : null,
                     'target' => $i->target,
                 ])->all(),
             ])

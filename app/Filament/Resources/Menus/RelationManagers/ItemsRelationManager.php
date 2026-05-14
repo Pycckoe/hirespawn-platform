@@ -7,6 +7,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -14,6 +15,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
@@ -39,11 +41,6 @@ class ItemsRelationManager extends RelationManager
                             ->placeholder('/roster · https://… · mailto:…')
                             ->maxLength(500)
                             ->columnSpan(1),
-                        TextInput::make('icon')
-                            ->label('Icon key')
-                            ->helperText('For social / payments rows. Known keys: x, linkedin, github, youtube, rss, visa, mastercard, applepay, googlepay, amex, paypal. Leave blank for text links.')
-                            ->maxLength(40)
-                            ->columnSpan(1),
                         Select::make('target')
                             ->options([
                                 '_self'  => 'Same tab',
@@ -55,6 +52,26 @@ class ItemsRelationManager extends RelationManager
                             ->columnSpan(1),
                     ])
                     ->columns(2),
+
+                Section::make('Icon')
+                    ->description('Upload a PNG / SVG / WebP, OR type a key for the built-in inline SVG library (x, linkedin, github, youtube, rss, visa, mastercard, applepay, googlepay, amex, paypal). Uploaded image takes priority.')
+                    ->schema([
+                        FileUpload::make('icon_image')
+                            ->label('Uploaded icon')
+                            ->image()
+                            ->imagePreviewHeight('80')
+                            ->acceptedFileTypes(['image/png', 'image/svg+xml', 'image/webp', 'image/jpeg'])
+                            ->maxSize(512) // KB — payment logos are tiny
+                            ->disk('public')
+                            ->directory('menu-icons')
+                            ->visibility('public')
+                            ->columnSpanFull(),
+                        TextInput::make('icon')
+                            ->label('…or icon key (built-in SVG)')
+                            ->placeholder('visa, paypal, x, github…')
+                            ->helperText('Used only when no file is uploaded above.')
+                            ->maxLength(40),
+                    ]),
 
                 Section::make('Visibility')
                     ->schema([
@@ -80,11 +97,18 @@ class ItemsRelationManager extends RelationManager
                     ->label('#')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('icon')
+                ImageColumn::make('icon_image')
                     ->label('Icon')
+                    ->disk('public')
+                    ->height(40)
+                    ->extraImgAttributes(['style' => 'background: rgba(255,255,255,0.04); padding: 4px; border-radius: 4px;'])
+                    ->placeholder('—'),
+                TextColumn::make('icon')
+                    ->label('Key')
                     ->fontFamily('mono')
                     ->color('gray')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('label')
                     ->searchable()
                     ->sortable()
@@ -96,7 +120,8 @@ class ItemsRelationManager extends RelationManager
                     ->copyable(),
                 TextColumn::make('target')
                     ->badge()
-                    ->color(fn ($state) => $state === '_blank' ? 'info' : 'gray'),
+                    ->color(fn ($state) => $state === '_blank' ? 'info' : 'gray')
+                    ->toggleable(),
                 IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
