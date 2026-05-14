@@ -28,14 +28,25 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'eur_cents_per_power','group' => 'rates','label' => 'EUR cents per ⚡','type' => 'text',     'value' => '0.9',                                               'sort' => 2],
             ['key' => 'min_cashout_eur','group' => 'rates','label' => 'Min cash-out (€)',    'type' => 'text',     'value' => '10',                                                'sort' => 3],
 
-            // Brand assets — admin uploads PNG / SVG via Filament. Empty
-            // value means the frontend falls back to the inline SVG logo
-            // and the bundled favicon.
-            ['key' => 'site_logo',     'group' => 'brand','label' => 'Site logo',           'type' => 'image',    'value' => null,                                                'sort' => 1],
-            ['key' => 'site_favicon',  'group' => 'brand','label' => 'Site favicon',        'type' => 'image',    'value' => null,                                                'sort' => 2],
+            // Brand assets — admin uploads PNG / SVG via Filament. Defaults
+            // point at the bundled /logo.svg and /favicon.ico so the site
+            // ships with a real logo + favicon out of the box. Admin can
+            // replace with custom uploads anytime; uploaded values become
+            // storage paths (e.g. 'site/foo.png') which the model resolves
+            // to /storage/site/foo.png URLs.
+            ['key' => 'site_logo',     'group' => 'brand','label' => 'Site logo',           'type' => 'image',    'value' => '/logo.svg',                                         'sort' => 1],
+            ['key' => 'site_favicon',  'group' => 'brand','label' => 'Site favicon',        'type' => 'image',    'value' => '/favicon.ico',                                      'sort' => 2],
         ];
+        // Preserve admin edits across re-seeds: metadata (label/group/type
+        // /sort) always updates so we can rename / regroup later, but the
+        // `value` column is only set when the row is new OR still null.
         foreach ($settings as $row) {
-            SiteSetting::updateOrCreate(['key' => $row['key']], $row);
+            $defaultValue = $row['value'] ?? null;
+            unset($row['value']);
+            $setting = SiteSetting::updateOrCreate(['key' => $row['key']], $row);
+            if (($setting->value === null || $setting->value === '') && $defaultValue !== null) {
+                $setting->forceFill(['value' => $defaultValue])->save();
+            }
         }
 
         // ---- Currencies ----

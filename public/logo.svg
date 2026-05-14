@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="26" viewBox="0 0 160 26" fill="none">
+  <!-- Hexagon mark -->
+  <path d="M13 2 L24 8 V18 L13 24 L2 18 V8 Z" stroke="#b4f25b" stroke-width="1.5" fill="rgba(180,242,91,0.06)" />
+  <path d="M13 7 L19 10.5 V15.5 L13 19 L7 15.5 V10.5 Z" fill="#b4f25b" opacity="0.85" />
+  <!-- Wordmark -->
+  <text x="34" y="18" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600" letter-spacing="-0.4" fill="#e8e8e8">hirespawn</text>
+</svg>
