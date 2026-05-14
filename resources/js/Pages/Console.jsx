@@ -11,69 +11,13 @@ import {
 // CLIENT DASHBOARD (Console) — post-login workspace
 // Power balance, burn-rate chart, active agents, live ops, billing
 //
-// Live data: reads `subscriptions`, `powerBalance`, `metrics` from
-// ConsoleController. When the buyer has no UsageEvents yet the page
-// falls back to the design's demo series so it never reads as empty.
+// All data is read from server props (ConsoleController). No mock
+// fallbacks: when the user has no agents / events yet, sections render
+// empty states that point at /roster or /power.
 // =====================================================================
 
 const Dashboard = (() => {
   const { palette, Glass, Pill, Mesh, Logo, SectionLabel, Reveal, Footer, ThemeToggle } = DirA;
-
-  // ---- Demo state for the logged-in account ----
-  const ACCOUNT = {
-    org: 'Helix Co.',
-    plan: 'Pro',
-    seat: 'Mara Lindholm',
-    role: 'Owner',
-    powerBalance: 243891,
-    powerPack: 50000,    // per refresh cycle
-    burn24h: 18472,
-    burn7d: 124300,
-    burn30d: 487120,
-    nextRefresh: 'Mar 1, 2026',
-    eurSpent30d: 4384,
-  };
-
-  // Active agents the org has deployed — fallback demo data used when the
-  // signed-in buyer has no real subscriptions yet (controller still passes
-  // an empty list in that case).
-  const DEMO_AGENTS = [
-    { id: 'sdr-pro',  name: 'AI SDR',           role: 'Cold Outreach', tone: 'sales',   power: 12, perUnit: 'lead',        runs24h: 412, runs7d: 2880,  failRate: 0.002, latency: '0.4s', spend24h: 4944, status: 'on'  },
-    { id: 'review',   name: 'AI Code Reviewer', role: 'Engineering',   tone: 'eng',     power: 38, perUnit: 'PR',          runs24h: 84,  runs7d: 612,   failRate: 0.001, latency: '78s',  spend24h: 3192, status: 'on'  },
-    { id: 'support',  name: 'AI Support Agent', role: 'Customer Care', tone: 'support', power: 6,  perUnit: 'ticket',      runs24h: 1241,runs7d: 8420,  failRate: 0.004, latency: '22s',  spend24h: 7446, status: 'on'  },
-    { id: 'books',    name: 'AI Bookkeeper',    role: 'Finance',       tone: 'finance', power: 4,  perUnit: 'transaction', runs24h: 580, runs7d: 4112,  failRate: 0.000, latency: '0.7s', spend24h: 2320, status: 'on'  },
-    { id: 'analyst',  name: 'AI Data Analyst',  role: 'Research',      tone: 'research',power: 22, perUnit: 'query',       runs24h: 28,  runs7d: 184,   failRate: 0.011, latency: '15s',  spend24h: 616,  status: 'paused' },
-  ];
-
-  // Burn-rate sparkline data (24 points = last 24h) — demo fallback
-  const BURN_SERIES = [320, 410, 380, 290, 250, 220, 180, 240, 310, 480, 620, 740, 820, 880, 920, 1040, 1180, 1220, 1140, 1020, 980, 860, 720, 610];
-  // Per-day burn for last 30 days — demo fallback
-  const BURN_30D = [
-    9200, 11400, 12100, 14200, 13800, 12400, 11900, 13200, 15400, 16800, 17200, 18900, 19400, 18700, 17400,
-    16100, 14800, 16400, 18200, 19800, 21200, 22400, 21800, 20100, 18700, 19400, 20800, 22100, 21400, 18472,
-  ];
-
-  // Recent ops events — demo fallback when no real UsageEvents exist yet
-  const OPS = [
-    { agent: 'AI SDR',        verb: 'sent personalized email to', obj: 'lead@northwind.io',    cost: 12, t: '2s ago',  status: 'ok' },
-    { agent: 'AI Support',    verb: 'resolved ticket',             obj: '#88472 (refund)',      cost: 6,  t: '4s ago',  status: 'ok' },
-    { agent: 'AI Bookkeeper', verb: 'reconciled',                  obj: '142 Stripe tx',        cost: 568,t: '11s ago', status: 'ok' },
-    { agent: 'AI Code Reviewer', verb: 'reviewed PR',              obj: '#4291 monorepo/payments',cost: 38,t: '23s ago', status: 'ok' },
-    { agent: 'AI Support',    verb: 'failed to resolve',           obj: '#88471 (escalated)',   cost: 6,  t: '34s ago', status: 'fail' },
-    { agent: 'AI SDR',        verb: 'booked',                      obj: 'demo with Petrichor',  cost: 12, t: '52s ago', status: 'ok' },
-    { agent: 'AI Bookkeeper', verb: 'flagged',                     obj: '€8,400 mismatch',      cost: 4,  t: '1m ago',  status: 'warn' },
-    { agent: 'AI Data Analyst',verb: 'answered',                   obj: '"MRR by region Q1"',   cost: 22, t: '1m ago',  status: 'ok' },
-  ];
-
-  // Billing events — still demo, real invoices arrive with Stripe later
-  const BILLING = [
-    { date: 'Feb 14, 2026', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
-    { date: 'Feb 03, 2026', desc: 'Top-up (overflow)',     power: 10000,  eur: 90,    kind: 'topup' },
-    { date: 'Jan 14, 2026', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
-    { date: 'Dec 14, 2025', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
-    { date: 'Dec 02, 2025', desc: 'SLA credit · AI Support',power: 240,   eur: 0,     kind: 'credit' },
-    { date: 'Nov 14, 2025', desc: 'Pro pack refresh',      power: 50000,  eur: 449,   kind: 'pack' },
-  ];
 
   // ---- Sidebar nav (depends on active agents count, built per-render) ----
   // Items with `href` navigate to another page (Inertia Link).
@@ -226,7 +170,7 @@ const Dashboard = (() => {
       <div style={{ marginTop: 'auto', padding: 12, borderRadius: 8, background: 'rgba(180,242,91,0.05)', border: `1px solid ${palette.accentDim}` }}>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>Power balance</div>
         <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 4 }}>{powerBalance.toLocaleString()}<span style={{ fontSize: 14, color: palette.accent, marginLeft: 4 }}>⚡</span></div>
-        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, marginTop: 2 }}>refresh {ACCOUNT.nextRefresh}</div>
+        <Link href="/power" style={{ display: 'inline-block', marginTop: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textDecoration: 'none' }}>top up →</Link>
       </div>
       <style>{`@keyframes dirA-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
     </div>
@@ -333,95 +277,112 @@ const Dashboard = (() => {
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Deployed agents</div>
           <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{agents.length} on roster · {agents.filter(a => a.status === 'on').length} active</div>
         </div>
-        <a href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>+ Hire another</a>
+        <Link href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>+ Hire {agents.length ? 'another' : 'an agent'}</Link>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.9fr 0.7fr 1fr 80px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-        <span>Agent</span><span>Volume</span><span>Power 24h</span><span>Latency</span><span>Fail rate</span><span>Trend</span><span>Status</span>
-      </div>
-      {agents.map(a => <AgentRow key={a.id} a={a} />)}
+      {agents.length > 0 ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.9fr 0.7fr 1fr 80px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
+            <span>Agent</span><span>Volume</span><span>Power 24h</span><span>Latency</span><span>Fail rate</span><span>Trend</span><span>Status</span>
+          </div>
+          {agents.map(a => <AgentRow key={a.id} a={a} />)}
+        </>
+      ) : (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: palette.textDim }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>◇</div>
+          <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No agents deployed yet</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 14 }}>Browse the roster to hire your first AI agent.</div>
+          <Link href="/roster" style={{ display: 'inline-block', padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Browse roster →</Link>
+        </div>
+      )}
     </Glass>
   );
 
-  // ---- Live ops feed — real UsageEvents from props, falls back to demo
-  // OPS rotation when the user has no events yet.
+  // ---- Live ops feed — shows real UsageEvents from props, or empty state
+  // when the buyer's agents haven't run anything yet.
   const LiveOps = ({ events = [] }) => {
-    const hasReal = events.length > 0;
-    const [items, setItems] = useState(hasReal ? events.slice(0, 6) : OPS.slice(0, 6));
-    const idx = useRef(6);
-    useEffect(() => {
-      if (hasReal) {
-        setItems(events.slice(0, 6));
-        return;
-      }
-      const t = setInterval(() => {
-        setItems(prev => {
-          const next = OPS[idx.current % OPS.length];
-          idx.current++;
-          return [{ ...next, key: idx.current, t: 'just now' }, ...prev.slice(0, 5).map((p, i) => ({ ...p, t: i === 0 ? '4s ago' : i === 1 ? '12s ago' : i === 2 ? '34s ago' : i === 3 ? '1m ago' : '2m ago' }))];
-        });
-      }, 2200);
-      return () => clearInterval(t);
-    }, [hasReal, events]);
-
+    const items = events.slice(0, 6);
+    const isLive = items.length > 0;
     return (
       <Glass style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Live ops feed</div>
-            <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 500, color: palette.text, marginTop: 2 }}>last 5 events</div>
+            <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 500, color: palette.text, marginTop: 2 }}>{isLive ? `last ${items.length} events` : 'no events yet'}</div>
           </div>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 99, background: palette.accent, boxShadow: `0 0 6px ${palette.accent}`, animation: 'dirA-pulse 1.4s infinite' }} />LIVE
-          </span>
+          {isLive && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>
+              <span style={{ width: 6, height: 6, borderRadius: 99, background: palette.accent, boxShadow: `0 0 6px ${palette.accent}`, animation: 'dirA-pulse 1.4s infinite' }} />LIVE
+            </span>
+          )}
         </div>
-        <div>
-          {items.map((it, i) => {
-            const color = it.status === 'fail' ? palette.red : it.status === 'warn' ? palette.amber : palette.accent;
-            return (
-              <div key={it.key || i} style={{ padding: '12px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, opacity: 1 - i * 0.08, animation: i === 0 ? 'dirA-slidein 0.5s ease' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>
-                  <span style={{ color: palette.textMute, minWidth: 50 }}>{it.t}</span>
-                  <span style={{ color: color, fontWeight: 600 }}>{it.agent}</span>
-                  <span style={{ color: palette.textDim, flex: 1 }}>{it.verb} <span style={{ color: palette.text }}>{it.obj}</span></span>
-                  <span style={{ color: palette.accent }}>{it.cost}⚡</span>
+        {isLive ? (
+          <div>
+            {items.map((it, i) => {
+              const color = it.status === 'fail' ? palette.red : it.status === 'warn' ? palette.amber : palette.accent;
+              return (
+                <div key={it.key || i} style={{ padding: '12px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, opacity: 1 - i * 0.08 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>
+                    <span style={{ color: palette.textMute, minWidth: 50 }}>{it.t}</span>
+                    <span style={{ color: color, fontWeight: 600 }}>{it.agent}</span>
+                    <span style={{ color: palette.textDim, flex: 1 }}>{it.verb} <span style={{ color: palette.text }}>{it.obj}</span></span>
+                    <span style={{ color: palette.accent }}>{it.cost}⚡</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <style>{`@keyframes dirA-slidein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: palette.textDim }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>▸</div>
+            <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>Nothing's running yet</div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>Hire an agent — runs land here in real time.</div>
+          </div>
+        )}
       </Glass>
     );
   };
 
   // ---- Billing block ----
-  const Billing = () => (
+  // Renders real invoice rows when the controller ships any; otherwise
+  // shows an empty state pointing at /power so the buyer can top up.
+  const Billing = ({ rows = [], eurSpent30d = 0 }) => (
     <Glass style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Billing & history</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 500, color: palette.text, marginTop: 2 }}>€{ACCOUNT.eurSpent30d.toLocaleString()} <span style={{ fontSize: 13, color: palette.textDim, fontWeight: 400 }}>· last 30 days</span></div>
+          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 500, color: palette.text, marginTop: 2 }}>€{eurSpent30d.toLocaleString()} <span style={{ fontSize: 13, color: palette.textDim, fontWeight: 400 }}>· last 30 days</span></div>
         </div>
-        <button style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}>Download invoices →</button>
+        <Link href="/settings?tab=billing" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Full billing →</Link>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px', gap: 14, padding: '10px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-        <span>Date</span><span>Description</span><span>Power</span><span>Amount</span><span>Status</span>
-      </div>
-      {BILLING.map((b, i) => {
-        const c = b.kind === 'credit' ? palette.amber : b.kind === 'topup' ? palette.cyan : palette.accent;
-        return (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px', gap: 14, padding: '14px 20px', borderBottom: i < BILLING.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{b.date}</span>
-            <span style={{ fontSize: 13, color: palette.text }}>
-              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 99, background: c, marginRight: 8, verticalAlign: 'middle' }} />
-              {b.desc}
-            </span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: c }}>+{b.power.toLocaleString()}⚡</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>€{b.eur}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● paid</span>
+      {rows.length > 0 ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px', gap: 14, padding: '10px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
+            <span>Date</span><span>Description</span><span>Power</span><span>Amount</span><span>Status</span>
           </div>
-        );
-      })}
+          {rows.map((b, i) => {
+            const c = b.kind === 'credit' ? palette.amber : b.kind === 'topup' ? palette.cyan : palette.accent;
+            return (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px', gap: 14, padding: '14px 20px', borderBottom: i < rows.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
+                <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{b.date}</span>
+                <span style={{ fontSize: 13, color: palette.text }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 99, background: c, marginRight: 8, verticalAlign: 'middle' }} />
+                  {b.desc}
+                </span>
+                <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: c }}>+{(b.power || 0).toLocaleString()}⚡</span>
+                <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>€{b.eur}</span>
+                <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● {b.status || 'paid'}</span>
+              </div>
+            );
+          })}
+        </>
+      ) : (
+        <div style={{ padding: '32px 20px', textAlign: 'center', color: palette.textDim }}>
+          <div style={{ fontSize: 24, marginBottom: 6 }}>⚡</div>
+          <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No invoices yet</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 14 }}>Top up power to start your billing history.</div>
+          <Link href="/power" style={{ display: 'inline-block', padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Buy Power +</Link>
+        </div>
+      )}
     </Glass>
   );
 
@@ -429,12 +390,12 @@ const Dashboard = (() => {
   const QuickActions = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       {[
-        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',         href: '/power' },
-        { icon: '◇', t: 'Hire agent',    d: '18 in roster',           href: '/roster' },
-        { icon: '⌘', t: 'Create API key', d: 'coming soon',          href: '/settings' },
-        { icon: '◈', t: 'Invite team',    d: 'coming soon',          href: '/settings' },
+        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',                href: '/power' },
+        { icon: '◇', t: 'Hire agent',    d: 'Browse the roster',             href: '/roster' },
+        { icon: '⌘', t: 'API keys',      d: 'Manage in settings',            href: '/settings?tab=keys' },
+        { icon: '◈', t: 'Invite team',    d: 'Members & roles',              href: '/settings?tab=members' },
       ].map(a => (
-        <a key={a.t} href={a.href} style={{ textDecoration: 'none' }}>
+        <Link key={a.t} href={a.href} style={{ textDecoration: 'none' }}>
           <Glass style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'border-color 0.2s' }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{a.icon}</div>
             <div style={{ flex: 1 }}>
@@ -443,29 +404,26 @@ const Dashboard = (() => {
             </div>
             <span style={{ color: palette.textMute, fontSize: 16 }}>→</span>
           </Glass>
-        </a>
+        </Link>
       ))}
     </div>
   );
 
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {} } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {}, billing = [] } = usePage().props;
     const user = auth?.user || null;
     const isAdmin = !!user?.is_admin;
     const firstName = (user?.name || '').split(/\s+/)[0] || 'operator';
-    const liveAgents = subscriptions.length ? subscriptions : DEMO_AGENTS;
-    const effectiveBalance = powerBalance > 0 ? powerBalance : ACCOUNT.powerBalance;
+    const liveAgents = subscriptions;
     const sideItems = buildSideItems(liveAgents, sidebarCounts);
 
-    // Real metrics if the controller shipped any (and at least one event exists),
-    // otherwise fall back to the design's demo series so the page is never empty.
-    const hasRealEvents = (metrics?.opsFeed?.length || 0) > 0;
-    const burn24h = hasRealEvents ? metrics.burn24h : ACCOUNT.burn24h;
-    const burn30d = hasRealEvents ? metrics.burn30d : ACCOUNT.burn30d;
-    const series24h = hasRealEvents ? metrics.burnSeries24h : BURN_SERIES;
-    const series30d = hasRealEvents ? metrics.burnSeries30d : BURN_30D;
-    const opsEvents = hasRealEvents ? metrics.opsFeed : [];
+    const burn24h = metrics?.burn24h ?? 0;
+    const burn30d = metrics?.burn30d ?? 0;
+    const series24h = metrics?.burnSeries24h ?? Array(24).fill(0);
+    const series30d = metrics?.burnSeries30d ?? Array(30).fill(0);
+    const opsEvents = metrics?.opsFeed ?? [];
+    const eurSpent30d = metrics?.eurSpent30d ?? 0;
 
     const [tab, setTab] = useState('overview');
     const [flashMsg, setFlashMsg] = useState(flash?.status || null);
@@ -485,7 +443,7 @@ const Dashboard = (() => {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', maxWidth: 1600, margin: '0 auto' }}>
-            <Sidebar tab={tab} setTab={setTab} items={sideItems} powerBalance={effectiveBalance} />
+            <Sidebar tab={tab} setTab={setTab} items={sideItems} powerBalance={powerBalance} />
 
             <div style={{ padding: '32px 40px 60px', minWidth: 0 }}>
               {/* Greeting */}
@@ -495,16 +453,16 @@ const Dashboard = (() => {
                   <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, lineHeight: 1.1, fontWeight: 600, letterSpacing: -1.4, margin: 0, color: palette.text }}>
                     Good evening, <span style={{ color: palette.accent, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 52, letterSpacing: -1 }}>{firstName}</span>.
                   </h1>
-                  <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>Here's what your roster shipped while you were away.</p>
+                  <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>{liveAgents.length ? "Here's what your roster shipped while you were away." : 'Your workspace is ready — hire your first agent to get started.'}</p>
                 </div>
               </div>
 
               {/* KPI strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                <Kpi label="Power balance" value={`${(effectiveBalance/1000).toFixed(1)}k`} sub={powerBalance > 0 ? 'live balance' : `of ${(ACCOUNT.powerPack).toLocaleString()}⚡ pack · refresh ${ACCOUNT.nextRefresh}`} />
-                <Kpi label="Burned (24h)" value={burn24h.toLocaleString()} sub={`≈ €${Math.round(burn24h * 0.009)} at Pro rate`} sparkData={series24h} />
-                <Kpi label="Burned (30d)" value={`${(burn30d/1000).toFixed(burn30d < 10000 ? 1 : 0)}k`} sub={`avg ${Math.round(burn30d/30).toLocaleString()}⚡/day`} sparkData={series30d} />
-                <Kpi label="Active agents" value={`${liveAgents.filter(a => a.status === 'on').length} / ${liveAgents.length}`} sub={`${liveAgents.reduce((s,a) => s + (a.runs24h || 0), 0).toLocaleString()} tasks today`} color={palette.cyan} sparkColor={palette.cyan} sparkData={[8, 14, 21, 18, 26, 32, 28, 35, 42, 38, 45, 51, 48, 55, 62]} />
+                <Kpi label="Power balance" value={`${(powerBalance/1000).toFixed(1)}k`} sub={powerBalance > 0 ? 'live balance' : 'top up to start'} />
+                <Kpi label="Burned (24h)" value={burn24h.toLocaleString()} sub={burn24h > 0 ? `≈ €${(burn24h * 0.009).toFixed(2)} at Pro rate` : 'no runs yet'} sparkData={burn24h > 0 ? series24h : undefined} />
+                <Kpi label="Burned (30d)" value={burn30d >= 1000 ? `${(burn30d/1000).toFixed(burn30d < 10000 ? 1 : 0)}k` : burn30d.toLocaleString()} sub={burn30d > 0 ? `avg ${Math.round(burn30d/30).toLocaleString()}⚡/day` : 'no runs yet'} sparkData={burn30d > 0 ? series30d : undefined} />
+                <Kpi label="Active agents" value={`${liveAgents.filter(a => a.status === 'on').length} / ${liveAgents.length}`} sub={liveAgents.length ? `${liveAgents.reduce((s,a) => s + (a.runs24h || 0), 0).toLocaleString()} tasks today` : 'browse the roster'} color={palette.cyan} sparkColor={palette.cyan} />
               </div>
 
               {/* Burn chart + live ops */}
@@ -524,7 +482,7 @@ const Dashboard = (() => {
               {tab === 'overview' && <div style={{ marginBottom: 22 }}><QuickActions /></div>}
 
               {/* Billing — overview only (full billing lives in /settings?tab=billing) */}
-              {tab === 'overview' && <Billing />}
+              {tab === 'overview' && <Billing rows={billing} eurSpent30d={eurSpent30d} />}
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApiKey;
+use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
 use App\Models\WorkspaceMember;
@@ -95,6 +96,36 @@ class ConsoleController extends Controller
             ];
         })->values()->all();
 
+        // Real invoices (last 6) + euros spent in the last 30 days.
+        // No fallback: when the buyer hasn't paid yet, $billing is [] and
+        // the Console renders the "no invoices yet" empty state.
+        $billing = [];
+        $eurSpent30d = 0;
+        if ($user) {
+            $billing = Invoice::query()
+                ->where('buyer_id', $user->id)
+                ->latest('created_at')
+                ->limit(6)
+                ->get()
+                ->map(fn (Invoice $inv) => [
+                    'date' => $inv->created_at?->format('M d, Y'),
+                    'desc' => $inv->subscription_id
+                        ? 'Subscription · '.($inv->subscription?->agent?->name ?? 'agent')
+                        : 'Power top-up',
+                    'power' => 0,
+                    'eur' => round($inv->total_cents / 100, 2),
+                    'kind' => $inv->subscription_id ? 'pack' : 'topup',
+                    'status' => $inv->status,
+                ])
+                ->all();
+
+            $eurSpent30d = (int) round(Invoice::query()
+                ->where('buyer_id', $user->id)
+                ->where('status', 'paid')
+                ->where('paid_at', '>=', $now->copy()->subDays(30))
+                ->sum('total_cents') / 100);
+        }
+
         $sidebarCounts = $user ? [
             // Owner counts as 1 + active members
             'team' => 1 + WorkspaceMember::query()
@@ -118,7 +149,9 @@ class ConsoleController extends Controller
                 'burnSeries24h' => $burnSeries24h,
                 'burnSeries30d' => $burnSeries30d,
                 'opsFeed' => $opsFeed,
+                'eurSpent30d' => $eurSpent30d,
             ],
+            'billing' => $billing,
             'sidebarCounts' => $sidebarCounts,
         ]);
     }

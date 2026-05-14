@@ -79,7 +79,6 @@ const Customers = (() => {
                 <div style={{ background: `linear-gradient(135deg, ${s.accent}22, transparent)`, padding: 36, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: i % 2 === 0 ? `1px solid ${palette.border}` : 0, borderRight: i % 2 !== 0 ? `1px solid ${palette.border}` : 0, order: i % 2 === 0 ? 2 : 1 }}>
                   <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 2, textTransform: 'uppercase' }}>Headline metric</div>
                   <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 64, fontWeight: 500, letterSpacing: -2.5, color: palette.text, lineHeight: 1, marginTop: 12, textAlign: 'center' }}>{s.metric}</div>
-                  <a href="#" style={{ marginTop: 22, fontSize: 12, color: palette.accent, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Read full case study →</a>
                 </div>
               </Glass>
             ))}

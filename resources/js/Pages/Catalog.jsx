@@ -1,6 +1,6 @@
 import '@/setup';
 import { useMemo, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -131,7 +131,7 @@ const Catalog = (() => {
         <div style={{ marginTop: 24, padding: 12, background: 'rgba(180,242,91,0.06)', border: `1px solid ${palette.accentDim}`, borderRadius: 10 }}>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>Need a custom one?</div>
           <div style={{ fontSize: 13, color: palette.textDim, marginTop: 6, lineHeight: 1.45 }}>Publish your own agent. Set Power cost, share revenue.</div>
-          <a href="#/" style={{ display: 'inline-block', marginTop: 10, fontSize: 12, color: palette.accent, textDecoration: 'none', fontFamily: 'Geist Mono, monospace', letterSpacing: 0.5 }}>Apply as seller →</a>
+          <Link href="/vendor" style={{ display: 'inline-block', marginTop: 10, fontSize: 12, color: palette.accent, textDecoration: 'none', fontFamily: 'Geist Mono, monospace', letterSpacing: 0.5 }}>Apply as seller →</Link>
         </div>
       </Glass>
     );

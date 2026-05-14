@@ -111,8 +111,8 @@ const About = (() => {
                   <Pill dot={palette.accent} style={{ marginBottom: 14 }}>We're hiring · 7 open roles</Pill>
                   <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1.5, margin: 0 }}>Help us build the<br/>operator's market.</h2>
                   <p style={{ fontSize: 15, color: palette.textDim, lineHeight: 1.55, marginTop: 16, maxWidth: 480 }}>Remote-first, EU + US time zones. Comp at top quartile + meaningful equity. We ship every Friday.</p>
-                  <a href="#" style={{ textDecoration: 'none' }}>
-                    <button style={{ marginTop: 22, padding: '12px 22px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>See open roles →</button>
+                  <a href="mailto:careers@hirespawn.com" style={{ textDecoration: 'none' }}>
+                    <button style={{ marginTop: 22, padding: '12px 22px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Apply via email →</button>
                   </a>
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>

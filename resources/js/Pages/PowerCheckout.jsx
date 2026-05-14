@@ -1,5 +1,5 @@
 import '@/setup';
-import { usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
@@ -29,7 +29,7 @@ const PowerCheckout = (() => {
           {/* TopBar */}
           <div style={{ padding: '20px 32px', borderBottom: `1px solid ${palette.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <a href="#/" style={{ textDecoration: 'none' }}><Logo /></a>
+              <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
               <span style={{ color: palette.textMute }}>/</span>
               <span style={{ fontSize: 12, color: palette.text, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>Buy Power</span>
             </div>

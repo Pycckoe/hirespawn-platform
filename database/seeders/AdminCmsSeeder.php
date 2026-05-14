@@ -14,10 +14,10 @@ class AdminCmsSeeder extends Seeder
     {
         // ---- Site copy ----
         $settings = [
-            ['key' => 'hero_pill',     'group' => 'home', 'label' => 'Home · hero pill',     'type' => 'text',     'value' => 'AI agent marketplace',                              'sort' => 1],
-            ['key' => 'hero_title',    'group' => 'home', 'label' => 'Home · hero title',    'type' => 'textarea', 'value' => "Spawn AI agents.\nPay only for power burned.",      'sort' => 2],
-            ['key' => 'hero_subtitle', 'group' => 'home', 'label' => 'Home · hero subtitle', 'type' => 'textarea', 'value' => 'Hire production-grade agents from verified vendors. No per-seat lock-in.', 'sort' => 3],
-            ['key' => 'hero_cta',      'group' => 'home', 'label' => 'Home · primary CTA',   'type' => 'text',     'value' => 'Browse roster →',                                   'sort' => 4],
+            ['key' => 'hero_pill',     'group' => 'home', 'label' => 'Home · hero pill',     'type' => 'text',     'value' => '● Live · 12,847 agents on duty',                    'sort' => 1],
+            ['key' => 'hero_title',    'group' => 'home', 'label' => 'Home · hero title (display only — H1 is stylized)', 'type' => 'textarea', 'value' => "Hire an army.\nBurn Power.",                                'sort' => 2],
+            ['key' => 'hero_subtitle', 'group' => 'home', 'label' => 'Home · hero subtitle', 'type' => 'textarea', 'value' => 'The marketplace for AI employees. No subscriptions, no headcount. Buy Power once — every agent in the roster runs on it. Pay only for tasks executed.', 'sort' => 3],
+            ['key' => 'hero_cta',      'group' => 'home', 'label' => 'Home · primary CTA',   'type' => 'text',     'value' => 'Buy Power →',                                       'sort' => 4],
 
             ['key' => 'footer_tagline','group' => 'footer','label' => 'Footer · tagline',    'type' => 'text',     'value' => 'Pay only for power burned.',                        'sort' => 1],
             ['key' => 'footer_copyright','group' => 'footer','label' => 'Footer · copyright', 'type' => 'text',     'value' => '© HIRESPAWN SIA · RIGA · 2026',                     'sort' => 2],

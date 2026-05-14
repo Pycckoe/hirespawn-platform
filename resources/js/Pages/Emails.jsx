@@ -215,7 +215,7 @@ const Emails = (() => {
                 </div>
                 <div style={{ padding: '20px 28px', borderTop: `1px solid ${palette.border}`, background: 'var(--p-inset-soft)', fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 0.5, lineHeight: 1.6 }}>
                   Hirespawn GmbH · Friedrichstraße 88, 10117 Berlin, DE · USt-IdNr. DE 814 421 098<br/>
-                  Sent because you opted into transactional alerts · <a href="#" style={{ color: palette.textDim }}>preferences</a> · <a href="#" style={{ color: palette.textDim }}>unsubscribe</a> (transactional only — required messages still apply)
+                  Sent because you opted into transactional alerts · preferences · unsubscribe (transactional only — required messages still apply)
                 </div>
               </Glass>
             </div>

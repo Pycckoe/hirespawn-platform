@@ -1,4 +1,5 @@
 import '@/setup';
+import { Link } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -69,7 +70,7 @@ const Docs = (() => {
                   <H3>Base URL</H3>
                   <Code lang="HTTPS">https://api.hirespawn.io/v2</Code>
                   <H3>Status</H3>
-                  <P>Status, uptime, and incident history → <a href="#" style={{ color: palette.accent, textDecoration: 'none' }}>status.hirespawn.io</a></P>
+                  <P>Status, uptime, and incident history → <Link href="/status" style={{ color: palette.accent, textDecoration: 'none' }}>hirespawn.io/status</Link></P>
                 </div>
               )}
 

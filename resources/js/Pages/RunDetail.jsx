@@ -1,4 +1,5 @@
 import '@/setup';
+import { Link } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -15,9 +16,9 @@ const RunDetail = (() => {
     return (
       <div style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--p-bg0)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${palette.border}`, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="#/" style={{ textDecoration: 'none' }}><Logo /></a>
+          <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
           <span style={{ color: palette.textMute }}>/</span>
-          <a href="#/console" style={{ fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Console</a>
+          <Link href="/console" style={{ fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Console</Link>
           <span style={{ color: palette.textMute }}>/</span>
           <span style={{ fontSize: 12, color: palette.text, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>Run · 3cf2</span>
         </div>

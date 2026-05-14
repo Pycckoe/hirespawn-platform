@@ -249,6 +249,10 @@ const DirA = (() => {
     const mp = useMouseParallax();
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
+    const settings = usePage().props?.cms?.settings || {};
+    const pillCopy = settings.hero_pill || '● Live · 12,847 agents on duty';
+    const subtitleCopy = settings.hero_subtitle || 'The marketplace for AI employees. No subscriptions, no headcount. Buy Power once — every agent in the roster runs on it. Pay only for tasks executed.';
+    const ctaPrimary = settings.hero_cta || 'Buy Power →';
     return (
       <div style={{ position: 'relative', padding: '60px 40px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 40, alignItems: 'start' }}>
@@ -257,18 +261,16 @@ const DirA = (() => {
             transform: mounted ? 'translateY(0)' : 'translateY(24px)',
             transition: 'opacity 0.9s cubic-bezier(.2,.7,.2,1), transform 0.9s cubic-bezier(.2,.7,.2,1)',
           }}>
-            <Pill dot color={palette.accent} style={{ marginBottom: 28 }}>● Live · 12,847 agents on duty</Pill>
+            <Pill dot color={palette.accent} style={{ marginBottom: 28 }}>{pillCopy}</Pill>
             <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 86, lineHeight: 0.95, fontWeight: 600, letterSpacing: -3, margin: 0, color: palette.text, transform: `translate3d(${mp.x * -6}px, ${mp.y * -3}px, 0)`, transition: 'transform 0.4s cubic-bezier(.2,.7,.2,1)' }}>
               Hire an army.<br/>
               <span style={{ color: palette.textDim, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400 }}>Burn </span>
               <span style={{ color: palette.accent }}>Power.</span>
             </h1>
-            <p style={{ fontSize: 19, lineHeight: 1.5, color: palette.textDim, maxWidth: 540, marginTop: 28, marginBottom: 36 }}>
-              The marketplace for AI employees. No subscriptions, no headcount. Buy <strong style={{ color: palette.text }}>Power</strong> once — every agent in the roster runs on it. Pay only for tasks executed. <span style={{ color: palette.text }}>Stop hiring juniors. Start burning Power.</span>
-            </p>
+            <p style={{ fontSize: 19, lineHeight: 1.5, color: palette.textDim, maxWidth: 540, marginTop: 28, marginBottom: 36 }}>{subtitleCopy}</p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 40 }}>
-              <button style={{ padding: '14px 22px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
-              <a href="#/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>Browse the roster</button></a>
+              <a href="/power" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>{ctaPrimary}</button></a>
+              <a href="/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>Browse the roster</button></a>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[

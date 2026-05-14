@@ -11,83 +11,21 @@ import {
 // SELLER DASHBOARD — view for an AI agent vendor / studio
 // Revenue, active subscriptions, payouts, listings, performance, disputes
 //
-// Live wiring: listings/payouts/metrics/payoutMethods/cashOut come from
-// VendorController. Sidebar tabs render different sections (overview =
-// the full strip). Payouts tab includes destination CRUD + cash-out form.
+// All data is read from server props (VendorController). Empty tabs
+// render real empty states pointing at /vendor/publish so a new seller
+// has a clear next step.
 // =====================================================================
 
 const SellerDash = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
-  // ---- Demo seller account (used as fallback only when controller is empty) ----
-  const SELLER = {
-    studio: 'Acme AI',
-    handle: '@acme-ai',
-    user: 'Theo Ramos',
-    initials: 'TR',
-    tier: 'Verified Vendor',
-    powerEarned30d: 412840,
-    eurEarned30d: 3715,
-    eurPayoutNext: 1284,
-    eurHoldReserve: 412,
-    nextPayoutDate: 'Mar 5, 2026',
-    activeSubs: 84,
-    totalRuns30d: 28412,
-    avgRating: 4.83,
-    listings: 4,
-  };
-
-  // Revenue series (demo)
-  const REV_30D = [
-    8400, 9200, 8800, 11200, 12400, 11800, 10900, 12400, 13800, 14200, 15100, 14800, 13900, 12800, 14200,
-    15400, 16800, 17200, 16400, 15800, 17400, 18900, 19200, 18400, 17800, 16400, 17200, 18800, 19400, 14282,
-  ];
-  const REV_7D = [124000, 138000, 142000, 156000, 168000, 174000, 142820];
-  const REV_24H = Array.from({length: 24}).map((_, i) => 200 + Math.round(Math.sin(i / 3) * 120 + Math.random() * 80) * (i > 8 && i < 22 ? 2 : 1));
-
-  const DEMO_LISTINGS = [
-    { id: 'sdr-pro',     name: 'AI SDR',           cat: 'Sales',       icon: '◇', power: 12, perUnit: 'lead',        status: 'live',    subs: 42, runs30d: 14200, rev30d: 170400, rating: 4.91, rev_share: 70 },
-    { id: 'enricher',    name: 'AI Lead Enricher', cat: 'Sales',       icon: '◇', power: 3,  perUnit: 'record',      status: 'live',    subs: 28, runs30d: 89400, rev30d: 268200, rating: 4.85, rev_share: 70 },
-    { id: 'dialer',      name: 'AI Dialer',        cat: 'Sales',       icon: '◇', power: 24, perUnit: 'call',        status: 'review',  subs: 0,  runs30d: 0,     rev30d: 0,      rating: null, rev_share: 70 },
-    { id: 'closer',      name: 'AI Closer',        cat: 'Sales',       icon: '◇', power: 80, perUnit: 'deal',        status: 'paused',  subs: 14, runs30d: 184,  rev30d: 14720,  rating: 4.62, rev_share: 70 },
-  ];
-
-  const SUBS = [
-    { customer: 'Helix Co.',         seat: 'Mara Lindholm',   plan: 'Pro',    listings: ['AI SDR'],                            mrr: 12400, rev30d: 12400, since: 'Sep 2025', status: 'healthy',  trend: [12,14,15,17,16,18,20,19,21,22,24] },
-    { customer: 'Northwind Robotics',seat: 'Karim Ait-Saïd',  plan: 'Studio', listings: ['AI SDR','AI Lead Enricher'],         mrr: 28400, rev30d: 28400, since: 'Apr 2025', status: 'healthy',  trend: [22,24,26,25,27,30,31,33,32,35,38] },
-    { customer: 'Petrichor.io',      seat: 'Lin Marczak',     plan: 'Pro',    listings: ['AI Lead Enricher'],                  mrr: 8400,  rev30d: 8400,  since: 'Jan 2026', status: 'healthy',  trend: [4,6,8,7,9,10,12,11,13,14,15] },
-    { customer: 'Kelvin Labs',       seat: 'Asha Devarajan',  plan: 'Pro',    listings: ['AI Closer'],                         mrr: 14720, rev30d: 14720, since: 'Nov 2025', status: 'at-risk',  trend: [22,18,16,14,13,11,10,9,8,7,6] },
-    { customer: 'Bright Coast',      seat: 'Jonas Wei',       plan: 'Solo',   listings: ['AI SDR'],                            mrr: 4200,  rev30d: 4200,  since: 'Feb 2026', status: 'healthy',  trend: [2,3,4,4,5,6,7,7,8,9,10] },
-    { customer: 'Modulus.ai',        seat: 'Greta Hoffstad',  plan: 'Studio', listings: ['AI SDR','AI Lead Enricher'],         mrr: 22400, rev30d: 22400, since: 'Aug 2025', status: 'healthy',  trend: [18,20,21,23,22,24,26,28,27,29,32] },
-  ];
-
-  const DEMO_PAYOUTS = [
-    { date: 'Feb 05, 2026', period: 'Jan 2026',  power: 384200, eur: 3457, fee: 0,    status: 'paid',     method: 'bank', ref: 'PO-26-02-A41' },
-    { date: 'Jan 05, 2026', period: 'Dec 2025',  power: 412800, eur: 3715, fee: 0,    status: 'paid',     method: 'bank', ref: 'PO-26-01-A41' },
-    { date: 'Dec 05, 2025', period: 'Nov 2025',  power: 348100, eur: 3133, fee: 0,    status: 'paid',     method: 'bank', ref: 'PO-25-12-A41' },
-    { date: 'Nov 05, 2025', period: 'Oct 2025',  power: 296400, eur: 2667, fee: 0,    status: 'paid',     method: 'bank', ref: 'PO-25-11-A41' },
-    { date: 'Oct 05, 2025', period: 'Sep 2025',  power: 224800, eur: 1996, fee: 28,   status: 'paid',     method: 'bank', ref: 'PO-25-10-A41' },
-  ];
-
-  const DISPUTES = [
-    { id: 'D-481', customer: 'Kelvin Labs',    listing: 'AI Closer', issue: 'Latency >120s on 3 deals',         opened: '2d ago',  state: 'open',     credit: 240 },
-    { id: 'D-462', customer: 'Modulus.ai',     listing: 'AI SDR',    issue: 'False positive lead match',         opened: '6d ago',  state: 'investigating', credit: 36 },
-    { id: 'D-447', customer: 'Northwind Robotics', listing: 'AI Lead Enricher', issue: 'Webhook delivery delay', opened: '12d ago', state: 'resolved', credit: 88 },
-  ];
-
-  const PERF = [
-    { listing: 'AI SDR',           runs: 14200, success: 99.81, avgLatency: '0.42s', rating: 4.91 },
-    { listing: 'AI Lead Enricher', runs: 89400, success: 99.94, avgLatency: '0.18s', rating: 4.85 },
-    { listing: 'AI Closer',        runs: 184,   success: 96.20, avgLatency: '2.1s',  rating: 4.62 },
-  ];
-
-  const buildSideItems = (listings, methodsCount, availableCents) => [
+  const buildSideItems = (listings, methodsCount, availableCents, subsCount, openDisputes) => [
     { id: 'overview',  label: 'Overview',      icon: '◆' },
     { id: 'listings',  label: 'Listings',      icon: '◇', count: listings.length },
-    { id: 'subs',      label: 'Subscriptions', icon: '◈', count: SUBS.length },
+    { id: 'subs',      label: 'Subscriptions', icon: '◈', count: subsCount },
     { id: 'perf',      label: 'Performance',   icon: '▲' },
     { id: 'payouts',   label: 'Payouts',       icon: '⚡', count: methodsCount, badge: availableCents >= 1000 ? 'ready' : null },
-    { id: 'disputes',  label: 'Disputes',      icon: '!', count: DISPUTES.filter(d => d.state !== 'resolved').length, alert: true },
+    { id: 'disputes',  label: 'Disputes',      icon: '!', count: openDisputes, alert: openDisputes > 0 },
     { id: 'manifest',  label: 'Manifest spec', icon: '⌘' },
     { id: 'settings',  label: 'Settings',      icon: '◌', href: '/settings' },
   ];
@@ -115,7 +53,7 @@ const SellerDash = (() => {
   const TopBar = ({ user, studioLabel, handle, tier }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
-    const initials = (user?.name || SELLER.user)
+    const initials = (user?.name || 'V')
       .split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
     return (
@@ -241,16 +179,16 @@ const SellerDash = (() => {
     </Glass>
   );
 
-  // ---- Revenue chart ----
-  const RevenueChart = () => {
+  // ---- Revenue chart — driven by metrics.revSeries24h/7d/30d ----
+  const RevenueChart = ({ series24h = [], series7d = [], series30d = [] }) => {
     const [range, setRange] = useState('30d');
-    const data = range === '24h' ? REV_24H : range === '7d' ? REV_7D : REV_30D;
+    const data = range === '24h' ? series24h : range === '7d' ? series7d : series30d;
     const labels = range === '24h'
       ? Array.from({length: 24}).map((_, i) => `${String(i).padStart(2,'0')}:00`)
       : range === '7d'
       ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
       : Array.from({length: 30}).map((_, i) => `${30-i}d`);
-    const max = Math.max(...data);
+    const max = Math.max(...data, 1);
     const total = data.reduce((s, v) => s + v, 0);
 
     return (
@@ -273,7 +211,7 @@ const SellerDash = (() => {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: range === '7d' ? 16 : 3, height: 180, padding: '10px 0', borderBottom: `1px solid ${palette.border}` }}>
           {data.map((v, i) => {
             const h = (v / max) * 160;
-            const isPeak = v === max;
+            const isPeak = v > 0 && v === max;
             return (
               <div key={i} style={{ flex: 1, position: 'relative' }} title={`${labels[i]}: ${v.toLocaleString()}⚡`}>
                 <div style={{ width: '100%', height: `${h}px`, background: isPeak ? palette.accent : `linear-gradient(180deg, ${palette.accent}, ${palette.accent}80)`, opacity: isPeak ? 1 : 0.55 + (v / max) * 0.45, borderRadius: '3px 3px 0 0', transition: 'all 0.4s cubic-bezier(.2,.7,.2,1)' }} />
@@ -298,6 +236,15 @@ const SellerDash = (() => {
         </div>
         <Link href={route('vendor.publish.create')} style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>+ Publish new</Link>
       </div>
+      {items.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: palette.textDim }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>◇</div>
+          <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No listings yet</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 14 }}>Publish your first agent to start earning Power.</div>
+          <Link href={route('vendor.publish.create')} style={{ display: 'inline-block', padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>+ Publish new</Link>
+        </div>
+      ) : (
+      <>
       <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 0.8fr 0.9fr 1fr 1fr 0.8fr 100px', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
         <span>Listing</span><span>Price</span><span>Subs</span><span>Runs (30d)</span><span>Revenue</span><span>Rating</span><span>Status</span>
       </div>
@@ -325,100 +272,132 @@ const SellerDash = (() => {
           </div>
         );
       })}
+      </>
+      )}
     </Glass>
   );
 
   // ---- Subscriptions ----
-  const Subs = ({ activeSubs }) => (
-    <Glass style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Active subscriptions</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{activeSubs} customers · {SUBS.reduce((s, x) => s + x.mrr, 0).toLocaleString()}⚡ MRR</div>
-        </div>
-        <button onClick={() => alert('CSV export ships with billing v2.')} style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}>Export CSV →</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.3fr 0.8fr 0.9fr 1.2fr 0.8fr', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-        <span>Customer</span><span>Listings</span><span>Plan</span><span>30d MRR</span><span>Trend</span><span>Status</span>
-      </div>
-      {SUBS.map((s, i) => {
-        const stCol = s.status === 'healthy' ? palette.accent : palette.amber;
-        return (
-          <div key={s.customer} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.3fr 0.8fr 0.9fr 1.2fr 0.8fr', gap: 14, padding: '14px 20px', borderBottom: i < SUBS.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{s.customer}</div>
-              <div style={{ fontSize: 11, color: palette.textMute }}>{s.seat} · since {s.since}</div>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {s.listings.map(l => <span key={l} style={{ padding: '2px 7px', background: 'rgba(180,242,91,0.06)', color: palette.accent, fontSize: 10, fontFamily: 'Geist Mono, monospace', borderRadius: 4, border: `1px solid ${palette.accentDim}` }}>{l}</span>)}
-            </div>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.text }}>{s.plan}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.accent }}>{s.mrr.toLocaleString()}⚡</span>
-            <Spark data={s.trend} w={140} h={28} color={stCol} fill={false} />
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: stCol, letterSpacing: 1, textTransform: 'uppercase' }}>
-              <span style={{ width: 6, height: 6, borderRadius: 99, background: stCol, boxShadow: `0 0 6px ${stCol}` }} />{s.status}
-            </span>
+  const Subs = ({ items = [], activeSubs }) => {
+    const totalMrr = items.reduce((s, x) => s + (x.mrr || 0), 0);
+    return (
+      <Glass style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Active subscriptions</div>
+            <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{activeSubs} customers{totalMrr > 0 ? ` · ${totalMrr.toLocaleString()}⚡ MRR` : ''}</div>
           </div>
-        );
-      })}
-    </Glass>
-  );
+        </div>
+        {items.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: palette.textDim }}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>◈</div>
+            <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No subscriptions yet</div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>Customers appear here once they hire one of your listings.</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.3fr 0.8fr 0.9fr 1.2fr 0.8fr', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
+              <span>Customer</span><span>Listings</span><span>Plan</span><span>30d MRR</span><span>Trend</span><span>Status</span>
+            </div>
+            {items.map((s, i) => {
+              const stCol = s.status === 'healthy' ? palette.accent : palette.amber;
+              return (
+                <div key={`${s.customer}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.3fr 0.8fr 0.9fr 1.2fr 0.8fr', gap: 14, padding: '14px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{s.customer}</div>
+                    <div style={{ fontSize: 11, color: palette.textMute }}>{s.seat} · since {s.since}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {(s.listings || []).map(l => <span key={l} style={{ padding: '2px 7px', background: 'rgba(180,242,91,0.06)', color: palette.accent, fontSize: 10, fontFamily: 'Geist Mono, monospace', borderRadius: 4, border: `1px solid ${palette.accentDim}` }}>{l}</span>)}
+                  </div>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.text }}>{s.plan}</span>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.accent }}>{(s.mrr || 0).toLocaleString()}⚡</span>
+                  <Spark data={s.trend || [0,0,0,0,0,0,0,0,0,0,0]} w={140} h={28} color={stCol} fill={false} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: stCol, letterSpacing: 1, textTransform: 'uppercase' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 99, background: stCol, boxShadow: `0 0 6px ${stCol}` }} />{s.status}
+                  </span>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </Glass>
+    );
+  };
 
   // ---- Performance ----
-  const Performance = () => (
-    <Glass style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}` }}>
-        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Performance · last 30 days</div>
-        <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>SLA: 99.7% · within target</div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.9fr 0.7fr 1.2fr', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-        <span>Listing</span><span>Runs</span><span>Success %</span><span>Avg latency</span><span>Rating</span><span>Health</span>
-      </div>
-      {PERF.map((p, i) => {
-        const ok = p.success >= 99.5;
-        return (
-          <div key={p.listing} style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.9fr 0.7fr 1.2fr', gap: 14, padding: '16px 20px', borderBottom: i < PERF.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{p.listing}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{p.runs.toLocaleString()}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: ok ? palette.accent : palette.amber }}>{p.success.toFixed(2)}%</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{p.avgLatency}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>★ {p.rating}</span>
-            <div style={{ position: 'relative', height: 6, background: 'var(--p-track)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, width: `${Math.min(100, p.success)}%`, background: ok ? palette.accent : palette.amber, borderRadius: 99, transition: 'width 0.6s' }} />
+  const Performance = ({ items = [] }) => {
+    const avgSuccess = items.length ? items.reduce((s, p) => s + (p.success || 0), 0) / items.length : 0;
+    return (
+      <Glass style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}` }}>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Performance · last 30 days</div>
+          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{items.length ? `SLA: ${avgSuccess.toFixed(1)}%${avgSuccess >= 99.5 ? ' · within target' : ' · below target'}` : 'No data yet'}</div>
+        </div>
+        {items.length === 0 ? (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: palette.textDim, fontSize: 12 }}>Publish a listing to start collecting performance data.</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.9fr 0.7fr 1.2fr', gap: 14, padding: '12px 20px', borderBottom: `1px solid ${palette.border}`, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
+              <span>Listing</span><span>Runs</span><span>Success %</span><span>Avg latency</span><span>Rating</span><span>Health</span>
             </div>
-          </div>
-        );
-      })}
-    </Glass>
-  );
+            {items.map((p, i) => {
+              const ok = p.success >= 99.5;
+              return (
+                <div key={p.listing} style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.9fr 0.7fr 1.2fr', gap: 14, padding: '16px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{p.listing}</span>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{(p.runs || 0).toLocaleString()}</span>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: ok ? palette.accent : palette.amber }}>{(p.success || 0).toFixed(2)}%</span>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{p.avgLatency || '—'}</span>
+                  <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: palette.text }}>{p.rating ? `★ ${p.rating}` : '—'}</span>
+                  <div style={{ position: 'relative', height: 6, background: 'var(--p-track)', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', inset: 0, width: `${Math.min(100, p.success || 0)}%`, background: ok ? palette.accent : palette.amber, borderRadius: 99, transition: 'width 0.6s' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </Glass>
+    );
+  };
 
   // ---- Disputes ----
-  const Disputes = () => (
-    <Glass style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.amber, letterSpacing: 1, textTransform: 'uppercase' }}>! Disputes & SLA breaches</div>
-          <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{DISPUTES.filter(d => d.state !== 'resolved').length} open · {DISPUTES.length} total this quarter</div>
-        </div>
-      </div>
-      {DISPUTES.map((d, i) => {
-        const stCol = d.state === 'open' ? palette.red : d.state === 'investigating' ? palette.amber : palette.accent;
-        return (
-          <div key={d.id} style={{ padding: '16px 20px', borderBottom: i < DISPUTES.length - 1 ? `1px solid ${palette.border}` : 0, display: 'grid', gridTemplateColumns: '110px 1fr 1.4fr 0.8fr 0.7fr 110px', gap: 14, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: stCol, fontWeight: 600 }}>{d.id}</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{d.customer}</div>
-              <div style={{ fontSize: 11, color: palette.textMute }}>{d.listing}</div>
-            </div>
-            <span style={{ fontSize: 13, color: palette.textDim }}>{d.issue}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>{d.opened}</span>
-            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.amber }}>−{d.credit}⚡</span>
-            <span style={{ padding: '3px 8px', background: stCol === palette.accent ? palette.accentDim : `${stCol}1F`, color: stCol, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4, textAlign: 'center' }}>{d.state}</span>
+  const Disputes = ({ items = [] }) => {
+    const open = items.filter(d => d.state !== 'resolved').length;
+    return (
+      <Glass style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: open ? palette.amber : palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>{open ? '! ' : ''}Disputes & SLA breaches</div>
+            <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>{open} open · {items.length} total this quarter</div>
           </div>
-        );
-      })}
-    </Glass>
-  );
+        </div>
+        {items.length === 0 ? (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: palette.textDim }}>
+            <div style={{ fontSize: 24, marginBottom: 6, color: palette.accent }}>✓</div>
+            <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No disputes</div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>All good. Any SLA breach will show up here.</div>
+          </div>
+        ) : items.map((d, i) => {
+          const stCol = d.state === 'open' ? palette.red : d.state === 'investigating' ? palette.amber : palette.accent;
+          return (
+            <div key={d.id} style={{ padding: '16px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, display: 'grid', gridTemplateColumns: '110px 1fr 1.4fr 0.8fr 0.7fr 110px', gap: 14, alignItems: 'center' }}>
+              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13, color: stCol, fontWeight: 600 }}>{d.id}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{d.customer}</div>
+                <div style={{ fontSize: 11, color: palette.textMute }}>{d.listing}</div>
+              </div>
+              <span style={{ fontSize: 13, color: palette.textDim }}>{d.issue}</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>{d.opened}</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.amber }}>−{d.credit}⚡</span>
+              <span style={{ padding: '3px 8px', background: stCol === palette.accent ? palette.accentDim : `${stCol}1F`, color: stCol, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4, textAlign: 'center' }}>{d.state}</span>
+            </div>
+          );
+        })}
+      </Glass>
+    );
+  };
 
   // ---- Manifest (overview-only) ----
   const ManifestStub = () => (
@@ -777,24 +756,26 @@ sla:
     const {
       listings = [], payouts = [], metrics = null, auth,
       payoutMethods = [], cashOut = { availableCents: 0, lifetimeEarnedCents: 0, pendingCents: 0, paidCents: 0, minCashoutCents: 1000, feePercent: 1 },
+      subs = [], disputes = [], perf = [],
       flash = {},
     } = usePage().props;
 
-    const liveListings = listings.length ? listings : DEMO_LISTINGS;
-    const livePayouts = payouts.length ? payouts : DEMO_PAYOUTS;
+    const sellerStats = {
+      powerEarned30d: metrics?.powerEarned30d ?? 0,
+      eurEarned30d: metrics?.eurEarned30d ?? 0,
+      activeSubs: metrics?.activeSubs ?? 0,
+      totalRuns30d: metrics?.totalRuns30d ?? 0,
+      avgRating: metrics?.avgRating ?? 0,
+    };
+    const series24h = metrics?.revSeries24h ?? Array(24).fill(0);
+    const series7d = metrics?.revSeries7d ?? Array(7).fill(0);
+    const series30d = metrics?.revSeries30d ?? Array(30).fill(0);
+    const openDisputes = disputes.filter(d => d.state !== 'resolved').length;
 
-    const hasReal = listings.length > 0 && (metrics?.totalRuns30d || 0) > 0;
-    const sellerStats = hasReal ? {
-      powerEarned30d: metrics.powerEarned30d,
-      eurEarned30d: metrics.eurEarned30d,
-      activeSubs: metrics.activeSubs,
-      totalRuns30d: metrics.totalRuns30d,
-      avgRating: metrics.avgRating > 0 ? metrics.avgRating : SELLER.avgRating,
-    } : SELLER;
-
-    const firstName = (auth?.user?.name || '').split(/\s+/)[0] || SELLER.user.split(' ')[0];
-    const studioLabel = auth?.user?.name ? `${firstName}'s studio` : SELLER.studio;
-    const handle = auth?.user?.email ? '@'+(auth.user.email.split('@')[0]) : SELLER.handle;
+    const firstName = (auth?.user?.name || '').split(/\s+/)[0] || 'vendor';
+    const studioLabel = auth?.user?.name ? `${firstName}'s studio` : 'Your studio';
+    const handle = auth?.user?.email ? '@'+(auth.user.email.split('@')[0]) : '@vendor';
+    const tier = 'Vendor';
 
     const initialTab = (() => {
       if (typeof window === 'undefined') return 'overview';
@@ -820,13 +801,13 @@ sla:
       window.history.replaceState({}, '', url.toString());
     }, [tab]);
 
-    const sideItems = buildSideItems(liveListings, payoutMethods.length, cashOut.availableCents);
+    const sideItems = buildSideItems(listings, payoutMethods.length, cashOut.availableCents, subs.length, openDisputes);
 
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <TopBar user={auth?.user} studioLabel={studioLabel} handle={handle} tier={SELLER.tier} />
+          <TopBar user={auth?.user} studioLabel={studioLabel} handle={handle} tier={tier} />
 
           {flashMsg && (
             <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 50, padding: '12px 18px', background: palette.accentDim, border: `1px solid ${palette.accent}`, color: palette.accent, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.32)' }}>
@@ -848,7 +829,9 @@ sla:
                   <p style={{ fontSize: 14, color: palette.textDim, marginTop: 12, margin: '12px 0 0' }}>
                     {tab === 'payouts'
                       ? `Available to cash out: ${fmtMoney(cashOut.availableCents)} of ${fmtMoney(cashOut.lifetimeEarnedCents)} earned.`
-                      : `Your roster shipped ${sellerStats.totalRuns30d.toLocaleString()} tasks this cycle. Here's how that turned into Power.`}
+                      : listings.length === 0
+                        ? 'Publish your first agent to start earning Power.'
+                        : `Your roster shipped ${sellerStats.totalRuns30d.toLocaleString()} tasks this cycle. Here's how that turned into Power.`}
                   </p>
                 </div>
               </div>
@@ -857,30 +840,30 @@ sla:
                 <>
                   {/* KPIs */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                    <Kpi label="Power earned (30d)" value={`${(sellerStats.powerEarned30d/1000).toFixed(sellerStats.powerEarned30d < 10000 ? 1 : 0)}k`} sub={`≈ €${Math.round(sellerStats.powerEarned30d * 0.009 * 0.7).toLocaleString()} after 30% platform`} sparkData={REV_30D} delta={hasReal ? null : 18} />
-                    <Kpi label="EUR earned (30d)" value={`€${sellerStats.eurEarned30d.toLocaleString()}`} sub="net of 30% platform · 10% reserve" sparkData={REV_30D} sparkColor={palette.cyan} color={palette.cyan} delta={hasReal ? null : 12} />
-                    <Kpi label="Active subs" value={`${sellerStats.activeSubs}`} sub={hasReal ? `${listings.length} listings live` : `${SUBS.filter(s=>s.status==='at-risk').length} at-risk · ${SUBS.filter(s=>s.status==='healthy').length} healthy`} delta={hasReal ? null : 8} />
-                    <Kpi label="Avg rating" value={`★ ${sellerStats.avgRating}`} sub={`across ${sellerStats.totalRuns30d.toLocaleString()} runs · ${hasReal ? listings.length : 312} ratings`} color={palette.amber} sparkColor={palette.amber} sparkData={[4.6, 4.65, 4.7, 4.72, 4.75, 4.78, 4.8, 4.82, 4.83, 4.83, 4.83]} />
+                    <Kpi label="Power earned (30d)" value={sellerStats.powerEarned30d >= 1000 ? `${(sellerStats.powerEarned30d/1000).toFixed(sellerStats.powerEarned30d < 10000 ? 1 : 0)}k` : sellerStats.powerEarned30d.toLocaleString()} sub={sellerStats.powerEarned30d > 0 ? `≈ €${Math.round(sellerStats.powerEarned30d * 0.009 * 0.7).toLocaleString()} after 30% platform` : 'No runs yet'} sparkData={sellerStats.powerEarned30d > 0 ? series30d : undefined} />
+                    <Kpi label="EUR earned (30d)" value={`€${sellerStats.eurEarned30d.toLocaleString()}`} sub={sellerStats.eurEarned30d > 0 ? 'net of 30% platform' : 'No earnings yet'} sparkData={sellerStats.eurEarned30d > 0 ? series30d : undefined} sparkColor={palette.cyan} color={palette.cyan} />
+                    <Kpi label="Active subs" value={`${sellerStats.activeSubs}`} sub={listings.length > 0 ? `${listings.length} listing${listings.length === 1 ? '' : 's'} live` : 'No listings yet'} />
+                    <Kpi label="Avg rating" value={sellerStats.avgRating > 0 ? `★ ${sellerStats.avgRating}` : '—'} sub={sellerStats.avgRating > 0 ? `across ${sellerStats.totalRuns30d.toLocaleString()} runs` : 'No ratings yet'} color={palette.amber} sparkColor={palette.amber} />
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14, marginBottom: 22 }}>
-                    <RevenueChart />
-                    <Disputes />
+                    <RevenueChart series24h={series24h} series7d={series7d} series30d={series30d} />
+                    <Disputes items={disputes} />
                   </div>
 
-                  <div style={{ marginBottom: 22 }}><Listings items={liveListings} /></div>
-                  <div style={{ marginBottom: 22 }}><Subs activeSubs={sellerStats.activeSubs} /></div>
-                  <div style={{ marginBottom: 22 }}><Performance /></div>
+                  <div style={{ marginBottom: 22 }}><Listings items={listings} /></div>
+                  <div style={{ marginBottom: 22 }}><Subs items={subs} activeSubs={sellerStats.activeSubs} /></div>
+                  <div style={{ marginBottom: 22 }}><Performance items={perf} /></div>
                 </>
               )}
 
-              {tab === 'listings' && <Listings items={liveListings} />}
-              {tab === 'subs' && <Subs activeSubs={sellerStats.activeSubs} />}
-              {tab === 'perf' && <Performance />}
-              {tab === 'disputes' && <Disputes />}
+              {tab === 'listings' && <Listings items={listings} />}
+              {tab === 'subs' && <Subs items={subs} activeSubs={sellerStats.activeSubs} />}
+              {tab === 'perf' && <Performance items={perf} />}
+              {tab === 'disputes' && <Disputes items={disputes} />}
               {tab === 'manifest' && <ManifestStub />}
               {tab === 'payouts' && (
-                <PayoutsTab payoutMethods={payoutMethods} cashOut={cashOut} payouts={livePayouts} />
+                <PayoutsTab payoutMethods={payoutMethods} cashOut={cashOut} payouts={payouts} />
               )}
             </div>
           </div>

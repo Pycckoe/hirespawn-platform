@@ -1,6 +1,6 @@
 import '@/setup';
 import { useState } from 'react';
-import { router, useForm, usePage } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
@@ -84,9 +84,9 @@ const AgentDetail = (() => {
     <div style={{ padding: '40px 40px 28px' }}>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-        <a href="#/" style={{ color: palette.textMute, textDecoration: 'none' }}>hirespawn</a>
+        <Link href="/" style={{ color: palette.textMute, textDecoration: 'none' }}>hirespawn</Link>
         <span>/</span>
-        <a href="#/roster" style={{ color: palette.textMute, textDecoration: 'none' }}>roster</a>
+        <Link href="/roster" style={{ color: palette.textMute, textDecoration: 'none' }}>roster</Link>
         <span>/</span>
         <span style={{ color: palette.text }}>{agent.role.toLowerCase()}</span>
         <span>/</span>
@@ -305,7 +305,7 @@ const AgentDetail = (() => {
         ))}
       </div>
       <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5 }}>
-        Need another tool? <a href="#/" style={{ color: palette.cyan, textDecoration: 'none' }}>Request integration →</a>
+        Need another tool? <a href="mailto:support@hirespawn.com?subject=Integration%20request" style={{ color: palette.cyan, textDecoration: 'none' }}>Request integration →</a>
       </div>
     </div>
   );
