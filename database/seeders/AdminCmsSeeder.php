@@ -20,9 +20,9 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'hero_cta',      'group' => 'home', 'label' => 'Home · primary CTA',   'type' => 'text',     'value' => 'Browse roster →',                                   'sort' => 4],
 
             ['key' => 'footer_tagline','group' => 'footer','label' => 'Footer · tagline',    'type' => 'text',     'value' => 'Pay only for power burned.',                        'sort' => 1],
-            ['key' => 'footer_copyright','group' => 'footer','label' => 'Footer · copyright', 'type' => 'text',     'value' => '© HIRESPAWN SIA · RIGA · 2026',                     'sort' => 1.5],
-            ['key' => 'support_email', 'group' => 'footer','label' => 'Support email',       'type' => 'text',     'value' => 'support@hirespawn.com',                             'sort' => 2],
-            ['key' => 'recovery_email','group' => 'footer','label' => 'Recovery email',      'type' => 'text',     'value' => 'recover@hirespawn.io',                              'sort' => 3],
+            ['key' => 'footer_copyright','group' => 'footer','label' => 'Footer · copyright', 'type' => 'text',     'value' => '© HIRESPAWN SIA · RIGA · 2026',                     'sort' => 2],
+            ['key' => 'support_email', 'group' => 'footer','label' => 'Support email',       'type' => 'text',     'value' => 'support@hirespawn.com',                             'sort' => 3],
+            ['key' => 'recovery_email','group' => 'footer','label' => 'Recovery email',      'type' => 'text',     'value' => 'recover@hirespawn.io',                              'sort' => 4],
 
             ['key' => 'seller_share_pct','group' => 'rates','label' => 'Seller revenue share %','type' => 'text',  'value' => '70',                                                'sort' => 1],
             ['key' => 'eur_cents_per_power','group' => 'rates','label' => 'EUR cents per ⚡','type' => 'text',     'value' => '0.9',                                               'sort' => 2],
