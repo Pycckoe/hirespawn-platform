@@ -25,7 +25,7 @@ class SiteSettingForm
                             ->columnSpanFull(),
                         TextInput::make('key')
                             ->label('Internal key')
-                            ->helperText('Stable slug. Read by controllers via SiteSetting::value(\'key\').')
+                            ->helperText('Stable slug. Read by controllers via SiteSetting::lookup(\'key\').')
                             ->required()
                             ->alphaDash()
                             ->maxLength(80),

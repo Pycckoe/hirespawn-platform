@@ -8,7 +8,7 @@
 
         {{-- Admin-managed favicon (CMS · /admin/site-settings · site_favicon).
              Falls back to /favicon.ico when no upload has been done yet. --}}
-        @php($faviconUrl = \App\Models\SiteSetting::value('site_favicon'))
+        @php($faviconUrl = \App\Models\SiteSetting::lookup('site_favicon'))
         @if($faviconUrl)
             <link rel="icon" href="{{ $faviconUrl }}" />
             <link rel="shortcut icon" href="{{ $faviconUrl }}" />

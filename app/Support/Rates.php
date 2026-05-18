@@ -39,7 +39,7 @@ class Rates
 
     public static function sellerSharePct(): float
     {
-        return (float) (SiteSetting::value('seller_share_pct') ?? self::FB_SELLER_SHARE_PCT);
+        return (float) (SiteSetting::lookup('seller_share_pct') ?? self::FB_SELLER_SHARE_PCT);
     }
 
     public static function sellerShareFraction(): float
@@ -49,12 +49,12 @@ class Rates
 
     public static function eurCentsPerPower(): float
     {
-        return (float) (SiteSetting::value('eur_cents_per_power') ?? self::FB_EUR_CENTS_PER_POWER);
+        return (float) (SiteSetting::lookup('eur_cents_per_power') ?? self::FB_EUR_CENTS_PER_POWER);
     }
 
     public static function vatPct(): float
     {
-        return (float) (SiteSetting::value('vat_rate_pct') ?? self::FB_VAT_PCT);
+        return (float) (SiteSetting::lookup('vat_rate_pct') ?? self::FB_VAT_PCT);
     }
 
     public static function vatFraction(): float
@@ -64,22 +64,22 @@ class Rates
 
     public static function minTopupEur(): int
     {
-        return (int) (SiteSetting::value('min_topup_eur') ?? self::FB_MIN_TOPUP_EUR);
+        return (int) (SiteSetting::lookup('min_topup_eur') ?? self::FB_MIN_TOPUP_EUR);
     }
 
     public static function maxTopupEur(): int
     {
-        return (int) (SiteSetting::value('max_topup_eur') ?? self::FB_MAX_TOPUP_EUR);
+        return (int) (SiteSetting::lookup('max_topup_eur') ?? self::FB_MAX_TOPUP_EUR);
     }
 
     public static function minCashoutCents(): int
     {
-        return (int) ((SiteSetting::value('min_cashout_eur') ?? self::FB_MIN_CASHOUT_EUR) * 100);
+        return (int) ((SiteSetting::lookup('min_cashout_eur') ?? self::FB_MIN_CASHOUT_EUR) * 100);
     }
 
     public static function cashoutFeePct(): float
     {
-        return (float) (SiteSetting::value('cashout_fee_pct') ?? self::FB_CASHOUT_FEE_PCT);
+        return (float) (SiteSetting::lookup('cashout_fee_pct') ?? self::FB_CASHOUT_FEE_PCT);
     }
 
     /**

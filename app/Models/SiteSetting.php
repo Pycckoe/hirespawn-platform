@@ -13,8 +13,12 @@ class SiteSetting extends Model
     /**
      * Read a single setting by key. Falls back to $default if not present.
      * For image-type settings, returns the public storage URL.
+     *
+     * Named `lookup()` (not `value`) because Eloquent's attribute resolver
+     * sees a `value()` method and tries to call it without arguments when
+     * reading `$model->value`, which crashes with ArgumentCountError.
      */
-    public static function value(string $key, ?string $default = null): ?string
+    public static function lookup(string $key, ?string $default = null): ?string
     {
         $row = static::query()->where('key', $key)->first(['value', 'type']);
         if (! $row) {
