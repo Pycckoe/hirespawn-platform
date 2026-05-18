@@ -19,15 +19,16 @@ import {
 const SellerDash = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
-  const buildSideItems = (listings, methodsCount, availableCents, subsCount, openDisputes) => [
-    { id: 'overview',  label: 'Overview',      icon: '◆' },
-    { id: 'listings',  label: 'Listings',      icon: '◇', count: listings.length },
-    { id: 'subs',      label: 'Subscriptions', icon: '◈', count: subsCount },
-    { id: 'perf',      label: 'Performance',   icon: '▲' },
-    { id: 'payouts',   label: 'Payouts',       icon: '⚡', count: methodsCount, badge: availableCents >= 1000 ? 'ready' : null },
-    { id: 'disputes',  label: 'Disputes',      icon: '!', count: openDisputes, alert: openDisputes > 0 },
-    { id: 'manifest',  label: 'Manifest spec', icon: '⌘' },
-    { id: 'settings',  label: 'Settings',      icon: '◌', href: '/settings' },
+  const buildSideItems = (listings, methodsCount, availableCents, subsCount, openDisputes, credentialsCount) => [
+    { id: 'overview',    label: 'Overview',      icon: '◆' },
+    { id: 'listings',    label: 'Listings',      icon: '◇', count: listings.length },
+    { id: 'subs',        label: 'Subscriptions', icon: '◈', count: subsCount },
+    { id: 'perf',        label: 'Performance',   icon: '▲' },
+    { id: 'credentials', label: 'LLM keys',      icon: '⚷', count: credentialsCount },
+    { id: 'payouts',     label: 'Payouts',       icon: '⚡', count: methodsCount, badge: availableCents >= 1000 ? 'ready' : null },
+    { id: 'disputes',    label: 'Disputes',      icon: '!', count: openDisputes, alert: openDisputes > 0 },
+    { id: 'manifest',    label: 'Manifest spec', icon: '⌘' },
+    { id: 'settings',    label: 'Settings',      icon: '◌', href: '/settings' },
   ];
 
   const Spark = ({ data, w = 220, h = 42, color = palette.accent, fill = true }) => {
@@ -752,12 +753,123 @@ sla:
     );
   };
 
+  // ---- LLM Credentials tab ----
+  // One row per provider — seller stores their own API key, all agents
+  // built on that provider re-use the same credential at invocation time.
+  // We never display the full key; only last4 + verified state.
+  const AddCredentialForm = ({ providers, onClose }) => {
+    const { data, setData, post, processing, errors, reset } = useForm({
+      provider: providers[0] || 'openai',
+      api_key: '',
+      label: '',
+    });
+
+    const submit = (e) => {
+      e.preventDefault();
+      post(route('vendor.credentials.store'), {
+        preserveScroll: true,
+        onSuccess: () => { reset(); onClose(); },
+      });
+    };
+
+    return (
+      <form onSubmit={submit} style={{ padding: 14, background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 10, marginBottom: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
+          <Field label="Provider">
+            <select value={data.provider} onChange={e => setData('provider', e.target.value)} style={inputStyle()}>
+              {providers.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+            </select>
+          </Field>
+          <Field label="Label (optional)" hint="Shown in the list. e.g. 'Acme studio production'.">
+            <input value={data.label} onChange={e => setData('label', e.target.value)} placeholder="My OpenAI prod key" style={inputStyle()} />
+          </Field>
+        </div>
+        <Field label="API key" hint="Encrypted at rest. We only display the last 4 characters in the UI.">
+          <input
+            type="password"
+            value={data.api_key}
+            onChange={e => setData('api_key', e.target.value)}
+            placeholder={data.provider === 'anthropic' ? 'sk-ant-api03-...' : data.provider === 'openai' ? 'sk-proj-...' : `${data.provider} key`}
+            style={inputStyle('mono')}
+            autoComplete="off"
+          />
+          {errors.api_key && <ErrorMsg msg={errors.api_key} />}
+          {errors.provider && <ErrorMsg msg={errors.provider} />}
+        </Field>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+          <button type="button" onClick={onClose} style={{ padding: '10px 14px', borderRadius: 8, background: 'transparent', color: palette.textDim, border: `1px solid ${palette.border}`, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>Cancel</button>
+          <button type="submit" disabled={processing} style={{ padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.6 : 1 }}>
+            {processing ? 'Saving…' : 'Save key'}
+          </button>
+        </div>
+      </form>
+    );
+  };
+
+  const CredentialsTab = ({ credentials, providers }) => {
+    const [showAdd, setShowAdd] = useState(credentials.length === 0);
+    return (
+      <div>
+        <Section title="LLM API keys" sub="Add one key per provider — the key powers every agent you publish that uses that provider's models. We encrypt with Laravel Crypt and never display the full key.">
+          {showAdd && providers.length > 0 && (
+            <AddCredentialForm providers={providers} onClose={() => setShowAdd(false)} />
+          )}
+          {!showAdd && (
+            <div style={{ marginBottom: 18, textAlign: 'right' }}>
+              <button onClick={() => setShowAdd(true)} style={{ padding: '10px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
+                + Add key
+              </button>
+            </div>
+          )}
+          {credentials.length === 0 ? (
+            <div style={{ padding: '22px 0', textAlign: 'center', fontSize: 13, color: palette.textMute }}>
+              No keys yet. Add one above to wire your agents to a real LLM.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {credentials.map(c => (
+                <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto auto auto', gap: 14, alignItems: 'center', padding: 14, background: 'var(--p-inset-soft)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>
+                    {c.provider.slice(0, 3).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: palette.text, fontWeight: 600 }}>{c.label || `${c.provider} key`}</div>
+                    <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginTop: 2 }}>{c.provider} · ••••{c.last4} · added {c.createdAt}</div>
+                  </div>
+                  <span style={{ padding: '3px 8px', background: c.verifiedAt ? palette.accentDim : 'rgba(255,184,77,0.12)', color: c.verifiedAt ? palette.accent : palette.amber, fontSize: 10, fontFamily: 'Geist Mono, monospace', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>
+                    {c.verifiedAt ? `✓ verified ${c.verifiedAt}` : 'not verified'}
+                  </span>
+                  <button
+                    onClick={() => router.post(route('vendor.credentials.verify', c.id), {}, { preserveScroll: true })}
+                    style={{ padding: '7px 12px', borderRadius: 8, background: 'transparent', color: palette.accent, border: `1px solid ${palette.accent}`, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer' }}
+                  >
+                    Verify
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!confirm(`Remove ${c.provider} key? Agents using it will fail to run until you add a new one.`)) return;
+                      router.delete(route('vendor.credentials.destroy', c.id), { preserveScroll: true });
+                    }}
+                    style={{ padding: '7px 12px', borderRadius: 8, background: 'transparent', color: palette.red, border: `1px solid ${palette.red}`, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      </div>
+    );
+  };
+
   // ---- Page ----
   const Page = () => {
     const {
       listings = [], payouts = [], metrics = null, auth,
       payoutMethods = [], cashOut = { availableCents: 0, lifetimeEarnedCents: 0, pendingCents: 0, paidCents: 0, minCashoutCents: 1000, feePercent: 1 },
       subs = [], disputes = [], perf = [],
+      llmCredentials = [], llmProviders = [],
       flash = {},
     } = usePage().props;
     const rates = useRates();
@@ -782,7 +894,7 @@ sla:
     const initialTab = (() => {
       if (typeof window === 'undefined') return 'overview';
       const q = new URLSearchParams(window.location.search).get('tab');
-      const allowed = ['overview', 'listings', 'subs', 'perf', 'payouts', 'disputes', 'manifest'];
+      const allowed = ['overview', 'listings', 'subs', 'perf', 'credentials', 'payouts', 'disputes', 'manifest'];
       return allowed.includes(q) ? q : 'overview';
     })();
     const [tab, setTab] = useState(initialTab);
@@ -803,7 +915,7 @@ sla:
       window.history.replaceState({}, '', url.toString());
     }, [tab]);
 
-    const sideItems = buildSideItems(listings, payoutMethods.length, cashOut.availableCents, subs.length, openDisputes);
+    const sideItems = buildSideItems(listings, payoutMethods.length, cashOut.availableCents, subs.length, openDisputes, llmCredentials.length);
 
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
@@ -864,6 +976,9 @@ sla:
               {tab === 'perf' && <Performance items={perf} />}
               {tab === 'disputes' && <Disputes items={disputes} />}
               {tab === 'manifest' && <ManifestStub />}
+              {tab === 'credentials' && (
+                <CredentialsTab credentials={llmCredentials} providers={llmProviders} />
+              )}
               {tab === 'payouts' && (
                 <PayoutsTab payoutMethods={payoutMethods} cashOut={cashOut} payouts={payouts} />
               )}

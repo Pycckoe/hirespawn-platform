@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Agent;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
+use App\Services\Llm\LlmGateway;
 use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,15 +16,16 @@ class InvokeController extends Controller
 {
     /**
      * Run a single task on an agent. Requires the buyer to have an
-     * active subscription and enough Power. We don't wire a real LLM
-     * yet — the run is a stub that produces a plausible canned output
-     * per category and logs a UsageEvent so the dashboards have real
-     * numbers to chart.
+     * active subscription, enough Power, and the agent must be wired
+     * to an LLM model with a valid seller credential. The agent's
+     * system_prompt is sent first, then the buyer's input as the user
+     * message. Real provider tokens + cost are recorded on the
+     * UsageEvent so the dashboards reflect actual ⚡ + € flow.
      */
-    public function store(Request $request, Agent $agent): RedirectResponse
+    public function store(Request $request, Agent $agent, LlmGateway $gateway): RedirectResponse
     {
         $validated = $request->validate([
-            'input' => ['required', 'string', 'max:4000'],
+            'input' => ['required', 'string', 'max:8000'],
         ]);
 
         $user = $request->user();
@@ -45,13 +47,48 @@ class InvokeController extends Controller
             return back()->with('status', "Not enough Power. {$cost}⚡ required, you have {$profile->power_balance}⚡. Top up to run.");
         }
 
-        $output = $this->stubOutput($agent, $validated['input']);
-        $latency = random_int(80, 2200);
+        // Refuse early if the agent isn't fully wired — the LlmGateway
+        // would error the same way but this gives a clearer message and
+        // avoids charging the buyer Power for a guaranteed failure.
+        if (! $agent->llm_model_id) {
+            return back()->with('status', "{$agent->name} is not yet wired to an LLM model. The seller must finish setup.");
+        }
+
+        $response = $gateway->run($agent->fresh(['llmModel', 'seller']), $validated['input']);
         $requestId = 'run_'.Str::random(12);
-        // Convert Power cost → EUR cents using the admin-managed rate.
+        // Buyer pays the Power cost the seller set. Convert to € cents at
+        // the admin-managed Power → EUR rate so usage_events.cost_cents
+        // matches what the seller is owed.
         $costCents = (int) round($cost * Rates::eurCentsPerPower());
 
-        DB::transaction(function () use ($profile, $subscription, $agent, $cost, $latency, $requestId, $costCents, $validated, $output) {
+        if (! $response->ok) {
+            // Provider failure: log the event for billing transparency
+            // but DO NOT charge the buyer Power (no successful run).
+            UsageEvent::create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'run',
+                'units_consumed' => 0,
+                'unit_type' => $agent->per_unit,
+                'power_consumed' => 0,
+                'request_id' => $requestId,
+                'agent_response_status' => 502,
+                'latency_ms' => $response->latencyMs,
+                'cost_cents' => 0,
+                'input_tokens' => $response->inputTokens,
+                'output_tokens' => $response->outputTokens,
+                'provider_cost_cents' => $response->providerCostCents,
+                'recorded_at' => now(),
+                'metadata' => [
+                    'input_preview' => Str::limit($validated['input'], 200),
+                    'error' => $response->errorMessage,
+                    'agent_slug' => $agent->slug,
+                ],
+            ]);
+
+            return back()->with('status', "✗ {$agent->name} failed: {$response->errorMessage}");
+        }
+
+        DB::transaction(function () use ($profile, $subscription, $agent, $cost, $response, $requestId, $costCents, $validated) {
             $profile->decrement('power_balance', $cost);
 
             UsageEvent::create([
@@ -62,39 +99,21 @@ class InvokeController extends Controller
                 'power_consumed' => $cost,
                 'request_id' => $requestId,
                 'agent_response_status' => 200,
-                'latency_ms' => $latency,
+                'latency_ms' => $response->latencyMs,
                 'cost_cents' => $costCents,
+                'input_tokens' => $response->inputTokens,
+                'output_tokens' => $response->outputTokens,
+                'provider_cost_cents' => $response->providerCostCents,
                 'recorded_at' => now(),
                 'metadata' => [
                     'input_preview' => Str::limit($validated['input'], 200),
-                    'output_preview' => Str::limit($output, 200),
+                    'output_preview' => Str::limit($response->text, 200),
                     'agent_slug' => $agent->slug,
+                    'model' => $agent->llmModel?->slug,
                 ],
             ]);
         });
 
-        return back()->with('status', "✓ {$agent->name} ran your task. Burned {$cost}⚡ in {$latency}ms.");
-    }
-
-    /**
-     * Tiny canned outputs per agent category so the Console feed isn't
-     * empty while the real LLM gateway isn't built yet.
-     */
-    private function stubOutput(Agent $agent, string $input): string
-    {
-        $category = $agent->category?->slug ?? 'sales';
-        $preview = Str::limit($input, 80);
-
-        return match ($category) {
-            'sales' => "Drafted outreach for: \"{$preview}\". 3 personalisation hooks, CTA = book demo.",
-            'eng' => "Reviewed: \"{$preview}\". 4 comments, 1 blocker (null check), 2 suggested tests.",
-            'support' => "Triaged: \"{$preview}\". Tag=refund. Suggested macro = R-204. ETA reply: 2m.",
-            'finance' => "Reconciled batch: \"{$preview}\". 142 tx matched, 3 anomalies flagged for review.",
-            'hr' => "Sourced 12 candidates for: \"{$preview}\". 4 highly likely, 6 maybe, 2 weak.",
-            'legal' => "Reviewed clause: \"{$preview}\". 1 risk (uncapped liability), 2 markup suggestions.",
-            'research' => "Synthesised: \"{$preview}\". 3 sources, 2 cohort splits, summary in console.",
-            'design' => "Generated 6 mocks for: \"{$preview}\". Figma file shared, brand-tight, locale-ready.",
-            default => "Task completed for: \"{$preview}\". See logs for details.",
-        };
+        return back()->with('status', "✓ {$agent->name} ran your task. Burned {$cost}⚡ ({$response->inputTokens}+{$response->outputTokens} tok, {$response->latencyMs}ms).");
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use App\Models\LlmModel;
 use App\Models\Payout;
 use App\Models\PayoutMethod;
 use App\Models\Subscription;
@@ -114,6 +115,31 @@ class VendorController extends Controller
             'rating' => $l['rating'] ?? 0,
         ])->all();
 
+        $llmCredentials = $user
+            ? $user->llmCredentials()
+                ->get()
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'provider' => $c->provider,
+                    'label' => $c->label,
+                    'last4' => $c->last4,
+                    'verifiedAt' => $c->verified_at?->format('M d, Y H:i'),
+                    'lastUsedAt' => $c->last_used_at?->format('M d, Y H:i'),
+                    'createdAt' => $c->created_at?->format('M d, Y'),
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        // List of providers present in the catalog — drives the
+        // "Add credential" form's provider <select>.
+        $llmProviders = LlmModel::query()
+            ->where('is_active', true)
+            ->distinct()
+            ->orderBy('provider')
+            ->pluck('provider')
+            ->all();
+
         return Inertia::render('Vendor', [
             'listings' => $listings,
             'payouts' => $payouts,
@@ -122,6 +148,8 @@ class VendorController extends Controller
             'subs' => $subs,
             'disputes' => [],
             'perf' => $perf,
+            'llmCredentials' => $llmCredentials,
+            'llmProviders' => $llmProviders,
             'metrics' => [
                 'powerEarned30d' => $totalPower30d,
                 'eurEarned30d' => $sellerEur30d,

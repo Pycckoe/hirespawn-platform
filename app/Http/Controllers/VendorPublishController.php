@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\AgentCategory;
+use App\Models\LlmModel;
+use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,13 +28,21 @@ class VendorPublishController extends Controller
             ?? $user?->sellerProfile?->company_name
             ?? ($user?->name ? "{$user->name} Studio" : 'Independent Studio');
 
-        return Inertia::render('VendorPublish', $this->formProps(mode: 'create', defaults: [
-            'vendor' => $defaultVendor,
-            'currency' => 'EUR',
-            'rank' => 'E-6',
-            'languages' => ['EN'],
-            'integrations' => [],
-        ]));
+        return Inertia::render('VendorPublish', $this->formProps(
+            mode: 'create',
+            request: $request,
+            defaults: [
+                'vendor' => $defaultVendor,
+                'currency' => 'EUR',
+                'rank' => 'E-6',
+                'languages' => ['EN'],
+                'integrations' => [],
+                'systemPrompt' => '',
+                'estInputTokens' => 800,
+                'estOutputTokens' => 400,
+                'maxOutputTokens' => null,
+            ],
+        ));
     }
 
     public function store(Request $request): RedirectResponse
@@ -43,6 +54,7 @@ class VendorPublishController extends Controller
         $agent = Agent::create([
             'seller_id' => $user->id,
             'category_id' => $category->id,
+            'llm_model_id' => $validated['llmModelId'] ?? null,
             'slug' => $this->uniqueSlugFor($validated['name']),
             'name' => $validated['name'],
             'vendor' => $validated['vendor'],
@@ -51,6 +63,7 @@ class VendorPublishController extends Controller
             'tagline' => $validated['tagline'],
             'spec' => $validated['tagline'],
             'description' => $validated['description'],
+            'system_prompt' => $validated['systemPrompt'] ?? null,
             // New listings enter the admin review queue. Auto-approval is
             // gone — an admin has to click Approve before the agent is
             // visible in the catalog.
@@ -58,6 +71,9 @@ class VendorPublishController extends Controller
             'pricing_model' => 'usage_based',
             'power_cost' => $validated['powerCost'],
             'per_unit' => $validated['perUnit'],
+            'est_input_tokens' => $validated['estInputTokens'] ?? 0,
+            'est_output_tokens' => $validated['estOutputTokens'] ?? 0,
+            'max_output_tokens' => $validated['maxOutputTokens'] ?? null,
             'currency' => 'EUR',
             'rating_avg' => 0,
             'subscribers_count' => 0,
@@ -78,6 +94,7 @@ class VendorPublishController extends Controller
 
         return Inertia::render('VendorPublish', $this->formProps(
             mode: 'edit',
+            request: $request,
             agent: $agent,
         ));
     }
@@ -91,6 +108,7 @@ class VendorPublishController extends Controller
 
         $agent->forceFill([
             'category_id' => $category->id,
+            'llm_model_id' => $validated['llmModelId'] ?? null,
             'name' => $validated['name'],
             'vendor' => $validated['vendor'],
             'role' => $validated['role'],
@@ -98,8 +116,12 @@ class VendorPublishController extends Controller
             'tagline' => $validated['tagline'],
             'spec' => $validated['tagline'],
             'description' => $validated['description'],
+            'system_prompt' => $validated['systemPrompt'] ?? null,
             'power_cost' => $validated['powerCost'],
             'per_unit' => $validated['perUnit'],
+            'est_input_tokens' => $validated['estInputTokens'] ?? 0,
+            'est_output_tokens' => $validated['estOutputTokens'] ?? 0,
+            'max_output_tokens' => $validated['maxOutputTokens'] ?? null,
             'languages' => $this->normalizeArray($validated['languages'] ?? []),
             'integrations' => $this->normalizeArray($validated['integrations'] ?? [], lower: true),
         ])->save();
@@ -109,8 +131,47 @@ class VendorPublishController extends Controller
             ->with('status', "Saved changes to {$agent->name}.");
     }
 
-    private function formProps(string $mode, ?Agent $agent = null, array $defaults = []): array
+    private function formProps(string $mode, Request $request, ?Agent $agent = null, array $defaults = []): array
     {
+        $user = $request->user();
+
+        // Available LLM models for the picker. Cheapest first within each
+        // provider so the dropdown groups read sensibly.
+        $models = LlmModel::query()
+            ->where('is_active', true)
+            ->orderBy('provider')
+            ->orderBy('sort_order')
+            ->orderBy('input_price_cents_per_1m')
+            ->get()
+            ->map(fn (LlmModel $m) => [
+                'id' => $m->id,
+                'provider' => $m->provider,
+                'slug' => $m->slug,
+                'name' => $m->name,
+                'apiId' => $m->api_id,
+                'inputPriceCentsPer1m' => (int) $m->input_price_cents_per_1m,
+                'outputPriceCentsPer1m' => (int) $m->output_price_cents_per_1m,
+                'contextWindow' => (int) $m->context_window,
+                'maxOutputTokens' => (int) $m->max_output_tokens,
+                'capabilities' => $m->capabilities ?? [],
+                'description' => $m->description,
+            ])
+            ->values()
+            ->all();
+
+        // Provider → credential summary for the form. Lets the JS show
+        // "✓ key on file" vs "⚠ no key — agent will fail invocations".
+        $credentialsByProvider = $user
+            ? $user->llmCredentials()->get()->mapWithKeys(fn ($c) => [
+                $c->provider => [
+                    'id' => $c->id,
+                    'label' => $c->label,
+                    'last4' => $c->last4,
+                    'verifiedAt' => $c->verified_at?->toIso8601String(),
+                ],
+            ])->all()
+            : [];
+
         return [
             'categories' => AgentCategory::query()
                 ->orderBy('sort_order')
@@ -120,6 +181,13 @@ class VendorPublishController extends Controller
                 ->all(),
             'ranks' => self::RANK_OPTIONS,
             'mode' => $mode,
+            'llmModels' => $models,
+            'credentialsByProvider' => $credentialsByProvider,
+            // Platform-wide economics — drives the live margin calculator.
+            'economics' => [
+                'eurCentsPerPower' => Rates::eurCentsPerPower(),
+                'sellerSharePct' => Rates::sellerSharePct(),
+            ],
             'agent' => $agent ? [
                 'slug' => $agent->slug,
                 'name' => $agent->name,
@@ -129,8 +197,13 @@ class VendorPublishController extends Controller
                 'rank' => $agent->rank,
                 'tagline' => $agent->tagline,
                 'description' => $agent->description,
+                'systemPrompt' => $agent->system_prompt ?? '',
                 'powerCost' => (int) $agent->power_cost,
                 'perUnit' => $agent->per_unit,
+                'llmModelId' => $agent->llm_model_id,
+                'estInputTokens' => (int) $agent->est_input_tokens,
+                'estOutputTokens' => (int) $agent->est_output_tokens,
+                'maxOutputTokens' => $agent->max_output_tokens,
                 'languages' => $agent->languages ?? [],
                 'integrations' => $agent->integrations ?? [],
                 'status' => $agent->status,
@@ -149,8 +222,13 @@ class VendorPublishController extends Controller
             'rank' => ['required', 'string', 'max:8'],
             'tagline' => ['required', 'string', 'max:120'],
             'description' => ['required', 'string', 'max:4000'],
-            'powerCost' => ['required', 'integer', 'min:1', 'max:1000'],
+            'systemPrompt' => ['nullable', 'string', 'max:8000'],
+            'powerCost' => ['required', 'integer', 'min:1', 'max:10000'],
             'perUnit' => ['required', 'string', 'max:60'],
+            'llmModelId' => ['nullable', 'integer', Rule::exists('llm_models', 'id')->where('is_active', true)],
+            'estInputTokens' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'estOutputTokens' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'maxOutputTokens' => ['nullable', 'integer', 'min:1', 'max:200000'],
             'languages' => ['nullable', 'array', 'max:12'],
             'languages.*' => ['string', 'max:6'],
             'integrations' => ['nullable', 'array', 'max:24'],

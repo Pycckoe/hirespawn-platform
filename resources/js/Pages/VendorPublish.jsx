@@ -1,4 +1,5 @@
 import '@/setup';
+import { useMemo } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 
@@ -13,7 +14,10 @@ const VendorPublish = (() => {
   const KNOWN_INTEGRATIONS = ['hubspot', 'salesforce', 'slack', 'gmail', 'github', 'gitlab', 'linear', 'notion', 'figma', 'jira', 'snowflake', 'stripe', 'zendesk', 'intercom'];
 
   const Page = () => {
-    const { categories = [], ranks = [], defaults = {}, mode = 'create', agent = null, flash = {} } = usePage().props;
+    const {
+      categories = [], ranks = [], defaults = {}, mode = 'create', agent = null,
+      llmModels = [], credentialsByProvider = {}, economics = { eurCentsPerPower: 0.9, sellerSharePct: 70 },
+    } = usePage().props;
     const isEdit = mode === 'edit' && agent;
 
     const { data, setData, post, patch, processing, errors } = useForm({
@@ -24,6 +28,11 @@ const VendorPublish = (() => {
       rank: agent?.rank ?? defaults.rank ?? 'E-6',
       tagline: agent?.tagline ?? '',
       description: agent?.description ?? '',
+      systemPrompt: agent?.systemPrompt ?? defaults.systemPrompt ?? '',
+      llmModelId: agent?.llmModelId ?? llmModels[0]?.id ?? null,
+      estInputTokens: agent?.estInputTokens ?? defaults.estInputTokens ?? 800,
+      estOutputTokens: agent?.estOutputTokens ?? defaults.estOutputTokens ?? 400,
+      maxOutputTokens: agent?.maxOutputTokens ?? defaults.maxOutputTokens ?? null,
       powerCost: agent?.powerCost ?? 10,
       perUnit: agent?.perUnit ?? 'task',
       languages: agent?.languages ?? defaults.languages ?? ['EN'],
@@ -47,6 +56,44 @@ const VendorPublish = (() => {
     };
 
     const slug = isEdit ? agent.slug : ((data.name || 'new-agent').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'new-agent');
+
+    // Live margin math. Everything in € so the seller can eyeball the
+    // unit economics before clicking submit. providerCostCents comes
+    // straight from the model's published rate × estimated tokens.
+    const selectedModel = useMemo(
+      () => llmModels.find(m => m.id === Number(data.llmModelId)) || null,
+      [llmModels, data.llmModelId]
+    );
+    const credential = selectedModel ? credentialsByProvider[selectedModel.provider] : null;
+
+    const economicsCalc = useMemo(() => {
+      const inTok = Number(data.estInputTokens) || 0;
+      const outTok = Number(data.estOutputTokens) || 0;
+      const power = Number(data.powerCost) || 0;
+      const eurPerPower = (economics.eurCentsPerPower || 0.9) / 100; // 0.009
+      const sellerShare = (economics.sellerSharePct || 70) / 100;
+
+      const buyerEur = power * eurPerPower;
+      const sellerEur = buyerEur * sellerShare;
+      const platformEur = buyerEur - sellerEur;
+
+      const providerCostCents = selectedModel
+        ? Math.ceil(
+            (inTok * selectedModel.inputPriceCentsPer1m + outTok * selectedModel.outputPriceCentsPer1m) / 1_000_000
+          )
+        : 0;
+      const providerCostEur = providerCostCents / 100;
+
+      const marginEur = sellerEur - providerCostEur;
+      const marginPct = sellerEur > 0 ? (marginEur / sellerEur) * 100 : 0;
+
+      return {
+        buyerEur, sellerEur, platformEur,
+        providerCostEur, marginEur, marginPct,
+        platformPct: 100 - (economics.sellerSharePct || 70),
+        eurPerPower,
+      };
+    }, [data.estInputTokens, data.estOutputTokens, data.powerCost, selectedModel, economics]);
 
     return (
       <>
@@ -100,14 +147,40 @@ const VendorPublish = (() => {
                   <TextareaField label="Description" value={data.description} onChange={v => setData('description', v)} error={errors.description} placeholder="What does it do, how does it behave, what tools does it use, what's the failure mode…" maxLength={4000} rows={6} />
                 </Section>
 
-                <Section title="Pricing" sub="Power per unit of work. Marketplace takes 30%.">
+                <Section title="LLM model + system prompt" sub={<>Your agent runs on a real LLM call. Pick the model, drop your system prompt, give realistic token estimates so we can show your margin. Manage API keys at <Link href={route('vendor') + '?tab=credentials'} style={{ color: palette.accent, textDecoration: 'none' }}>Vendor → Credentials</Link>.</>}>
+                  <LlmPicker
+                    palette={palette}
+                    models={llmModels}
+                    value={data.llmModelId}
+                    onChange={(id) => setData('llmModelId', id)}
+                    credentialsByProvider={credentialsByProvider}
+                    error={errors.llmModelId}
+                  />
+
+                  <TextareaField
+                    label="System prompt"
+                    value={data.systemPrompt}
+                    onChange={v => setData('systemPrompt', v)}
+                    error={errors.systemPrompt}
+                    placeholder="You are a senior brand designer. Given a product brief…"
+                    maxLength={8000}
+                    rows={6}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                    <NumberField label="Est. input tokens / run" value={data.estInputTokens} onChange={v => setData('estInputTokens', v)} error={errors.estInputTokens} min={0} max={1000000} />
+                    <NumberField label="Est. output tokens / run" value={data.estOutputTokens} onChange={v => setData('estOutputTokens', v)} error={errors.estOutputTokens} min={0} max={1000000} />
+                    <NumberField label="Max output tokens (cap)" value={data.maxOutputTokens || ''} onChange={v => setData('maxOutputTokens', v ? Number(v) : null)} error={errors.maxOutputTokens} min={1} max={200000} placeholder="auto" />
+                  </div>
+                </Section>
+
+                <Section title="Pricing" sub={`Power per unit of work. Marketplace takes ${economicsCalc.platformPct.toFixed(0)}% (admin-managed).`}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                    <NumberField label="Power per unit" value={data.powerCost} onChange={v => setData('powerCost', v)} error={errors.powerCost} suffix="⚡" min={1} max={1000} />
+                    <NumberField label="Power per unit" value={data.powerCost} onChange={v => setData('powerCost', v)} error={errors.powerCost} suffix="⚡" min={1} max={10000} />
                     <Field label="Unit name" value={data.perUnit} onChange={v => setData('perUnit', v)} error={errors.perUnit} placeholder="lead / PR / ticket / asset pack" maxLength={60} />
                   </div>
-                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 12 }}>
-                    At Pro rate: <span style={{ color: palette.text }}>≈ €{(Number(data.powerCost || 0) * 0.009).toFixed(3)}</span> per {data.perUnit || 'unit'} · seller earns <span style={{ color: palette.accent }}>€{(Number(data.powerCost || 0) * 0.009 * 0.7).toFixed(3)}</span> after platform fee
-                  </div>
+
+                  <MarginPanel palette={palette} model={selectedModel} calc={economicsCalc} powerCost={data.powerCost} perUnit={data.perUnit} />
                 </Section>
 
                 <Section title="Reach" sub="Multi-select. Helps buyers filter the catalog.">
@@ -131,103 +204,220 @@ const VendorPublish = (() => {
     );
   };
 
-  const Section = ({ title, sub, children }) => (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, letterSpacing: -0.6, margin: 0 }}>{title}</h3>
-        {sub && <div style={{ fontSize: 13, color: palette.textDim, marginTop: 4, lineHeight: 1.5 }}>{sub}</div>}
-      </div>
-      <Glass style={{ padding: 24 }}>{children}</Glass>
-    </div>
-  );
+  const LlmPicker = ({ palette, models, value, onChange, credentialsByProvider, error }) => {
+    // Group models by provider so the dropdown reads like a tree.
+    const groups = useMemo(() => {
+      const out = {};
+      models.forEach(m => {
+        if (!out[m.provider]) out[m.provider] = [];
+        out[m.provider].push(m);
+      });
+      return out;
+    }, [models]);
 
-  const Field = ({ label, value, onChange, error, placeholder, autoFocus, maxLength, hint }) => (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        maxLength={maxLength}
-        style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }}
-      />
-      {hint && !error && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{hint}</div>}
-      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
-    </label>
-  );
-
-  const TextareaField = ({ label, value, onChange, error, placeholder, maxLength, rows = 4 }) => (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        rows={rows}
-        style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
-      />
-      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
-    </label>
-  );
-
-  const NumberField = ({ label, value, onChange, error, min, max, suffix }) => (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <input
-          type="number"
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          min={min}
-          max={max}
-          style={{ flex: 1, padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'Geist Mono, monospace', fontSize: 14, outline: 'none' }}
-        />
-        {suffix && <span style={{ fontSize: 18, color: palette.accent }}>{suffix}</span>}
-      </div>
-      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
-    </label>
-  );
-
-  const SelectField = ({ label, value, onChange, error, options }) => (
-    <label style={{ display: 'block', marginBottom: 14 }}>
-      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }}
-      >
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
-    </label>
-  );
-
-  const ChipMultiSelect = ({ label, selected, onToggle, options, error, mono }) => (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{label} · {selected.length} selected</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {options.map(opt => {
-          const isOn = selected.map(s => s.toLowerCase()).includes(opt.toLowerCase());
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>LLM model</div>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }}
+        >
+          <option value="">— pick a model —</option>
+          {Object.entries(groups).map(([provider, list]) => (
+            <optgroup key={provider} label={provider.toUpperCase()}>
+              {list.map(m => {
+                const has = credentialsByProvider[m.provider];
+                return (
+                  <option key={m.id} value={m.id}>
+                    {has ? '✓' : '⚠'} {m.name} — in €{(m.inputPriceCentsPer1m / 100).toFixed(2)}/1M, out €{(m.outputPriceCentsPer1m / 100).toFixed(2)}/1M
+                  </option>
+                );
+              })}
+            </optgroup>
+          ))}
+        </select>
+        {value && (() => {
+          const m = models.find(x => x.id === Number(value));
+          if (!m) return null;
+          const cred = credentialsByProvider[m.provider];
           return (
-            <button key={opt} type="button" onClick={() => onToggle(opt)} style={{
-              padding: '6px 12px', borderRadius: 999,
-              background: isOn ? palette.accentDim : 'transparent',
-              border: `1px solid ${isOn ? palette.accent : palette.border}`,
-              color: isOn ? palette.accent : palette.textDim,
-              fontSize: 12, fontFamily: mono ? 'Geist Mono, monospace' : 'inherit',
-              letterSpacing: mono ? 0.5 : 0, cursor: 'pointer',
-            }}>
-              {opt}
-            </button>
+            <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: cred ? 'rgba(180,242,91,0.06)' : 'rgba(255,184,77,0.08)', border: `1px solid ${cred ? palette.accentDim : palette.amber}`, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: cred ? palette.accent : palette.amber, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span>
+                {cred ? `✓ ${m.provider.toUpperCase()} key on file · ••••${cred.last4 || ''}` : `⚠ no ${m.provider.toUpperCase()} key — agent will fail invocations`}
+              </span>
+              <span style={{ color: palette.textDim }}>ctx {m.contextWindow >= 1000 ? `${Math.round(m.contextWindow / 1000)}k` : m.contextWindow} · max out {m.maxOutputTokens}</span>
+            </div>
           );
-        })}
+        })()}
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
       </div>
-      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 6, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
-    </div>
-  );
+    );
+  };
+
+  const MarginPanel = ({ palette, model, calc, powerCost, perUnit }) => {
+    const profitable = calc.marginEur > 0;
+    const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontFamily: 'Geist Mono, monospace', fontSize: 12 };
+    return (
+      <div style={{ marginTop: 16, padding: 18, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${profitable ? palette.accentDim : 'rgba(255,99,99,0.4)'}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Unit economics · per {perUnit || 'unit'}</span>
+          <span style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, color: profitable ? palette.accent : palette.red }}>
+            {profitable ? '+' : ''}€{calc.marginEur.toFixed(4)}
+            <span style={{ fontSize: 11, fontFamily: 'Geist Mono, monospace', color: palette.textMute, marginLeft: 6 }}>
+              ({calc.marginPct.toFixed(1)}% margin)
+            </span>
+          </span>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${palette.border}`, paddingTop: 10 }}>
+          <div style={{ ...rowStyle, color: palette.textDim }}>
+            <span>Buyer pays</span>
+            <span style={{ color: palette.text }}>{powerCost}⚡ → €{calc.buyerEur.toFixed(4)}</span>
+          </div>
+          <div style={{ ...rowStyle, color: palette.textDim }}>
+            <span>Platform cut ({calc.platformPct.toFixed(0)}%)</span>
+            <span style={{ color: palette.amber }}>−€{calc.platformEur.toFixed(4)}</span>
+          </div>
+          <div style={{ ...rowStyle, color: palette.textDim, borderTop: `1px dashed ${palette.border}`, marginTop: 4, paddingTop: 8 }}>
+            <span>Your revenue</span>
+            <span style={{ color: palette.text }}>€{calc.sellerEur.toFixed(4)}</span>
+          </div>
+          <div style={{ ...rowStyle, color: palette.textDim }}>
+            <span>LLM cost {model ? `(${model.name})` : '(pick a model)'}</span>
+            <span style={{ color: palette.red }}>−€{calc.providerCostEur.toFixed(4)}</span>
+          </div>
+          <div style={{ ...rowStyle, color: palette.text, fontWeight: 600, borderTop: `1px solid ${palette.border}`, marginTop: 6, paddingTop: 10 }}>
+            <span>Your margin</span>
+            <span style={{ color: profitable ? palette.accent : palette.red }}>{profitable ? '+' : ''}€{calc.marginEur.toFixed(4)}</span>
+          </div>
+        </div>
+
+        {!profitable && model && (
+          <div style={{ marginTop: 10, padding: 10, background: 'rgba(255,99,99,0.08)', borderRadius: 6, fontSize: 11, fontFamily: 'Geist Mono, monospace', color: palette.red }}>
+            ⚠ You're losing money per run. Raise Power cost or pick a cheaper model.
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const Section = ({ title, sub, children }) => {
+    const { palette, Glass } = DirA;
+    return (
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 14 }}>
+          <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, letterSpacing: -0.6, margin: 0 }}>{title}</h3>
+          {sub && <div style={{ fontSize: 13, color: palette.textDim, marginTop: 4, lineHeight: 1.5 }}>{sub}</div>}
+        </div>
+        <Glass style={{ padding: 24 }}>{children}</Glass>
+      </div>
+    );
+  };
+
+  const Field = ({ label, value, onChange, error, placeholder, autoFocus, maxLength, hint }) => {
+    const { palette } = DirA;
+    return (
+      <label style={{ display: 'block', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          maxLength={maxLength}
+          style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }}
+        />
+        {hint && !error && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{hint}</div>}
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </label>
+    );
+  };
+
+  const TextareaField = ({ label, value, onChange, error, placeholder, maxLength, rows = 4 }) => {
+    const { palette } = DirA;
+    return (
+      <label style={{ display: 'block', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          rows={rows}
+          style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
+        />
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </label>
+    );
+  };
+
+  const NumberField = ({ label, value, onChange, error, min, max, suffix, placeholder }) => {
+    const { palette } = DirA;
+    return (
+      <label style={{ display: 'block', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="number"
+            value={value === null || value === undefined ? '' : value}
+            onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+            min={min}
+            max={max}
+            placeholder={placeholder}
+            style={{ flex: 1, padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'Geist Mono, monospace', fontSize: 14, outline: 'none' }}
+          />
+          {suffix && <span style={{ fontSize: 18, color: palette.accent }}>{suffix}</span>}
+        </div>
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </label>
+    );
+  };
+
+  const SelectField = ({ label, value, onChange, error, options }) => {
+    const { palette } = DirA;
+    return (
+      <label style={{ display: 'block', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }}
+        >
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </label>
+    );
+  };
+
+  const ChipMultiSelect = ({ label, selected, onToggle, options, error, mono }) => {
+    const { palette } = DirA;
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{label} · {selected.length} selected</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {options.map(opt => {
+            const isOn = selected.map(s => s.toLowerCase()).includes(opt.toLowerCase());
+            return (
+              <button key={opt} type="button" onClick={() => onToggle(opt)} style={{
+                padding: '6px 12px', borderRadius: 999,
+                background: isOn ? palette.accentDim : 'transparent',
+                border: `1px solid ${isOn ? palette.accent : palette.border}`,
+                color: isOn ? palette.accent : palette.textDim,
+                fontSize: 12, fontFamily: mono ? 'Geist Mono, monospace' : 'inherit',
+                letterSpacing: mono ? 0.5 : 0, cursor: 'pointer',
+              }}>
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+        {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 6, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </div>
+    );
+  };
 
   return { Page };
 })();

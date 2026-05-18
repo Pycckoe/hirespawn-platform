@@ -11,6 +11,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\TopupController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\VendorCredentialsController;
 use App\Http\Controllers\VendorPayoutController;
 use App\Http\Controllers\VendorPublishController;
 use Illuminate\Support\Facades\Route;
@@ -55,6 +56,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/vendor/payout-methods/{method}/default', [VendorPayoutController::class, 'defaultMethod'])->name('vendor.payout.methods.default');
     Route::delete('/vendor/payout-methods/{method}', [VendorPayoutController::class, 'destroyMethod'])->name('vendor.payout.methods.destroy');
     Route::post('/vendor/payouts', [VendorPayoutController::class, 'requestPayout'])->name('vendor.payout.request');
+    // LLM API credentials — one row per (seller, provider).
+    Route::post('/vendor/llm-credentials', [VendorCredentialsController::class, 'store'])->name('vendor.credentials.store');
+    Route::post('/vendor/llm-credentials/{credential}/verify', [VendorCredentialsController::class, 'verify'])->name('vendor.credentials.verify');
+    Route::delete('/vendor/llm-credentials/{credential}', [VendorCredentialsController::class, 'destroy'])->name('vendor.credentials.destroy');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');

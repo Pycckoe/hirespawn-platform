@@ -81,4 +81,18 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->hasMany(PayoutMethod::class);
     }
+
+    public function llmCredentials(): HasMany
+    {
+        return $this->hasMany(SellerLlmCredential::class, 'seller_id');
+    }
+
+    /**
+     * Find the seller's API key for a given provider (openai, anthropic…).
+     * Returns null if no key has been added yet.
+     */
+    public function llmCredentialFor(string $provider): ?SellerLlmCredential
+    {
+        return $this->llmCredentials()->where('provider', $provider)->first();
+    }
 }

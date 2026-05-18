@@ -36,6 +36,11 @@ class Agent extends Model
         return $this->belongsTo(AgentCategory::class, 'category_id');
     }
 
+    public function llmModel(): BelongsTo
+    {
+        return $this->belongsTo(LlmModel::class, 'llm_model_id');
+    }
+
     public function capabilities(): HasMany
     {
         return $this->hasMany(AgentCapability::class);
