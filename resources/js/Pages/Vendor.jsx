@@ -4,7 +4,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 // =====================================================================
@@ -190,6 +190,7 @@ const SellerDash = (() => {
       : Array.from({length: 30}).map((_, i) => `${30-i}d`);
     const max = Math.max(...data, 1);
     const total = data.reduce((s, v) => s + v, 0);
+    const rates = useRates();
 
     return (
       <Glass style={{ padding: 24 }}>
@@ -198,7 +199,7 @@ const SellerDash = (() => {
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Revenue · Power earned</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 6 }}>
               <span style={{ fontFamily: 'Geist, sans-serif', fontSize: 32, fontWeight: 500, color: palette.text }}>{total.toLocaleString()}<span style={{ fontSize: 16, color: palette.textMute, marginLeft: 4 }}>⚡</span></span>
-              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.accent }}>≈ €{Math.round(total * 0.009 * 0.7).toLocaleString()} after platform cut</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.accent }}>≈ €{Math.round(total * rates.eurPerPower * rates.sellerShare).toLocaleString()} after platform cut</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--p-inset)', borderRadius: 8, border: `1px solid ${palette.border}` }}>
@@ -716,7 +717,7 @@ sla:
         <Section title="Cash-out balance" sub="Earned — already requested — already paid. Updates after every agent run.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
             <Stat label="Available" value={fmtMoney(cashOut.availableCents)} color={palette.accent} sub="ready to withdraw" />
-            <Stat label="Lifetime earned" value={fmtMoney(cashOut.lifetimeEarnedCents)} sub="after 30% platform" />
+            <Stat label="Lifetime earned" value={fmtMoney(cashOut.lifetimeEarnedCents)} sub={`after ${(100 - rates.sellerSharePct).toFixed(0)}% platform`} />
             <Stat label="Pending" value={fmtMoney(cashOut.pendingCents)} color={palette.amber} sub="in transit" />
             <Stat label="Paid out" value={fmtMoney(cashOut.paidCents)} sub="settled to your accounts" />
           </div>
@@ -759,6 +760,7 @@ sla:
       subs = [], disputes = [], perf = [],
       flash = {},
     } = usePage().props;
+    const rates = useRates();
 
     const sellerStats = {
       powerEarned30d: metrics?.powerEarned30d ?? 0,
@@ -840,7 +842,7 @@ sla:
                 <>
                   {/* KPIs */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
-                    <Kpi label="Power earned (30d)" value={sellerStats.powerEarned30d >= 1000 ? `${(sellerStats.powerEarned30d/1000).toFixed(sellerStats.powerEarned30d < 10000 ? 1 : 0)}k` : sellerStats.powerEarned30d.toLocaleString()} sub={sellerStats.powerEarned30d > 0 ? `≈ €${Math.round(sellerStats.powerEarned30d * 0.009 * 0.7).toLocaleString()} after 30% platform` : 'No runs yet'} sparkData={sellerStats.powerEarned30d > 0 ? series30d : undefined} />
+                    <Kpi label="Power earned (30d)" value={sellerStats.powerEarned30d >= 1000 ? `${(sellerStats.powerEarned30d/1000).toFixed(sellerStats.powerEarned30d < 10000 ? 1 : 0)}k` : sellerStats.powerEarned30d.toLocaleString()} sub={sellerStats.powerEarned30d > 0 ? `≈ €${Math.round(sellerStats.powerEarned30d * rates.eurPerPower * rates.sellerShare).toLocaleString()} after ${(100 - rates.sellerSharePct).toFixed(0)}% platform` : 'No runs yet'} sparkData={sellerStats.powerEarned30d > 0 ? series30d : undefined} />
                     <Kpi label="EUR earned (30d)" value={`€${sellerStats.eurEarned30d.toLocaleString()}`} sub={sellerStats.eurEarned30d > 0 ? 'net of 30% platform' : 'No earnings yet'} sparkData={sellerStats.eurEarned30d > 0 ? series30d : undefined} sparkColor={palette.cyan} color={palette.cyan} />
                     <Kpi label="Active subs" value={`${sellerStats.activeSubs}`} sub={listings.length > 0 ? `${listings.length} listing${listings.length === 1 ? '' : 's'} live` : 'No listings yet'} />
                     <Kpi label="Avg rating" value={sellerStats.avgRating > 0 ? `★ ${sellerStats.avgRating}` : '—'} sub={sellerStats.avgRating > 0 ? `across ${sellerStats.totalRuns30d.toLocaleString()} runs` : 'No ratings yet'} color={palette.amber} sparkColor={palette.amber} />

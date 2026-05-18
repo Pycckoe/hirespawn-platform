@@ -7,6 +7,7 @@ use App\Models\Payout;
 use App\Models\PayoutMethod;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
+use App\Support\Rates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -14,16 +15,6 @@ use Inertia\Response;
 
 class VendorController extends Controller
 {
-    /**
-     * Seller's revenue share — buyer's power burns × this fraction
-     * lands in the seller's pocket. The marketplace keeps the rest.
-     */
-    private const SELLER_SHARE = 0.70;
-
-    /**
-     * EUR cents per ⚡ at the Pro rate, used to convert power to revenue.
-     */
-    private const EUR_CENTS_PER_POWER = 0.9;
 
     public function index(Request $request): Response
     {
@@ -69,7 +60,7 @@ class VendorController extends Controller
             : [];
 
         $totalPower30d = (int) $events30d->sum('power_consumed');
-        $sellerEur30d = (int) round($totalPower30d * self::EUR_CENTS_PER_POWER / 100 * self::SELLER_SHARE);
+        $sellerEur30d = (int) round(Rates::sellerEarnedCents($totalPower30d) / 100);
 
         $payoutMethods = $user
             ? $user->payoutMethods()
@@ -192,14 +183,17 @@ class VendorController extends Controller
      */
     private function cashOutSummary($user, array $agentIds): array
     {
+        $minCashoutCents = Rates::minCashoutCents();
+        $feePercent = Rates::cashoutFeePct();
+
         if (! $user || empty($agentIds)) {
             return [
                 'availableCents' => 0,
                 'lifetimeEarnedCents' => 0,
                 'pendingCents' => 0,
                 'paidCents' => 0,
-                'minCashoutCents' => 1000,
-                'feePercent' => 1,
+                'minCashoutCents' => $minCashoutCents,
+                'feePercent' => $feePercent,
             ];
         }
 
@@ -207,7 +201,7 @@ class VendorController extends Controller
             ->whereHas('subscription', fn ($q) => $q->whereIn('agent_id', $agentIds))
             ->sum('power_consumed');
 
-        $lifetimeCents = (int) round($totalPower * self::EUR_CENTS_PER_POWER * self::SELLER_SHARE);
+        $lifetimeCents = Rates::sellerEarnedCents($totalPower);
 
         $pendingCents = (int) Payout::query()
             ->where('seller_id', $user->id)
@@ -224,8 +218,8 @@ class VendorController extends Controller
             'lifetimeEarnedCents' => $lifetimeCents,
             'pendingCents' => $pendingCents,
             'paidCents' => $paidCents,
-            'minCashoutCents' => 1000,
-            'feePercent' => 1,
+            'minCashoutCents' => $minCashoutCents,
+            'feePercent' => $feePercent,
         ];
     }
 
@@ -253,7 +247,7 @@ class VendorController extends Controller
             'runs30d' => $runs30d,
             'rev30d' => $power30d, // raw power earned by this agent over 30d
             'rating' => $agent->rating_avg > 0 ? (float) $agent->rating_avg : null,
-            'rev_share' => (int) (self::SELLER_SHARE * 100),
+            'rev_share' => (int) Rates::sellerSharePct(),
         ];
     }
 

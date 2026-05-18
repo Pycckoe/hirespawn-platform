@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Agent;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
+use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,7 +48,8 @@ class InvokeController extends Controller
         $output = $this->stubOutput($agent, $validated['input']);
         $latency = random_int(80, 2200);
         $requestId = 'run_'.Str::random(12);
-        $costCents = (int) round($cost * 0.009 * 100);
+        // Convert Power cost → EUR cents using the admin-managed rate.
+        $costCents = (int) round($cost * Rates::eurCentsPerPower());
 
         DB::transaction(function () use ($profile, $subscription, $agent, $cost, $latency, $requestId, $costCents, $validated, $output) {
             $profile->decrement('power_balance', $cost);

@@ -4,7 +4,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 // =====================================================================
@@ -424,6 +424,7 @@ const Dashboard = (() => {
     const series30d = metrics?.burnSeries30d ?? Array(30).fill(0);
     const opsEvents = metrics?.opsFeed ?? [];
     const eurSpent30d = metrics?.eurSpent30d ?? 0;
+    const rates = useRates();
 
     const [tab, setTab] = useState('overview');
     const [flashMsg, setFlashMsg] = useState(flash?.status || null);
@@ -460,7 +461,7 @@ const Dashboard = (() => {
               {/* KPI strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
                 <Kpi label="Power balance" value={`${(powerBalance/1000).toFixed(1)}k`} sub={powerBalance > 0 ? 'live balance' : 'top up to start'} />
-                <Kpi label="Burned (24h)" value={burn24h.toLocaleString()} sub={burn24h > 0 ? `≈ €${(burn24h * 0.009).toFixed(2)} at Pro rate` : 'no runs yet'} sparkData={burn24h > 0 ? series24h : undefined} />
+                <Kpi label="Burned (24h)" value={burn24h.toLocaleString()} sub={burn24h > 0 ? `≈ €${(burn24h * rates.eurPerPower).toFixed(2)}` : 'no runs yet'} sparkData={burn24h > 0 ? series24h : undefined} />
                 <Kpi label="Burned (30d)" value={burn30d >= 1000 ? `${(burn30d/1000).toFixed(burn30d < 10000 ? 1 : 0)}k` : burn30d.toLocaleString()} sub={burn30d > 0 ? `avg ${Math.round(burn30d/30).toLocaleString()}⚡/day` : 'no runs yet'} sparkData={burn30d > 0 ? series30d : undefined} />
                 <Kpi label="Active agents" value={`${liveAgents.filter(a => a.status === 'on').length} / ${liveAgents.length}`} sub={liveAgents.length ? `${liveAgents.reduce((s,a) => s + (a.runs24h || 0), 0).toLocaleString()} tasks today` : 'browse the roster'} color={palette.cyan} sparkColor={palette.cyan} />
               </div>

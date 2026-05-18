@@ -15,6 +15,34 @@ const useT = () => {
   };
 };
 
+// Rates hook — single source of truth for money-related rates in the
+// JS layer. All values are read from /admin/site-settings (group: rates)
+// via the shared cms.settings prop. Numbers come back as plain JS, with
+// safe fallbacks if a row is missing (mirrors App\Support\Rates on the
+// server). Use this everywhere we display EUR conversions or compute
+// fees client-side so the admin can re-tune without a deploy.
+const useRates = () => {
+  const settings = usePage().props?.cms?.settings || {};
+  const eurCentsPerPower = parseFloat(settings.eur_cents_per_power) || 0.9;
+  const sellerSharePct = parseFloat(settings.seller_share_pct) || 70;
+  const vatPct = parseFloat(settings.vat_rate_pct) || 20;
+  return {
+    // 1 ⚡ → EUR (e.g. 0.009)
+    eurPerPower: eurCentsPerPower / 100,
+    // Fraction the seller keeps after platform cut (e.g. 0.7)
+    sellerShare: sellerSharePct / 100,
+    // VAT fraction (e.g. 0.20)
+    vatFraction: vatPct / 100,
+    // Raw values for label display
+    eurCentsPerPower,
+    sellerSharePct,
+    vatPct,
+    minTopupEur: parseInt(settings.min_topup_eur, 10) || 5,
+    maxTopupEur: parseInt(settings.max_topup_eur, 10) || 50000,
+    cashoutFeePct: parseFloat(settings.cashout_fee_pct) || 1,
+  };
+};
+
 // === Theme: dark/light. Tokens live in Hirespawn.html as CSS vars on :root[data-theme]. ===
 const THEME_KEY = 'hirespawn-theme';
 const useTheme = () => {
@@ -139,11 +167,11 @@ const fmtCurrency = (n) => '€' + n.toLocaleString();
 if (typeof window !== 'undefined') {
     Object.assign(window, {
         AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-        useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
+        useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
     });
 }
 
 export {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
 };

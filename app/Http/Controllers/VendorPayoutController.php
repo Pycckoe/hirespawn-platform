@@ -6,6 +6,7 @@ use App\Models\Payout;
 use App\Models\PayoutMethod;
 use App\Models\PayoutMethodType;
 use App\Models\UsageEvent;
+use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,21 +16,6 @@ use Illuminate\Validation\ValidationException;
 
 class VendorPayoutController extends Controller
 {
-    /**
-     * Seller's revenue share from buyer power burns. Mirrors VendorController.
-     */
-    private const SELLER_SHARE = 0.70;
-
-    /**
-     * Cents per ⚡ at the Pro rate. 0.9 cents = €0.009 per power unit.
-     */
-    private const EUR_CENTS_PER_POWER = 0.9;
-
-    /**
-     * Minimum cash-out: €10 = 1000 cents.
-     */
-    private const MIN_CASHOUT_CENTS = 1000;
-
     // ---------------- Methods CRUD ----------------
 
     public function storeMethod(Request $request): RedirectResponse
@@ -190,7 +176,7 @@ class VendorPayoutController extends Controller
             ->whereHas('subscription', fn ($q) => $q->whereIn('agent_id', $agentIds))
             ->sum('power_consumed');
 
-        $earnedCents = (int) round($totalPower * self::EUR_CENTS_PER_POWER * self::SELLER_SHARE);
+        $earnedCents = Rates::sellerEarnedCents($totalPower);
 
         $alreadyOut = (int) Payout::query()
             ->where('seller_id', $user->id)

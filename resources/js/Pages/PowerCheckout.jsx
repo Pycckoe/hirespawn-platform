@@ -18,8 +18,11 @@ const PowerCheckout = (() => {
   const Page = () => {
     const { powerPacks = [] } = usePage().props;
     const settings = usePage().props?.cms?.settings || {};
+    // All thresholds + tax rate are read from /admin/site-settings.
     const minTopupEur = parseInt(settings.min_topup_eur, 10) || 5;
-    const maxTopupEur = 50000;
+    const maxTopupEur = parseInt(settings.max_topup_eur, 10) || 50000;
+    const vatPct = parseFloat(settings.vat_rate_pct) || 20;
+    const vatFraction = vatPct / 100;
 
     // Pre-set packs only (strip "Talk to sales" custom-priced rows).
     const PACKS = powerPacks.filter(p => p.price !== null && p.price !== undefined);
@@ -46,7 +49,7 @@ const PowerCheckout = (() => {
       : (PACKS.find(p => p.name === pack) || PACKS[0] || { name: 'Pack', eur: 0, power: 0, perPower: 0, slug: null });
 
     const eurNum = +chosen.eur || 0;
-    const vat = +(eurNum * 0.20).toFixed(2);
+    const vat = +(eurNum * vatFraction).toFixed(2);
     const total = +(eurNum + vat).toFixed(2);
 
     const tooSmall = isCustom && customEur < minTopupEur;
@@ -202,8 +205,8 @@ const PowerCheckout = (() => {
                 </div>
                 <div style={{ padding: '14px 0', borderBottom: `1px solid ${palette.border}`, display: 'grid', gap: 8 }}>
                   {[
-                    { l: 'Subtotal',  v: `€${(+chosen.eur).toLocaleString()}` },
-                    { l: 'VAT (20%)', v: `€${vat.toLocaleString()}` },
+                    { l: 'Subtotal',         v: `€${(+chosen.eur).toLocaleString()}` },
+                    { l: `VAT (${vatPct}%)`, v: `€${vat.toLocaleString()}` },
                   ].map(r => (
                     <div key={r.l} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>
                       <span>{r.l}</span><span style={{ color: palette.text }}>{r.v}</span>

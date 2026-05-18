@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
 import {
     AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, useT, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 const DirA = (() => {
@@ -358,7 +358,8 @@ const DirA = (() => {
     const [picked, setPicked] = useState('sdr-pro');
     const a = AGENTS.find(x => x.id === picked);
     const tasks = 1000;
-    const cost = a.power * tasks * 0.009;
+    const rates = useRates();
+    const cost = a.power * tasks * rates.eurPerPower;
     const t = useT();
     return (
       <div style={{ padding: '80px 40px' }}>
@@ -384,7 +385,7 @@ const DirA = (() => {
               <span style={{ fontFamily: 'Geist, sans-serif', fontSize: 64, fontWeight: 500, color: palette.accent, letterSpacing: -2 }}>{(a.power * tasks).toLocaleString()}</span>
               <span style={{ fontSize: 24, color: palette.textDim }}>⚡</span>
             </div>
-            <div style={{ fontSize: 14, color: palette.textDim }}>≈ €{cost.toFixed(2)} on the <strong style={{ color: palette.text }}>Pro</strong> pack ({a.power}⚡ × 1,000 × €0.009)</div>
+            <div style={{ fontSize: 14, color: palette.textDim }}>≈ €{cost.toFixed(2)} ({a.power}⚡ × 1,000 × €{rates.eurPerPower.toFixed(4)})</div>
             <div style={{ marginTop: 20, padding: 14, background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
               <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 8 }}>vs hiring a junior @ €2,500/mo</div>
               <div style={{ height: 24, borderRadius: 6, background: 'var(--p-chip)', overflow: 'hidden', display: 'flex' }}>
@@ -707,12 +708,14 @@ const DirA = (() => {
       setTasksDay(r.dailyDefault);
     };
 
-    // Buyer pays Pro pack rate ≈ €0.009 per Power. Take rate volume-tiered.
-    const PRICE_PER_POWER = 0.009;
+    const rates = useRates();
     const monthlyTasks = tasksDay * 30 * Math.max(1, customers / 10); // crude scaling
     const monthlyPower = monthlyTasks * powerCost;
-    const grossEUR     = monthlyPower * PRICE_PER_POWER;
-    const takeRate     = grossEUR > 50000 ? 0.12 : grossEUR > 15000 ? 0.18 : 0.25; // higher revenue = lower fee
+    const grossEUR     = monthlyPower * rates.eurPerPower;
+    // Platform's cut = 1 − seller share. Falls back to a volume-tiered
+    // rate for headline numbers only when the admin hasn't customised
+    // the share yet (default 30%).
+    const takeRate     = 1 - rates.sellerShare;
     const sellerEUR    = grossEUR * (1 - takeRate);
     const annualEUR    = sellerEUR * 12;
 
@@ -884,7 +887,9 @@ const DirA = (() => {
     );
   };
 
-  const Roi = () => (
+  const Roi = () => {
+    const rates = useRates();
+    return (
     <div style={{ padding: '60px 40px' }}>
       <Glass style={{ padding: 40 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
@@ -894,7 +899,7 @@ const DirA = (() => {
               A junior costs <span style={{ color: palette.red, textDecoration: 'line-through', textDecorationThickness: 2 }}>€2,500/mo</span>.
             </h2>
             <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1, margin: 0, color: palette.accent, lineHeight: 1.05, marginTop: 6 }}>
-              Power burns at €0.009 ea.
+              Power burns at €{rates.eurPerPower.toFixed(4)} ea.
             </h2>
             <p style={{ fontSize: 16, color: palette.textDim, lineHeight: 1.55, maxWidth: 480, marginTop: 20 }}>
               That's 277,000 tasks for one month of salary. Real workload, audited per-event, and your remaining Power balance is always in the console.
@@ -917,7 +922,8 @@ const DirA = (() => {
         </div>
       </Glass>
     </div>
-  );
+    );
+  };
 
   const Faq = () => {
     const [open, setOpen] = useState(0);

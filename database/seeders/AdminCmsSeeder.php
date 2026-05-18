@@ -28,6 +28,9 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'eur_cents_per_power','group' => 'rates','label' => 'EUR cents per ⚡','type' => 'text',     'value' => '0.9',                                               'sort' => 2],
             ['key' => 'min_cashout_eur','group' => 'rates','label' => 'Min cash-out (€)',    'type' => 'text',     'value' => '10',                                                'sort' => 3],
             ['key' => 'min_topup_eur', 'group' => 'rates','label' => 'Min top-up (€)',      'type' => 'text',     'value' => '5',                                                 'sort' => 4],
+            ['key' => 'max_topup_eur', 'group' => 'rates','label' => 'Max self-serve top-up (€)','type' => 'text','value' => '50000',                                             'sort' => 5],
+            ['key' => 'vat_rate_pct',  'group' => 'rates','label' => 'VAT rate (%)',        'type' => 'text',     'value' => '20',                                                'sort' => 6],
+            ['key' => 'cashout_fee_pct','group' => 'rates','label' => 'Cash-out gateway fee (%)','type' => 'text','value' => '1',                                                 'sort' => 7],
 
             // Brand assets — admin uploads PNG / SVG via Filament. Defaults
             // point at the bundled /logo.svg and /favicon.ico so the site
