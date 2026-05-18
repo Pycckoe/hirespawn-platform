@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\TopupController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorPayoutController;
 use App\Http\Controllers\VendorPublishController;
@@ -41,6 +42,10 @@ Route::get('/p/{slug}', [PageController::class, 'showPage'])->name('cms.page');
 // click-through. Re-add the `verified` middleware once we wire that flow.
 Route::middleware(['auth'])->group(function () {
     Route::get('/console', [ConsoleController::class, 'index'])->name('console');
+    // Power top-up — accepts either pack_slug or free-form amount_cents.
+    // Creates a pending Invoice; Stripe webhook will flip it to "paid"
+    // and credit power_balance when the buyer completes checkout.
+    Route::post('/power/checkout', [TopupController::class, 'store'])->name('power.checkout');
     Route::get('/vendor', [VendorController::class, 'index'])->name('vendor');
     Route::get('/vendor/agents/new', [VendorPublishController::class, 'create'])->name('vendor.publish.create');
     Route::post('/vendor/agents', [VendorPublishController::class, 'store'])->name('vendor.publish.store');

@@ -27,6 +27,7 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'seller_share_pct','group' => 'rates','label' => 'Seller revenue share %','type' => 'text',  'value' => '70',                                                'sort' => 1],
             ['key' => 'eur_cents_per_power','group' => 'rates','label' => 'EUR cents per ⚡','type' => 'text',     'value' => '0.9',                                               'sort' => 2],
             ['key' => 'min_cashout_eur','group' => 'rates','label' => 'Min cash-out (€)',    'type' => 'text',     'value' => '10',                                                'sort' => 3],
+            ['key' => 'min_topup_eur', 'group' => 'rates','label' => 'Min top-up (€)',      'type' => 'text',     'value' => '5',                                                 'sort' => 4],
 
             // Brand assets — admin uploads PNG / SVG via Filament. Defaults
             // point at the bundled /logo.svg and /favicon.ico so the site
