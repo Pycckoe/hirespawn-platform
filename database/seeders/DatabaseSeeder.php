@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             AgentSeeder::class,
             PowerPackSeeder::class,
             LlmModelsSeeder::class,
+            OauthAppsSeeder::class,
             AdminCmsSeeder::class,
             CmsMenusSeeder::class,
             TranslationsSeeder::class,

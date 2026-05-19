@@ -303,6 +303,9 @@ const Dashboard = (() => {
   const LiveOps = ({ events = [] }) => {
     const items = events.slice(0, 6);
     const isLive = items.length > 0;
+    // Track which rows are expanded so a buyer can drill into the
+    // actual tool calls the agent made on their behalf.
+    const [openIdx, setOpenIdx] = useState(null);
     return (
       <Glass style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -320,14 +323,41 @@ const Dashboard = (() => {
           <div>
             {items.map((it, i) => {
               const color = it.status === 'fail' ? palette.red : it.status === 'warn' ? palette.amber : palette.accent;
+              const toolCalls = it.toolCalls || [];
+              const hasTools = toolCalls.length > 0;
+              const isOpen = openIdx === i;
               return (
-                <div key={it.key || i} style={{ padding: '12px 20px', borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, opacity: 1 - i * 0.08 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>
+                <div key={it.key || i} style={{ borderBottom: i < items.length - 1 ? `1px solid ${palette.border}` : 0, opacity: 1 - i * 0.08 }}>
+                  <div
+                    onClick={() => hasTools && setOpenIdx(isOpen ? null : i)}
+                    style={{ padding: '12px 20px', cursor: hasTools ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}
+                  >
                     <span style={{ color: palette.textMute, minWidth: 50 }}>{it.t}</span>
                     <span style={{ color: color, fontWeight: 600 }}>{it.agent}</span>
                     <span style={{ color: palette.textDim, flex: 1 }}>{it.verb} <span style={{ color: palette.text }}>{it.obj}</span></span>
+                    {hasTools && (
+                      <span style={{ padding: '1px 6px', background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, borderRadius: 3 }}>
+                        {toolCalls.length} {isOpen ? '▾' : '▸'}
+                      </span>
+                    )}
                     <span style={{ color: palette.accent }}>{it.cost}⚡</span>
                   </div>
+                  {isOpen && hasTools && (
+                    <div style={{ padding: '4px 20px 12px 80px', background: 'var(--p-inset-soft)' }}>
+                      {toolCalls.map((tc, k) => {
+                        const ok = tc.success !== false && !tc.error;
+                        return (
+                          <div key={k} style={{ padding: '6px 0', borderTop: k > 0 ? `1px solid ${palette.border}` : 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Geist Mono, monospace', fontSize: 10 }}>
+                            <span style={{ color: ok ? palette.accent : palette.red, width: 10 }}>{ok ? '✓' : '✗'}</span>
+                            <span style={{ color: palette.text, fontWeight: 600 }}>{tc.name}</span>
+                            <span style={{ color: palette.textDim, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tc.args || '—'}</span>
+                            {tc.error && <span style={{ color: palette.red }}>err: {String(tc.error).slice(0, 60)}</span>}
+                            {tc.latencyMs != null && <span style={{ color: palette.textMute }}>{tc.latencyMs}ms</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}

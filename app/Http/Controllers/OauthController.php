@@ -34,6 +34,9 @@ class OauthController extends Controller
 
         $app = OauthApp::query()->where('provider', $provider)->where('is_active', true)->first();
         abort_unless($app, 404, "Unknown OAuth provider: {$provider}");
+        if (! $app->isConfigured()) {
+            return redirect('/console')->with('status', "{$app->label} is not yet configured. Ask an admin to add a client_id + client_secret at /admin/oauth-apps.");
+        }
 
         $state = Str::random(40);
         $request->session()->put("oauth_state.{$provider}", $state);

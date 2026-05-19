@@ -49,18 +49,42 @@ class ConsoleController extends Controller
         // 30d burn series — 30 daily buckets ending today
         $burnSeries30d = $this->buildSeries(clone $usageQuery, $now->copy()->subDays(30), 30, 'day');
 
-        // Last 8 ops events for the live feed
+        // Last 8 ops events for the live feed. Each row carries a verb +
+        // object pulled from the run's metadata so the buyer sees what
+        // actually happened — including tool calls the LLM made (each
+        // call's name/args/result/success are written by InvokeController
+        // into metadata.tool_calls).
         $opsFeed = (clone $usageQuery)
             ->latest('recorded_at')
             ->limit(8)
             ->get()
             ->map(function (UsageEvent $event) use ($subscriptions) {
                 $sub = $subscriptions->firstWhere('id', $event->subscription_id);
+                $meta = $event->metadata ?? [];
+                $toolCalls = collect($meta['tool_calls'] ?? [])->map(fn ($c) => [
+                    'name' => $c['name'] ?? '?',
+                    // Single-line argument preview so the feed stays compact.
+                    'args' => $this->summariseToolArgs($c['arguments'] ?? []),
+                    'success' => $c['success'] ?? null,
+                    'error' => $c['error'] ?? null,
+                    'latencyMs' => $c['latency_ms'] ?? null,
+                ])->values()->all();
+
+                // Use the most recent tool call (if any) for the headline
+                // verb so the feed reads like a real action log.
+                if (! empty($toolCalls)) {
+                    $last = end($toolCalls);
+                    $verb = str_replace('_', ' ', $last['name']);
+                    $obj = $last['args'] ?: '—';
+                } else {
+                    $verb = 'ran';
+                    $obj = $meta['input_preview'] ?? '—';
+                }
 
                 return [
                     'agent' => $sub?->agent?->name ?? 'Agent',
-                    'verb' => 'ran',
-                    'obj' => $event->metadata['input_preview'] ?? '—',
+                    'verb' => $verb,
+                    'obj' => $obj,
                     'cost' => (int) $event->power_consumed,
                     't' => $event->recorded_at?->diffForHumans(['short' => true]) ?? '—',
                     'status' => match (true) {
@@ -68,6 +92,7 @@ class ConsoleController extends Controller
                         $event->agent_response_status >= 400 => 'warn',
                         default => 'ok',
                     },
+                    'toolCalls' => $toolCalls,
                 ];
             })
             ->values()
@@ -188,6 +213,23 @@ class ConsoleController extends Controller
     /**
      * @return array<int>
      */
+    /**
+     * Turn a tool-call argument array into a one-line preview suitable
+     * for the Live Ops feed. Prefers semantically meaningful keys
+     * (to/email/message/channel/url) over a raw JSON dump.
+     */
+    private function summariseToolArgs(array $args): string
+    {
+        foreach (['to', 'email', 'recipient', 'channel', 'url', 'query', 'message', 'subject'] as $hint) {
+            if (! empty($args[$hint]) && (is_string($args[$hint]) || is_numeric($args[$hint]))) {
+                return mb_strimwidth((string) $args[$hint], 0, 80, '…');
+            }
+        }
+        $json = json_encode($args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return mb_strimwidth($json ?: '—', 0, 80, '…');
+    }
+
     private function buildSeries($baseQuery, Carbon $from, int $buckets, string $unit): array
     {
         $events = (clone $baseQuery)
