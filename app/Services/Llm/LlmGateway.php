@@ -4,6 +4,7 @@ namespace App\Services\Llm;
 
 use App\Models\Agent;
 use App\Models\LlmModel;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Llm\Contracts\LlmDriver;
 use App\Services\Llm\Drivers\AnthropicDriver;
@@ -11,30 +12,44 @@ use App\Services\Llm\Drivers\OpenAiDriver;
 use RuntimeException;
 
 /**
- * Routes an agent invocation to the right provider-specific driver.
+ * Routes an agent invocation to the right provider-specific driver and
+ * manages the multi-turn tool-use loop.
  *
- * Resolves the API key from the seller's credentials, the model from
- * the agent's llm_model_id, then delegates to the driver. Drivers all
- * return a normalised LlmResponse so callers don't branch on provider.
+ * One run() call may invoke the model 1..N times: every time the LLM
+ * returns tool_calls we execute them via ToolExecutor, push results
+ * into the conversation, and call the model again — until it returns a
+ * plain text answer (or we hit MAX_ITERATIONS as a safety stop).
  */
 class LlmGateway
 {
     /**
-     * Run the agent against the seller's chosen LLM. Throws if the agent
-     * isn't wired to a model yet or the seller hasn't stored a key for
-     * that provider.
+     * Hard cap on tool-use loop length. Each iteration is one LLM call
+     * plus N tool executions. 8 is enough for any sensible workflow;
+     * anything more is almost always a model getting stuck in a loop.
      */
-    public function run(Agent $agent, string $userPrompt): LlmResponse
+    private const MAX_ITERATIONS = 8;
+
+    public function __construct(private readonly ToolExecutor $executor)
+    {
+    }
+
+    /**
+     * Run the agent against the seller's chosen LLM, executing any tool
+     * calls the model makes along the way. The returned LlmResponse has
+     * aggregated token totals + a `toolCallLog` so the caller can write
+     * an audit-friendly UsageEvent.
+     */
+    public function run(Agent $agent, string $userPrompt, ?Subscription $subscription = null): LlmResponse
     {
         $model = $agent->llmModel;
         if (! $model) {
-            throw new RuntimeException("Agent '{$agent->slug}' has no LLM model assigned.");
+            return LlmResponse::error("Agent '{$agent->slug}' has no LLM model assigned.");
         }
         if (! $model->is_active) {
             return LlmResponse::error("Model {$model->name} is no longer active. Seller must pick another model.");
         }
 
-        /** @var User $seller */
+        /** @var User|null $seller */
         $seller = $agent->seller;
         $credential = $seller?->llmCredentialFor($model->provider);
         if (! $credential) {
@@ -44,29 +59,132 @@ class LlmGateway
         $maxOutput = $agent->max_output_tokens
             ?: ($agent->est_output_tokens > 0 ? $agent->est_output_tokens * 2 : $model->max_output_tokens)
             ?: 4096;
+        $maxOutput = min($maxOutput, $model->max_output_tokens ?: $maxOutput);
 
-        $request = new LlmRequest(
-            model: $model,
-            apiKey: $credential->decryptedKey(),
-            systemPrompt: $agent->system_prompt,
-            userPrompt: $userPrompt,
-            maxOutputTokens: min($maxOutput, $model->max_output_tokens ?: $maxOutput),
-        );
+        $driver = $this->driverFor($model->provider);
+        $apiKey = $credential->decryptedKey();
 
-        $response = $this->driverFor($model->provider)->complete($request);
+        $skills = $agent->skills;
+        $tools = $this->toolsFor($model->provider, $skills);
+        $skillsByName = $skills->keyBy('name');
 
-        // Bookkeeping: stamp last-used so the seller can see the key is live.
-        if ($response->ok) {
-            $credential->forceFill(['last_used_at' => now()])->save();
+        $messages = [['role' => 'user', 'content' => $userPrompt]];
+
+        $totalIn = 0;
+        $totalOut = 0;
+        $totalCost = 0;
+        $totalLatency = 0;
+        $toolCallLog = [];
+        $finalText = '';
+
+        for ($iter = 0; $iter < self::MAX_ITERATIONS; $iter++) {
+            $request = new LlmRequest(
+                model: $model,
+                apiKey: $apiKey,
+                systemPrompt: $agent->system_prompt,
+                messages: $messages,
+                maxOutputTokens: $maxOutput,
+                tools: $tools,
+            );
+
+            $resp = $driver->complete($request);
+
+            $totalIn += $resp->inputTokens;
+            $totalOut += $resp->outputTokens;
+            $totalCost += $resp->providerCostCents;
+            $totalLatency += $resp->latencyMs;
+
+            if (! $resp->ok) {
+                return new LlmResponse(
+                    text: '',
+                    inputTokens: $totalIn,
+                    outputTokens: $totalOut,
+                    providerCostCents: $totalCost,
+                    latencyMs: $totalLatency,
+                    ok: false,
+                    errorMessage: $resp->errorMessage,
+                    toolCallLog: $toolCallLog,
+                );
+            }
+
+            // Final answer — no more tools requested.
+            if (empty($resp->toolCalls)) {
+                $finalText = $resp->text;
+
+                if ($credential) {
+                    $credential->forceFill(['last_used_at' => now()])->save();
+                }
+
+                return new LlmResponse(
+                    text: $finalText,
+                    inputTokens: $totalIn,
+                    outputTokens: $totalOut,
+                    providerCostCents: $totalCost,
+                    latencyMs: $totalLatency,
+                    ok: true,
+                    toolCallLog: $toolCallLog,
+                );
+            }
+
+            // Tools requested — push assistant msg + execute each, then loop.
+            if ($resp->assistantMessage) {
+                $messages[] = $resp->assistantMessage;
+            }
+
+            foreach ($resp->toolCalls as $call) {
+                $skill = $skillsByName->get($call['name']);
+                if (! $skill || ! $subscription) {
+                    $messages[] = [
+                        'role' => 'tool_result',
+                        'tool_use_id' => $call['id'],
+                        'content' => json_encode(['error' => $skill ? 'No subscription context for tool execution' : "Unknown tool: {$call['name']}"]),
+                        'is_error' => true,
+                    ];
+                    $toolCallLog[] = [
+                        'name' => $call['name'],
+                        'arguments' => $call['arguments'],
+                        'result' => ['error' => 'unknown_or_no_subscription'],
+                        'iteration' => $iter,
+                    ];
+                    continue;
+                }
+
+                $execution = $this->executor->execute($skill, $call['arguments'], $subscription);
+                $messages[] = [
+                    'role' => 'tool_result',
+                    'tool_use_id' => $call['id'],
+                    'content' => json_encode($execution['output']),
+                    'is_error' => ! $execution['success'],
+                ];
+                $toolCallLog[] = [
+                    'name' => $call['name'],
+                    'arguments' => $call['arguments'],
+                    'result' => $execution['output'],
+                    'success' => $execution['success'],
+                    'error' => $execution['error'] ?? null,
+                    'latency_ms' => $execution['latency_ms'],
+                    'iteration' => $iter,
+                ];
+            }
         }
 
-        return $response;
+        // Loop budget exhausted — return whatever text we accumulated.
+        return new LlmResponse(
+            text: $finalText ?: '(tool-use loop exceeded max iterations)',
+            inputTokens: $totalIn,
+            outputTokens: $totalOut,
+            providerCostCents: $totalCost,
+            latencyMs: $totalLatency,
+            ok: false,
+            errorMessage: 'Exceeded max tool-use iterations.',
+            toolCallLog: $toolCallLog,
+        );
     }
 
     /**
-     * Same as run() but for the publish-form preview — runs against the
-     * seller's chosen model with a tiny budget so they can sanity-check
-     * the agent before listing it.
+     * Same as run() but for the publish-form preview — one-shot, no
+     * subscription context, no tools. Lets the seller verify their key
+     * before listing the agent.
      */
     public function preview(LlmModel $model, string $apiKey, ?string $systemPrompt, string $userPrompt, int $maxOutputTokens = 256): LlmResponse
     {
@@ -74,11 +192,28 @@ class LlmGateway
             model: $model,
             apiKey: $apiKey,
             systemPrompt: $systemPrompt,
-            userPrompt: $userPrompt,
+            messages: [['role' => 'user', 'content' => $userPrompt]],
             maxOutputTokens: $maxOutputTokens,
+            tools: [],
         );
 
         return $this->driverFor($model->provider)->complete($request);
+    }
+
+    /**
+     * Build the provider-specific tool catalogue from an agent's skills.
+     */
+    private function toolsFor(string $provider, $skills): array
+    {
+        return $skills
+            ->map(fn ($s) => match ($provider) {
+                'anthropic' => $s->toAnthropicTool(),
+                'openai' => $s->toOpenAiTool(),
+                default => null,
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function driverFor(string $provider): LlmDriver
@@ -86,10 +221,6 @@ class LlmGateway
         return match ($provider) {
             'anthropic' => new AnthropicDriver(),
             'openai' => new OpenAiDriver(),
-            // Other providers (google, deepseek, xai, mistral, meta) will
-            // get drivers in subsequent iterations. Until then they show
-            // up in the catalog so sellers see prices, but invocation
-            // returns a clean error.
             default => new class implements LlmDriver
             {
                 public function complete(LlmRequest $request): LlmResponse

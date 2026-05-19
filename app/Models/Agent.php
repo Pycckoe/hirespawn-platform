@@ -41,6 +41,16 @@ class Agent extends Model
         return $this->belongsTo(LlmModel::class, 'llm_model_id');
     }
 
+    public function skills(): HasMany
+    {
+        return $this->hasMany(AgentSkill::class)->where('is_active', true)->orderBy('sort_order');
+    }
+
+    public function allSkills(): HasMany
+    {
+        return $this->hasMany(AgentSkill::class)->orderBy('sort_order');
+    }
+
     public function capabilities(): HasMany
     {
         return $this->hasMany(AgentCapability::class);

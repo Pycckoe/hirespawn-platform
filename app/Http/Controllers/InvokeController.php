@@ -54,7 +54,14 @@ class InvokeController extends Controller
             return back()->with('status', "{$agent->name} is not yet wired to an LLM model. The seller must finish setup.");
         }
 
-        $response = $gateway->run($agent->fresh(['llmModel', 'seller']), $validated['input']);
+        // Pass the subscription so the gateway can route tool calls
+        // through the buyer's stored credentials (v2) and so the audit
+        // log on UsageEvent.metadata knows who triggered what.
+        $response = $gateway->run(
+            $agent->fresh(['llmModel', 'seller', 'skills']),
+            $validated['input'],
+            $subscription,
+        );
         $requestId = 'run_'.Str::random(12);
         // Buyer pays the Power cost the seller set. Convert to € cents at
         // the admin-managed Power → EUR rate so usage_events.cost_cents
@@ -82,6 +89,7 @@ class InvokeController extends Controller
                     'input_preview' => Str::limit($validated['input'], 200),
                     'error' => $response->errorMessage,
                     'agent_slug' => $agent->slug,
+                    'tool_calls' => $response->toolCallLog,
                 ],
             ]);
 
@@ -110,6 +118,7 @@ class InvokeController extends Controller
                     'output_preview' => Str::limit($response->text, 200),
                     'agent_slug' => $agent->slug,
                     'model' => $agent->llmModel?->slug,
+                    'tool_calls' => $response->toolCallLog,
                 ],
             ]);
         });

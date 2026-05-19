@@ -37,7 +37,20 @@ const VendorPublish = (() => {
       perUnit: agent?.perUnit ?? 'task',
       languages: agent?.languages ?? defaults.languages ?? ['EN'],
       integrations: agent?.integrations ?? defaults.integrations ?? [],
+      skills: agent?.skills ?? [],
     });
+
+    const addSkill = () => setData('skills', [...data.skills, {
+      name: '',
+      label: '',
+      description: '',
+      transport: 'webhook',
+      webhookUrl: '',
+      parametersSchema: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+      timeoutSeconds: 30,
+    }]);
+    const updateSkill = (idx, patch) => setData('skills', data.skills.map((s, i) => i === idx ? { ...s, ...patch } : s));
+    const removeSkill = (idx) => setData('skills', data.skills.filter((_, i) => i !== idx));
 
     const submit = (e) => {
       e.preventDefault();
@@ -183,6 +196,30 @@ const VendorPublish = (() => {
                   <MarginPanel palette={palette} model={selectedModel} calc={economicsCalc} powerCost={data.powerCost} perUnit={data.perUnit} />
                 </Section>
 
+                <Section title="Skills (tools the LLM can call)" sub={<>Define functions the model can invoke during a run. Each skill becomes a tool the LLM sees — when it decides to call it, we POST a signed JSON payload to your <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>webhook_url</code>. Your service does the work, replies with JSON, and the model continues.{agent?.webhookSecret && <> The HMAC secret for this agent: <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace', userSelect: 'all' }}>{agent.webhookSecret}</code></>}</>}>
+                  {data.skills.length === 0 && (
+                    <div style={{ padding: '18px 0 6px', fontSize: 13, color: palette.textDim, textAlign: 'center' }}>
+                      No skills yet — the agent will only chat. Add one to let it take real actions.
+                    </div>
+                  )}
+                  {data.skills.map((s, idx) => (
+                    <SkillEditor
+                      key={idx}
+                      palette={palette}
+                      skill={s}
+                      onChange={(patch) => updateSkill(idx, patch)}
+                      onRemove={() => removeSkill(idx)}
+                      errors={errors}
+                      idx={idx}
+                    />
+                  ))}
+                  <div style={{ textAlign: 'right', marginTop: 12 }}>
+                    <button type="button" onClick={addSkill} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', color: palette.accent, border: `1px dashed ${palette.accent}`, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      + Add skill
+                    </button>
+                  </div>
+                </Section>
+
                 <Section title="Reach" sub="Multi-select. Helps buyers filter the catalog.">
                   <ChipMultiSelect label="Languages" selected={data.languages} onToggle={(v) => toggleArrayValue('languages', v)} options={KNOWN_LANGS} error={errors.languages} />
                   <ChipMultiSelect label="Integrations" selected={data.integrations} onToggle={(v) => toggleArrayValue('integrations', v.toLowerCase())} options={KNOWN_INTEGRATIONS} error={errors.integrations} mono />
@@ -251,6 +288,94 @@ const VendorPublish = (() => {
           );
         })()}
         {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </div>
+    );
+  };
+
+  // Single skill row — collapsible card with all fields the LLM will see.
+  const SkillEditor = ({ palette, skill, onChange, onRemove, errors, idx }) => {
+    const errPrefix = `skills.${idx}`;
+    const err = (field) => errors[`${errPrefix}.${field}`];
+    return (
+      <div style={{ marginBottom: 14, padding: 16, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Skill #{idx + 1}</span>
+          <button type="button" onClick={onRemove} style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', color: palette.red, border: `1px solid ${palette.red}`, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer' }}>
+            Remove
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field
+            label="Name (snake_case)"
+            value={skill.name}
+            onChange={(v) => onChange({ name: v.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
+            placeholder="send_email"
+            error={err('name')}
+            hint="What the LLM uses to invoke this tool. Lowercase, underscores only."
+            maxLength={60}
+          />
+          <Field
+            label="Display label (optional)"
+            value={skill.label}
+            onChange={(v) => onChange({ label: v })}
+            placeholder="Send email"
+            error={err('label')}
+            maxLength={120}
+          />
+        </div>
+
+        <TextareaField
+          label="Description (the LLM reads this verbatim)"
+          value={skill.description}
+          onChange={(v) => onChange({ description: v })}
+          placeholder="Send a transactional email. Use when the user asks to email someone. The 'to' must be a valid address."
+          error={err('description')}
+          maxLength={2000}
+          rows={3}
+        />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <SelectField
+            label="Transport"
+            value={skill.transport}
+            onChange={(v) => onChange({ transport: v })}
+            error={err('transport')}
+            options={[
+              { value: 'webhook', label: 'Webhook (POST to your server)' },
+              { value: 'builtin', label: 'Built-in handler (coming soon)' },
+            ]}
+          />
+          <NumberField
+            label="Timeout (seconds)"
+            value={skill.timeoutSeconds}
+            onChange={(v) => onChange({ timeoutSeconds: v })}
+            error={err('timeoutSeconds')}
+            min={1}
+            max={300}
+          />
+        </div>
+
+        {skill.transport === 'webhook' && (
+          <Field
+            label="Webhook URL"
+            value={skill.webhookUrl}
+            onChange={(v) => onChange({ webhookUrl: v })}
+            placeholder="https://api.your-domain.com/hirespawn/send_email"
+            error={err('webhookUrl')}
+            hint="We POST a signed JSON payload. Verify our HMAC header with the secret shown above the form."
+            maxLength={500}
+          />
+        )}
+
+        <TextareaField
+          label="Parameters JSON Schema"
+          value={skill.parametersSchema}
+          onChange={(v) => onChange({ parametersSchema: v })}
+          placeholder='{"type":"object","properties":{"to":{"type":"string"}},"required":["to"]}'
+          error={err('parametersSchema')}
+          rows={6}
+        />
       </div>
     );
   };

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\AgentCategory;
+use App\Models\AgentSkill;
 use App\Models\LlmModel;
 use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -83,6 +85,8 @@ class VendorPublishController extends Controller
             'published_at' => null,
         ]);
 
+        $this->persistSkills($agent, $validated['skills'] ?? []);
+
         return redirect()
             ->route('vendor')
             ->with('status', "Submitted {$agent->name} for review. We'll notify you when it goes live.");
@@ -125,6 +129,8 @@ class VendorPublishController extends Controller
             'languages' => $this->normalizeArray($validated['languages'] ?? []),
             'integrations' => $this->normalizeArray($validated['integrations'] ?? [], lower: true),
         ])->save();
+
+        $this->persistSkills($agent, $validated['skills'] ?? []);
 
         return redirect()
             ->route('vendor')
@@ -207,6 +213,16 @@ class VendorPublishController extends Controller
                 'languages' => $agent->languages ?? [],
                 'integrations' => $agent->integrations ?? [],
                 'status' => $agent->status,
+                'webhookSecret' => $agent->webhook_secret,
+                'skills' => $agent->allSkills()->get()->map(fn (AgentSkill $s) => [
+                    'name' => $s->name,
+                    'label' => $s->label,
+                    'description' => $s->description,
+                    'transport' => $s->transport,
+                    'webhookUrl' => $s->webhook_url,
+                    'parametersSchema' => $s->parameters_schema ? json_encode($s->parameters_schema, JSON_PRETTY_PRINT) : '',
+                    'timeoutSeconds' => (int) $s->timeout_seconds,
+                ])->values()->all(),
             ] : null,
             'defaults' => $defaults,
         ];
@@ -233,7 +249,57 @@ class VendorPublishController extends Controller
             'languages.*' => ['string', 'max:6'],
             'integrations' => ['nullable', 'array', 'max:24'],
             'integrations.*' => ['string', 'max:32'],
+            // Skills (a.k.a. tools the LLM can call). One submitted row
+            // = one row in agent_skills. The picker on the form lets the
+            // seller add as many as they want, up to 24 per agent.
+            'skills' => ['nullable', 'array', 'max:24'],
+            'skills.*.name' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/i'],
+            'skills.*.label' => ['nullable', 'string', 'max:120'],
+            'skills.*.description' => ['required', 'string', 'max:2000'],
+            'skills.*.transport' => ['required', Rule::in(['webhook', 'builtin'])],
+            'skills.*.webhook_url' => ['nullable', 'url', 'max:500'],
+            'skills.*.parameters_schema' => ['nullable'],
+            'skills.*.timeout_seconds' => ['nullable', 'integer', 'min:1', 'max:300'],
         ]);
+    }
+
+    /**
+     * Persist the seller's skill rows for the given agent. Replaces the
+     * full set on every save — simpler than diffing add/edit/delete and
+     * the seller's view of "publish" is always the canonical list.
+     *
+     * Generates a fresh webhook_secret on first skill creation so the
+     * vendor's backend can verify our outbound HMAC signatures.
+     */
+    private function persistSkills(Agent $agent, array $skills): void
+    {
+        DB::transaction(function () use ($agent, $skills) {
+            if ($skills && ! $agent->webhook_secret) {
+                $agent->forceFill(['webhook_secret' => Str::random(48)])->save();
+            }
+
+            $agent->allSkills()->delete();
+
+            foreach ($skills as $i => $s) {
+                $schema = $s['parameters_schema'] ?? null;
+                if (is_string($schema) && trim($schema) !== '') {
+                    $decoded = json_decode($schema, true);
+                    $schema = json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+                }
+                AgentSkill::create([
+                    'agent_id' => $agent->id,
+                    'name' => strtolower($s['name']),
+                    'label' => $s['label'] ?? null,
+                    'description' => $s['description'],
+                    'parameters_schema' => is_array($schema) ? $schema : null,
+                    'transport' => $s['transport'],
+                    'webhook_url' => $s['transport'] === 'webhook' ? ($s['webhook_url'] ?? null) : null,
+                    'timeout_seconds' => (int) ($s['timeout_seconds'] ?? 30),
+                    'is_active' => true,
+                    'sort_order' => $i,
+                ]);
+            }
+        });
     }
 
     /**
