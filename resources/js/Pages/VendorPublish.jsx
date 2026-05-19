@@ -10,13 +10,11 @@ import { DirA } from '@/lib/dir-a';
 const VendorPublish = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
-  const KNOWN_LANGS = ['EN', 'RU', 'ES', 'DE', 'FR', 'JP', 'PT', 'IT', 'PL', 'NL', 'ANY'];
-  const KNOWN_INTEGRATIONS = ['hubspot', 'salesforce', 'slack', 'gmail', 'github', 'gitlab', 'linear', 'notion', 'figma', 'jira', 'snowflake', 'stripe', 'zendesk', 'intercom'];
-
   const Page = () => {
     const {
       categories = [], ranks = [], defaults = {}, mode = 'create', agent = null,
       llmModels = [], credentialsByProvider = {}, economics = { eurCentsPerPower: 0.9, sellerSharePct: 70 },
+      knownLanguages = [], knownIntegrationTags = [],
     } = usePage().props;
     const isEdit = mode === 'edit' && agent;
 
@@ -225,8 +223,8 @@ const VendorPublish = (() => {
                 </Section>
 
                 <Section title="Reach" sub="Multi-select. Helps buyers filter the catalog.">
-                  <ChipMultiSelect label="Languages" selected={data.languages} onToggle={(v) => toggleArrayValue('languages', v)} options={KNOWN_LANGS} error={errors.languages} />
-                  <ChipMultiSelect label="Integrations" selected={data.integrations} onToggle={(v) => toggleArrayValue('integrations', v.toLowerCase())} options={KNOWN_INTEGRATIONS} error={errors.integrations} mono />
+                  <ChipMultiSelect label="Languages" selected={data.languages} onToggle={(v) => toggleArrayValue('languages', v)} options={knownLanguages} error={errors.languages} />
+                  <ChipMultiSelect label="Integrations" selected={data.integrations} onToggle={(v) => toggleArrayValue('integrations', v.toLowerCase())} options={knownIntegrationTags} error={errors.integrations} mono />
                 </Section>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 14, marginTop: 14 }}>

@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Services\Llm\Contracts\LlmDriver;
 use App\Services\Llm\Drivers\AnthropicDriver;
 use App\Services\Llm\Drivers\OpenAiDriver;
-use RuntimeException;
+use App\Support\Rates;
 
 /**
  * Routes an agent invocation to the right provider-specific driver and
@@ -18,17 +18,10 @@ use RuntimeException;
  * One run() call may invoke the model 1..N times: every time the LLM
  * returns tool_calls we execute them via ToolExecutor, push results
  * into the conversation, and call the model again — until it returns a
- * plain text answer (or we hit MAX_ITERATIONS as a safety stop).
+ * plain text answer (or we hit the admin-configured iteration ceiling).
  */
 class LlmGateway
 {
-    /**
-     * Hard cap on tool-use loop length. Each iteration is one LLM call
-     * plus N tool executions. 8 is enough for any sensible workflow;
-     * anything more is almost always a model getting stuck in a loop.
-     */
-    private const MAX_ITERATIONS = 8;
-
     public function __construct(private readonly ToolExecutor $executor)
     {
     }
@@ -56,10 +49,12 @@ class LlmGateway
             return LlmResponse::error("Seller has no API key configured for {$model->provider}.");
         }
 
+        $fallbackMaxOutput = Rates::llmDefaultMaxOutputTokens();
         $maxOutput = $agent->max_output_tokens
             ?: ($agent->est_output_tokens > 0 ? $agent->est_output_tokens * 2 : $model->max_output_tokens)
-            ?: 4096;
+            ?: $fallbackMaxOutput;
         $maxOutput = min($maxOutput, $model->max_output_tokens ?: $maxOutput);
+        $maxIterations = Rates::llmMaxIterations();
 
         $driver = $this->driverFor($model->provider);
         $apiKey = $credential->decryptedKey();
@@ -77,7 +72,7 @@ class LlmGateway
         $toolCallLog = [];
         $finalText = '';
 
-        for ($iter = 0; $iter < self::MAX_ITERATIONS; $iter++) {
+        for ($iter = 0; $iter < $maxIterations; $iter++) {
             $request = new LlmRequest(
                 model: $model,
                 apiKey: $apiKey,

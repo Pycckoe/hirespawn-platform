@@ -97,13 +97,17 @@ class ToolExecutor
             if (! $token) {
                 return ['error' => "Buyer has not connected {$required}. Ask them to visit Console → Integrations and authorise {$required}."];
             }
-            if ($token->isExpired()) {
-                return ['error' => "Buyer's {$required} token has expired. Ask them to reconnect."];
+            // Auto-refresh if expired. Falls back to "please reconnect"
+            // only when the refresh itself fails (revoked / no refresh
+            // token / provider error).
+            $access = $token->freshAccessToken();
+            if (! $access) {
+                return ['error' => "Buyer's {$required} token expired and could not be refreshed. Ask them to reconnect."];
             }
             $token->forceFill(['last_used_at' => now()])->save();
             $payload['oauth'] = [
                 'provider' => $required,
-                'access_token' => $token->decryptedAccessToken(),
+                'access_token' => $access,
                 'account_label' => $token->account_label,
                 'scopes' => $token->scopes,
             ];

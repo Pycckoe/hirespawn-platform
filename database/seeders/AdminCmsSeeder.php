@@ -32,6 +32,16 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'vat_rate_pct',  'group' => 'rates','label' => 'VAT rate (%)',        'type' => 'text',     'value' => '20',                                                'sort' => 6],
             ['key' => 'cashout_fee_pct','group' => 'rates','label' => 'Cash-out gateway fee (%)','type' => 'text','value' => '1',                                                 'sort' => 7],
 
+            // ---- Agent / LLM runtime knobs (editable by admin) ----
+            // The publish form + LLM gateway read these instead of holding
+            // their own constants, so admin can tune without a deploy.
+            ['key' => 'agent_ranks',         'group' => 'agents','label' => 'Agent ranks (comma-sep)',           'type' => 'text',     'value' => 'E-5,E-6,E-7,O-2,O-3,O-4,O-5',                                            'sort' => 1],
+            ['key' => 'known_languages',     'group' => 'agents','label' => 'Picker · languages (comma-sep)',    'type' => 'text',     'value' => 'EN,RU,ES,DE,FR,JP,PT,IT,PL,NL,ANY',                                       'sort' => 2],
+            ['key' => 'known_integration_tags','group' => 'agents','label' => 'Picker · integration tags (comma-sep)','type' => 'text','value' => 'hubspot,salesforce,slack,gmail,github,gitlab,linear,notion,figma,jira,snowflake,stripe,zendesk,intercom','sort' => 3],
+            ['key' => 'llm_max_iterations',  'group' => 'agents','label' => 'LLM tool-use max iterations',       'type' => 'text',     'value' => '8',                                                                       'sort' => 4],
+            ['key' => 'llm_default_max_output_tokens','group' => 'agents','label' => 'LLM default max output tokens', 'type' => 'text','value' => '4096',                                                                    'sort' => 5],
+            ['key' => 'max_skills_per_agent','group' => 'agents','label' => 'Max skills per agent',              'type' => 'text',     'value' => '24',                                                                      'sort' => 6],
+
             // Brand assets — admin uploads PNG / SVG via Filament. Defaults
             // point at the bundled /logo.svg and /favicon.ico so the site
             // ships with a real logo + favicon out of the box. Admin can

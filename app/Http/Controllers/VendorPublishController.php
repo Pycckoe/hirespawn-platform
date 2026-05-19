@@ -18,12 +18,6 @@ use Inertia\Response;
 
 class VendorPublishController extends Controller
 {
-    /**
-     * Rank options surfaced in the publish form — the Hirespawn design
-     * uses military-style rank tags (E for enlisted, O for officer).
-     */
-    private const RANK_OPTIONS = ['E-5', 'E-6', 'E-7', 'O-2', 'O-3', 'O-4', 'O-5'];
-
     public function create(Request $request): Response
     {
         $user = $request->user();
@@ -187,6 +181,13 @@ class VendorPublishController extends Controller
             ->values()
             ->all();
 
+        // Picker options are admin-managed via /admin/site-settings
+        // (group: Agents). The publish form ships them so the JS doesn't
+        // need its own list. Empty CMS values fall back to sane defaults.
+        $rankOptions = Rates::listSetting('agent_ranks', ['E-5', 'E-6', 'E-7', 'O-2', 'O-3', 'O-4', 'O-5']);
+        $knownLanguages = Rates::listSetting('known_languages', ['EN']);
+        $knownIntegrationTags = Rates::listSetting('known_integration_tags', []);
+
         return [
             'categories' => AgentCategory::query()
                 ->orderBy('sort_order')
@@ -194,7 +195,10 @@ class VendorPublishController extends Controller
                 ->map(fn ($c) => ['slug' => $c->slug, 'label' => $c->name, 'icon' => $c->icon])
                 ->values()
                 ->all(),
-            'ranks' => self::RANK_OPTIONS,
+            'ranks' => $rankOptions,
+            'knownLanguages' => $knownLanguages,
+            'knownIntegrationTags' => $knownIntegrationTags,
+            'maxSkillsPerAgent' => Rates::maxSkillsPerAgent(),
             'mode' => $mode,
             'llmModels' => $models,
             'credentialsByProvider' => $credentialsByProvider,
@@ -261,9 +265,9 @@ class VendorPublishController extends Controller
             'integrations' => ['nullable', 'array', 'max:24'],
             'integrations.*' => ['string', 'max:32'],
             // Skills (a.k.a. tools the LLM can call). One submitted row
-            // = one row in agent_skills. The picker on the form lets the
-            // seller add as many as they want, up to 24 per agent.
-            'skills' => ['nullable', 'array', 'max:24'],
+            // = one row in agent_skills. The cap is admin-managed via
+            // the `max_skills_per_agent` site setting.
+            'skills' => ['nullable', 'array', 'max:'.Rates::maxSkillsPerAgent()],
             'skills.*.name' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/i'],
             'skills.*.label' => ['nullable', 'string', 'max:120'],
             'skills.*.description' => ['required', 'string', 'max:2000'],

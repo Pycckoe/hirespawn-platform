@@ -37,6 +37,15 @@ class Rates
     /** Fallback: gateway/platform fee charged on cash-out. */
     private const FB_CASHOUT_FEE_PCT = 1;
 
+    /** Fallback: LLM tool-use loop ceiling. */
+    private const FB_LLM_MAX_ITERATIONS = 8;
+
+    /** Fallback: LLM max output tokens when neither agent nor model specifies. */
+    private const FB_LLM_DEFAULT_MAX_OUTPUT = 4096;
+
+    /** Fallback: cap on skills per agent. */
+    private const FB_MAX_SKILLS_PER_AGENT = 24;
+
     public static function sellerSharePct(): float
     {
         return (float) (SiteSetting::lookup('seller_share_pct') ?? self::FB_SELLER_SHARE_PCT);
@@ -90,5 +99,39 @@ class Rates
     public static function sellerEarnedCents(int $totalPower): int
     {
         return (int) round($totalPower * self::eurCentsPerPower() * self::sellerShareFraction());
+    }
+
+    public static function llmMaxIterations(): int
+    {
+        return (int) (SiteSetting::lookup('llm_max_iterations') ?? self::FB_LLM_MAX_ITERATIONS);
+    }
+
+    public static function llmDefaultMaxOutputTokens(): int
+    {
+        return (int) (SiteSetting::lookup('llm_default_max_output_tokens') ?? self::FB_LLM_DEFAULT_MAX_OUTPUT);
+    }
+
+    public static function maxSkillsPerAgent(): int
+    {
+        return (int) (SiteSetting::lookup('max_skills_per_agent') ?? self::FB_MAX_SKILLS_PER_AGENT);
+    }
+
+    /**
+     * Parse a comma-separated CMS setting into a clean array. Used for
+     * agent_ranks, known_languages, known_integration_tags — picker
+     * options that admins maintain as a single string for simplicity.
+     */
+    public static function listSetting(string $key, array $fallback = []): array
+    {
+        $raw = SiteSetting::lookup($key);
+        if (! $raw) {
+            return $fallback;
+        }
+
+        return collect(explode(',', $raw))
+            ->map(fn ($s) => trim($s))
+            ->filter()
+            ->values()
+            ->all();
     }
 }
