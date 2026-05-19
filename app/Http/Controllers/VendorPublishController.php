@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\AgentCategory;
 use App\Models\AgentSkill;
 use App\Models\LlmModel;
+use App\Models\OauthApp;
 use App\Support\Rates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -178,6 +179,14 @@ class VendorPublishController extends Controller
             ])->all()
             : [];
 
+        $oauthProviders = OauthApp::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['provider', 'label', 'icon'])
+            ->map(fn ($a) => ['provider' => $a->provider, 'label' => $a->label, 'icon' => $a->icon])
+            ->values()
+            ->all();
+
         return [
             'categories' => AgentCategory::query()
                 ->orderBy('sort_order')
@@ -189,6 +198,7 @@ class VendorPublishController extends Controller
             'mode' => $mode,
             'llmModels' => $models,
             'credentialsByProvider' => $credentialsByProvider,
+            'oauthProviders' => $oauthProviders,
             // Platform-wide economics — drives the live margin calculator.
             'economics' => [
                 'eurCentsPerPower' => Rates::eurCentsPerPower(),
@@ -220,6 +230,7 @@ class VendorPublishController extends Controller
                     'description' => $s->description,
                     'transport' => $s->transport,
                     'webhookUrl' => $s->webhook_url,
+                    'requiredOauthProvider' => $s->required_oauth_provider,
                     'parametersSchema' => $s->parameters_schema ? json_encode($s->parameters_schema, JSON_PRETTY_PRINT) : '',
                     'timeoutSeconds' => (int) $s->timeout_seconds,
                 ])->values()->all(),
@@ -256,8 +267,9 @@ class VendorPublishController extends Controller
             'skills.*.name' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/i'],
             'skills.*.label' => ['nullable', 'string', 'max:120'],
             'skills.*.description' => ['required', 'string', 'max:2000'],
-            'skills.*.transport' => ['required', Rule::in(['webhook', 'builtin'])],
+            'skills.*.transport' => ['required', Rule::in(['webhook', 'builtin', 'oauth_proxy'])],
             'skills.*.webhook_url' => ['nullable', 'url', 'max:500'],
+            'skills.*.required_oauth_provider' => ['nullable', 'string', 'max:30', 'exists:oauth_apps,provider'],
             'skills.*.parameters_schema' => ['nullable'],
             'skills.*.timeout_seconds' => ['nullable', 'integer', 'min:1', 'max:300'],
         ]);
@@ -293,7 +305,8 @@ class VendorPublishController extends Controller
                     'description' => $s['description'],
                     'parameters_schema' => is_array($schema) ? $schema : null,
                     'transport' => $s['transport'],
-                    'webhook_url' => $s['transport'] === 'webhook' ? ($s['webhook_url'] ?? null) : null,
+                    'webhook_url' => in_array($s['transport'], ['webhook', 'oauth_proxy'], true) ? ($s['webhook_url'] ?? null) : null,
+                    'required_oauth_provider' => $s['transport'] === 'oauth_proxy' ? ($s['required_oauth_provider'] ?? null) : null,
                     'timeout_seconds' => (int) ($s['timeout_seconds'] ?? 30),
                     'is_active' => true,
                     'sort_order' => $i,

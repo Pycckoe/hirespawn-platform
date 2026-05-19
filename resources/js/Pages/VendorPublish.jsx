@@ -40,12 +40,15 @@ const VendorPublish = (() => {
       skills: agent?.skills ?? [],
     });
 
+    const oauthProviders = usePage().props.oauthProviders ?? [];
+
     const addSkill = () => setData('skills', [...data.skills, {
       name: '',
       label: '',
       description: '',
       transport: 'webhook',
       webhookUrl: '',
+      requiredOauthProvider: oauthProviders[0]?.provider ?? '',
       parametersSchema: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
       timeoutSeconds: 30,
     }]);
@@ -207,6 +210,7 @@ const VendorPublish = (() => {
                       key={idx}
                       palette={palette}
                       skill={s}
+                      oauthProviders={oauthProviders}
                       onChange={(patch) => updateSkill(idx, patch)}
                       onRemove={() => removeSkill(idx)}
                       errors={errors}
@@ -293,7 +297,7 @@ const VendorPublish = (() => {
   };
 
   // Single skill row — collapsible card with all fields the LLM will see.
-  const SkillEditor = ({ palette, skill, onChange, onRemove, errors, idx }) => {
+  const SkillEditor = ({ palette, skill, oauthProviders = [], onChange, onRemove, errors, idx }) => {
     const errPrefix = `skills.${idx}`;
     const err = (field) => errors[`${errPrefix}.${field}`];
     return (
@@ -343,6 +347,7 @@ const VendorPublish = (() => {
             error={err('transport')}
             options={[
               { value: 'webhook', label: 'Webhook (POST to your server)' },
+              { value: 'oauth_proxy', label: 'OAuth proxy (we inject client\'s third-party token)' },
               { value: 'builtin', label: 'Built-in handler (coming soon)' },
             ]}
           />
@@ -356,7 +361,7 @@ const VendorPublish = (() => {
           />
         </div>
 
-        {skill.transport === 'webhook' && (
+        {(skill.transport === 'webhook' || skill.transport === 'oauth_proxy') && (
           <Field
             label="Webhook URL"
             value={skill.webhookUrl}
@@ -366,6 +371,20 @@ const VendorPublish = (() => {
             hint="We POST a signed JSON payload. Verify our HMAC header with the secret shown above the form."
             maxLength={500}
           />
+        )}
+
+        {skill.transport === 'oauth_proxy' && (
+          oauthProviders.length === 0
+            ? <div style={{ padding: 10, borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 11, fontFamily: 'Geist Mono, monospace', color: palette.amber, marginBottom: 12 }}>
+                ⚠ No OAuth providers registered. Admin must add some at /admin/oauth-apps before oauth_proxy skills work.
+              </div>
+            : <SelectField
+                label="Required OAuth provider"
+                value={skill.requiredOauthProvider}
+                onChange={(v) => onChange({ requiredOauthProvider: v })}
+                error={err('requiredOauthProvider')}
+                options={oauthProviders.map(p => ({ value: p.provider, label: `${p.icon ?? ''} ${p.label}`.trim() }))}
+              />
         )}
 
         <TextareaField

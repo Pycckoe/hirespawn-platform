@@ -22,14 +22,15 @@ const Dashboard = (() => {
   // ---- Sidebar nav (depends on active agents count, built per-render) ----
   // Items with `href` navigate to another page (Inertia Link).
   // Items without `href` toggle the local Console tab.
-  const buildSideItems = (activeAgents, counts = {}) => [
-    { id: 'overview', label: 'Overview',     icon: '◆', count: null },
-    { id: 'agents',   label: 'Active agents', icon: '◇', count: activeAgents.filter(a => a.status === 'on').length },
-    { id: 'ops',      label: 'Live ops',     icon: '▸', count: null, live: true },
-    { id: 'billing',  label: 'Billing',      icon: '⚡', count: null, href: '/settings?tab=billing' },
-    { id: 'team',     label: 'Team',         icon: '◈', count: counts.team ?? null, href: '/settings?tab=members' },
-    { id: 'keys',     label: 'API keys',     icon: '⌘', count: counts.keys ?? null, href: '/settings?tab=keys' },
-    { id: 'settings', label: 'Settings',     icon: '◌', count: null, href: '/settings' },
+  const buildSideItems = (activeAgents, counts = {}, integrationCount = 0) => [
+    { id: 'overview',     label: 'Overview',      icon: '◆', count: null },
+    { id: 'agents',       label: 'Active agents', icon: '◇', count: activeAgents.filter(a => a.status === 'on').length },
+    { id: 'ops',          label: 'Live ops',      icon: '▸', count: null, live: true },
+    { id: 'integrations', label: 'Integrations',  icon: '⚷', count: integrationCount || null },
+    { id: 'billing',      label: 'Billing',       icon: '⚡', count: null, href: '/settings?tab=billing' },
+    { id: 'team',         label: 'Team',          icon: '◈', count: counts.team ?? null, href: '/settings?tab=members' },
+    { id: 'keys',         label: 'API keys',      icon: '⌘', count: counts.keys ?? null, href: '/settings?tab=keys' },
+    { id: 'settings',     label: 'Settings',      icon: '◌', count: null, href: '/settings' },
   ];
 
   // ---- Sparkline component (SVG line) ----
@@ -409,14 +410,89 @@ const Dashboard = (() => {
     </div>
   );
 
+  // ---- Integrations tab ----
+  // Lists every OAuth provider the admin has registered. Each card shows
+  // "Connect" or "Connected as foo@bar" with a Disconnect button. The
+  // Connect link bounces through Laravel's /oauth/{provider}/connect
+  // which redirects to the provider's authorize_url with our state token.
+  const IntegrationsTab = ({ integrations }) => (
+    <Glass style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${palette.borderStrong}` }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Third-party integrations</div>
+        <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 500, color: palette.text, marginTop: 2 }}>
+          {integrations.filter(i => i.connected).length} of {integrations.length} connected
+        </div>
+        <div style={{ fontSize: 13, color: palette.textDim, marginTop: 6, lineHeight: 1.5 }}>
+          Agents that act on your behalf (send Slack messages, create HubSpot leads, push to GitHub) need access to those services. Connect each provider once — your tokens are encrypted at rest and only used when an agent calls a matching tool.
+        </div>
+      </div>
+      {integrations.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', color: palette.textDim }}>
+          <div style={{ fontSize: 24, marginBottom: 6 }}>⚷</div>
+          <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No integrations registered</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>An admin needs to register OAuth apps at /admin/oauth-apps first.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, padding: 20 }}>
+          {integrations.map(i => (
+            <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected ? palette.accentDim : palette.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{i.icon || i.provider.slice(0,1).toUpperCase()}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{i.label}</div>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>{i.provider}</div>
+                </div>
+                {i.connected && !i.expired && <span style={{ padding: '3px 8px', background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>✓ on</span>}
+                {i.connected && i.expired && <span style={{ padding: '3px 8px', background: 'rgba(255,184,77,0.12)', color: palette.amber, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>expired</span>}
+              </div>
+
+              {i.scopes && i.scopes.length > 0 && (
+                <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 12, lineHeight: 1.5 }}>
+                  Scopes: {i.scopes.join(', ')}
+                </div>
+              )}
+
+              {i.connected ? (
+                <div>
+                  <div style={{ fontSize: 12, color: palette.textDim, marginBottom: 8 }}>
+                    Connected{i.accountLabel ? ` as ${i.accountLabel}` : ''}{i.connectedAt ? ` · ${i.connectedAt}` : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <a href={`/oauth/${i.provider}/connect?return=${encodeURIComponent('/console?tab=integrations')}`} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'transparent', color: palette.text, border: `1px solid ${palette.border}`, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', textAlign: 'center' }}>
+                      Reconnect
+                    </a>
+                    <button
+                      onClick={() => {
+                        if (!confirm(`Disconnect ${i.label}? Agents using it will fail to run until you reconnect.`)) return;
+                        router.delete(route('oauth.disconnect', i.provider), { preserveScroll: true });
+                      }}
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'transparent', color: palette.red, border: `1px solid ${palette.red}`, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <a href={`/oauth/${i.provider}/connect?return=${encodeURIComponent('/console?tab=integrations')}`} style={{ display: 'block', textAlign: 'center', padding: '10px 12px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                  Connect {i.label} →
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Glass>
+  );
+
   // ---- Page ----
   const Page = () => {
-    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {}, billing = [] } = usePage().props;
+    const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {}, billing = [], integrations = [] } = usePage().props;
     const user = auth?.user || null;
     const isAdmin = !!user?.is_admin;
     const firstName = (user?.name || '').split(/\s+/)[0] || 'operator';
     const liveAgents = subscriptions;
-    const sideItems = buildSideItems(liveAgents, sidebarCounts);
+    const connectedCount = integrations.filter(i => i.connected).length;
+    const sideItems = buildSideItems(liveAgents, sidebarCounts, connectedCount);
 
     const burn24h = metrics?.burn24h ?? 0;
     const burn30d = metrics?.burn30d ?? 0;
@@ -484,6 +560,8 @@ const Dashboard = (() => {
 
               {/* Billing — overview only (full billing lives in /settings?tab=billing) */}
               {tab === 'overview' && <Billing rows={billing} eurSpent30d={eurSpent30d} />}
+
+              {tab === 'integrations' && <IntegrationsTab integrations={integrations} />}
             </div>
           </div>
         </div>

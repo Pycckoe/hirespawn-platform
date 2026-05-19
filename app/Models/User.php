@@ -87,6 +87,16 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(SellerLlmCredential::class, 'seller_id');
     }
 
+    public function oauthTokens(): HasMany
+    {
+        return $this->hasMany(UserOauthToken::class);
+    }
+
+    public function oauthTokenFor(string $provider): ?UserOauthToken
+    {
+        return $this->oauthTokens()->where('provider', $provider)->first();
+    }
+
     /**
      * Find the seller's API key for a given provider (openai, anthropic…).
      * Returns null if no key has been added yet.

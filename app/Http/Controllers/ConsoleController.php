@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiKey;
 use App\Models\Invoice;
+use App\Models\OauthApp;
 use App\Models\Subscription;
 use App\Models\UsageEvent;
 use App\Models\WorkspaceMember;
@@ -126,6 +127,33 @@ class ConsoleController extends Controller
                 ->sum('total_cents') / 100);
         }
 
+        // OAuth integrations the user has connected — plus the catalog of
+        // available providers so the UI shows both "Connected as X" rows
+        // and "Connect [provider]" buttons for the rest. Each agent skill
+        // with transport=oauth_proxy uses one of these to call the
+        // third-party service on the buyer's behalf at runtime.
+        $integrations = OauthApp::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function (OauthApp $app) use ($user) {
+                $token = $user?->oauthTokenFor($app->provider);
+
+                return [
+                    'provider' => $app->provider,
+                    'label' => $app->label,
+                    'icon' => $app->icon,
+                    'scopes' => $app->default_scopes ?? [],
+                    'connected' => (bool) $token,
+                    'accountLabel' => $token?->account_label,
+                    'connectedAt' => $token?->created_at?->format('M d, Y'),
+                    'expiresAt' => $token?->expires_at?->format('M d, Y H:i'),
+                    'expired' => $token?->isExpired() ?? false,
+                ];
+            })
+            ->values()
+            ->all();
+
         $sidebarCounts = $user ? [
             // Owner counts as 1 + active members
             'team' => 1 + WorkspaceMember::query()
@@ -152,6 +180,7 @@ class ConsoleController extends Controller
                 'eurSpent30d' => $eurSpent30d,
             ],
             'billing' => $billing,
+            'integrations' => $integrations,
             'sidebarCounts' => $sidebarCounts,
         ]);
     }

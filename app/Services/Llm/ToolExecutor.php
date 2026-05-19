@@ -34,7 +34,10 @@ class ToolExecutor
             $result = match ($skill->transport) {
                 'webhook' => $this->executeWebhook($skill, $arguments, $subscription),
                 'builtin' => $this->executeBuiltin($skill, $arguments, $subscription),
-                'oauth_proxy' => ['error' => 'oauth_proxy transport ships in v2'],
+                // oauth_proxy = webhook + we inject the buyer's third-party
+                // OAuth token into the signed payload so the vendor's
+                // endpoint can act as the client against the provider.
+                'oauth_proxy' => $this->executeWebhook($skill, $arguments, $subscription, withOauth: true),
                 default => ['error' => "Unknown transport: {$skill->transport}"],
             };
 
@@ -64,7 +67,7 @@ class ToolExecutor
         }
     }
 
-    private function executeWebhook(AgentSkill $skill, array $arguments, Subscription $subscription): array
+    private function executeWebhook(AgentSkill $skill, array $arguments, Subscription $subscription, bool $withOauth = false): array
     {
         if (! $skill->webhook_url) {
             return ['error' => "Skill '{$skill->name}' has no webhook_url configured."];
@@ -79,6 +82,33 @@ class ToolExecutor
             'timestamp' => now()->toIso8601String(),
             'nonce' => bin2hex(random_bytes(8)),
         ];
+
+        // oauth_proxy: inject the buyer's third-party access token into
+        // the payload (encrypted in transit by TLS, signed end-to-end by
+        // our HMAC). The vendor's endpoint then calls the provider's API
+        // as the buyer. If the buyer hasn't connected, fail cleanly so
+        // the model can apologise and ask them to connect.
+        if ($withOauth) {
+            $required = $skill->required_oauth_provider;
+            if (! $required) {
+                return ['error' => "Skill '{$skill->name}' is oauth_proxy but has no required_oauth_provider set."];
+            }
+            $token = $subscription->buyer?->oauthTokenFor($required);
+            if (! $token) {
+                return ['error' => "Buyer has not connected {$required}. Ask them to visit Console → Integrations and authorise {$required}."];
+            }
+            if ($token->isExpired()) {
+                return ['error' => "Buyer's {$required} token has expired. Ask them to reconnect."];
+            }
+            $token->forceFill(['last_used_at' => now()])->save();
+            $payload['oauth'] = [
+                'provider' => $required,
+                'access_token' => $token->decryptedAccessToken(),
+                'account_label' => $token->account_label,
+                'scopes' => $token->scopes,
+            ];
+        }
+
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $secret = $skill->agent?->webhook_secret ?: '';

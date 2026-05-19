@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\InvokeController;
+use App\Http\Controllers\OauthController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
@@ -60,6 +61,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/vendor/llm-credentials', [VendorCredentialsController::class, 'store'])->name('vendor.credentials.store');
     Route::post('/vendor/llm-credentials/{credential}/verify', [VendorCredentialsController::class, 'verify'])->name('vendor.credentials.verify');
     Route::delete('/vendor/llm-credentials/{credential}', [VendorCredentialsController::class, 'destroy'])->name('vendor.credentials.destroy');
+
+    // OAuth integrations — buyer connects their third-party accounts so
+    // agents can act on their behalf via oauth_proxy skills.
+    Route::get('/oauth/{provider}/connect', [OauthController::class, 'start'])->name('oauth.start');
+    Route::get('/oauth/{provider}/callback', [OauthController::class, 'callback'])->name('oauth.callback');
+    Route::delete('/oauth/{provider}', [OauthController::class, 'disconnect'])->name('oauth.disconnect');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');
