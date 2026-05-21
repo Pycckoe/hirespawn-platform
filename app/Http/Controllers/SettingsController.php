@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiKey;
 use App\Models\Invoice;
+use App\Models\PowerPack;
 use App\Models\UsageEvent;
 use App\Models\WorkspaceMember;
 use Illuminate\Http\RedirectResponse;
@@ -81,7 +82,43 @@ class SettingsController extends Controller
             'members' => $ownerRow ? array_merge([$ownerRow], $members) : $members,
             'invoices' => $invoices,
             'billing' => $billing,
+            // Power packs + economics — drives the inline top-up panel
+            // on the Billing tab. Same shape PageController@power ships
+            // to /power so the math + submission target stay identical.
+            'powerPacks' => $this->powerPacks(),
         ]);
+    }
+
+    /**
+     * Pack list for the Billing-tab top-up widget. Mirrors PageController's
+     * version (both `eur`/`price` + `features`/`perks` aliases) so the JS
+     * picker reads the same shape it does on /power.
+     */
+    private function powerPacks(): array
+    {
+        return PowerPack::query()
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function (PowerPack $p) {
+                $eur = $p->price_cents !== null ? intdiv($p->price_cents, 100) : null;
+                $perks = $p->perks ?? [];
+
+                return [
+                    'name' => $p->name,
+                    'slug' => $p->slug,
+                    'power' => $p->power,
+                    'eur' => $eur,
+                    'price' => $eur,
+                    'perPower' => (float) $p->per_power_eur,
+                    'popular' => (bool) $p->is_popular,
+                    'audience' => $p->audience,
+                    'features' => $perks,
+                    'perks' => $perks,
+                    'custom' => $p->price_cents === null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     public function updateWorkspace(Request $request): RedirectResponse

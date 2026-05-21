@@ -1,6 +1,8 @@
 import '@/setup';
+import { useMemo, useState } from 'react';
 import { router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
+import { useRates } from '@/lib/shared';
 
 // Settings — workspace, members, API keys, billing, integrations, RBAC.
 // Live wiring: Workspace tab persists to buyer_profiles; API keys + Members
@@ -319,7 +321,199 @@ const Settings = (() => {
   };
 
   // -------- Billing --------
-  const BillingTab = ({ billing, invoices }) => {
+  // Inline top-up widget — pack tiles + custom amount, posts to the
+  // existing /power/checkout endpoint (TopupController). All thresholds
+  // (min / max / VAT / per-power rate) flow from /admin/site-settings
+  // via the useRates() hook, no hardcoded numbers.
+  const CUSTOM_PACK_KEY = '__custom__';
+
+  const TopupPanel = ({ powerPacks, fmtMoney }) => {
+    const rates = useRates();
+    const PACKS = (powerPacks || []).filter(p => p.price !== null && p.price !== undefined);
+    const customRate = PACKS[0]?.perPower || rates.eurPerPower;
+
+    const defaultPack = PACKS.find(p => p.popular)?.name || PACKS[0]?.name || CUSTOM_PACK_KEY;
+    const [pack, setPack] = useState(defaultPack);
+    const [customEur, setCustomEur] = useState(50);
+
+    const customPower = useMemo(
+      () => customRate > 0 ? Math.max(0, Math.floor(customEur / customRate)) : 0,
+      [customEur, customRate]
+    );
+
+    const isCustom = pack === CUSTOM_PACK_KEY;
+    const chosen = isCustom
+      ? { name: 'Custom', eur: customEur, power: customPower, slug: null }
+      : (PACKS.find(p => p.name === pack) || PACKS[0] || { name: '—', eur: 0, power: 0, slug: null });
+
+    const eurNum = +chosen.eur || 0;
+    const vat = +(eurNum * rates.vatFraction).toFixed(2);
+    const total = +(eurNum + vat).toFixed(2);
+
+    const tooSmall = isCustom && customEur < rates.minTopupEur;
+    const tooBig = isCustom && customEur > rates.maxTopupEur;
+    const { post, processing, errors } = useForm({});
+
+    const submit = (e) => {
+      e.preventDefault();
+      if (tooSmall || tooBig) return;
+      const payload = isCustom
+        ? { amount_cents: Math.round(customEur * 100) }
+        : { pack_slug: chosen.slug || chosen.name?.toLowerCase() };
+      post(route('power.checkout'), { data: payload, preserveScroll: true });
+    };
+
+    if (PACKS.length === 0) {
+      return (
+        <Section title="Buy Power" sub="No packs configured. Ask an admin to set up power packs at /admin/power-packs.">
+          <div style={{ fontSize: 13, color: palette.textMute, textAlign: 'center', padding: '12px 0' }}>—</div>
+        </Section>
+      );
+    }
+
+    return (
+      <Section title="Buy Power" sub="Pick a pack or enter any amount. Charged once payment clears; pending invoices appear below.">
+        <form onSubmit={submit}>
+          <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+            {PACKS.map(p => {
+              const sel = pack === p.name;
+              return (
+                <div
+                  key={p.name}
+                  onClick={() => setPack(p.name)}
+                  style={{
+                    padding: 16, borderRadius: 10,
+                    background: sel ? 'rgba(180,242,91,0.08)' : 'var(--p-inset)',
+                    border: `1.5px solid ${sel ? palette.accent : palette.border}`,
+                    cursor: 'pointer', display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 14, alignItems: 'center',
+                  }}
+                >
+                  <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${sel ? palette.accent : palette.border}`, background: sel ? palette.accent : 'transparent', position: 'relative' }}>
+                    {sel && <div style={{ position: 'absolute', inset: 3, borderRadius: 99, background: palette.onAccent }} />}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{p.name}</span>
+                      {p.popular && <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.accent, padding: '2px 6px', background: palette.accentDim, borderRadius: 4, letterSpacing: 1 }}>POPULAR</span>}
+                    </div>
+                    <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, marginTop: 2 }}>
+                      {(p.power / 1000).toLocaleString()}k⚡ · €{p.perPower.toFixed(4)} per ⚡
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text }}>€{(+p.eur).toLocaleString()}</div>
+                </div>
+              );
+            })}
+
+            <div
+              onClick={() => setPack(CUSTOM_PACK_KEY)}
+              style={{
+                padding: 16, borderRadius: 10,
+                background: isCustom ? 'rgba(180,242,91,0.08)' : 'var(--p-inset)',
+                border: `1.5px dashed ${isCustom ? palette.accent : palette.border}`,
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', gap: 14, alignItems: 'center' }}>
+                <div style={{ width: 16, height: 16, borderRadius: 99, border: `2px solid ${isCustom ? palette.accent : palette.border}`, background: isCustom ? palette.accent : 'transparent', position: 'relative' }}>
+                  {isCustom && <div style={{ position: 'absolute', inset: 3, borderRadius: 99, background: palette.onAccent }} />}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>Custom amount</span>
+                    <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.cyan, padding: '2px 6px', background: 'rgba(125,211,255,0.12)', borderRadius: 4, letterSpacing: 1 }}>FLEXIBLE</span>
+                  </div>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, marginTop: 2 }}>
+                    Pay any amount from €{rates.minTopupEur} · billed at €{customRate.toFixed(4)} per ⚡
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 14, color: palette.textDim }}>you choose</div>
+              </div>
+
+              {isCustom && (
+                <div onClick={e => e.stopPropagation()} style={{ marginTop: 14, padding: 14, background: 'var(--p-inset-soft)', borderRadius: 8, border: `1px solid ${palette.border}`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>You pay (€)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>
+                      <span style={{ color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 13 }}>€</span>
+                      <input
+                        type="number"
+                        step="1"
+                        min={rates.minTopupEur}
+                        max={rates.maxTopupEur}
+                        value={customEur}
+                        onChange={e => setCustomEur(Math.max(0, +e.target.value || 0))}
+                        style={{ flex: 1, border: 0, background: 'transparent', color: palette.text, fontFamily: 'Geist Mono, monospace', fontSize: 14, outline: 'none' }}
+                      />
+                    </div>
+                  </label>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, paddingTop: 16 }}>buys</div>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>You get (⚡)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>
+                      <input
+                        type="number"
+                        step="1"
+                        min={0}
+                        value={customPower}
+                        onChange={e => {
+                          const p = Math.max(0, +e.target.value || 0);
+                          setCustomEur(+(p * customRate).toFixed(2));
+                        }}
+                        style={{ flex: 1, border: 0, background: 'transparent', color: palette.text, fontFamily: 'Geist Mono, monospace', fontSize: 14, outline: 'none' }}
+                      />
+                      <span style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 13 }}>⚡</span>
+                    </div>
+                  </label>
+                  {(tooSmall || tooBig || errors.amount_cents) && (
+                    <div style={{ gridColumn: '1 / -1', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.red }}>
+                      {tooSmall && `Minimum top-up is €${rates.minTopupEur}.`}
+                      {tooBig && `Maximum self-serve top-up is €${rates.maxTopupEur.toLocaleString()}. For larger volumes contact sales.`}
+                      {errors.amount_cents && ` ${errors.amount_cents}`}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Order summary + submit */}
+          <div style={{ padding: 14, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 10, marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: palette.textDim, padding: '4px 0' }}>
+              <span>{chosen.name}{isCustom ? ' top-up' : ' pack'}</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', color: palette.text }}>€{(+chosen.eur).toLocaleString()}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: palette.textDim, padding: '4px 0' }}>
+              <span>VAT ({rates.vatPct}%)</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', color: palette.text }}>€{vat.toLocaleString()}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: palette.text, padding: '8px 0 0', borderTop: `1px solid ${palette.border}`, marginTop: 6 }}>
+              <span style={{ fontWeight: 600 }}>Total today</span>
+              <span style={{ fontFamily: 'Geist Mono, monospace', fontWeight: 600, color: palette.accent }}>€{total.toLocaleString()}</span>
+            </div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 4 }}>
+              {chosen.power ? `${chosen.power.toLocaleString()}⚡ credited once payment clears` : '—'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <a href={route('power')} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', color: palette.textDim, border: `1px solid ${palette.border}`, fontSize: 13, fontFamily: 'inherit', textDecoration: 'none' }}>
+              Open full checkout →
+            </a>
+            <button
+              type="submit"
+              disabled={processing || tooSmall || tooBig || total <= 0}
+              style={{ padding: '10px 22px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: (processing || tooSmall || tooBig) ? 'not-allowed' : 'pointer', opacity: (processing || tooSmall || tooBig || total <= 0) ? 0.5 : 1 }}
+            >
+              {processing ? 'Processing…' : `Pay €${total.toLocaleString()} →`}
+            </button>
+          </div>
+        </form>
+      </Section>
+    );
+  };
+
+  const BillingTab = ({ billing, invoices, powerPacks }) => {
     const fmtMoney = (cents, ccy = 'EUR') => {
       const v = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return ccy === 'EUR' ? `€${v}` : `${ccy} ${v}`;
@@ -334,12 +528,9 @@ const Settings = (() => {
             <Stat label="Spent · 30d" value={fmtMoney(billing.spent30dCents)} />
             <Stat label="Lifetime" value={fmtMoney(billing.lifetimeSpentCents)} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-            <a href={route('power')} style={{ textDecoration: 'none' }}>
-              <button style={{ padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
-            </a>
-          </div>
         </Section>
+
+        <TopupPanel powerPacks={powerPacks} fmtMoney={fmtMoney} />
 
         <Section title="Payment method" sub="Stripe wiring lands in the next deploy.">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -473,6 +664,7 @@ const Settings = (() => {
   const Page = () => {
     const {
       workspace = {}, account = {}, apiKeys = [], members = [], invoices = [], billing = {},
+      powerPacks = [],
       flash = {},
     } = usePage().props;
 
@@ -546,7 +738,7 @@ const Settings = (() => {
               {tab === 'workspace'    && <WorkspaceTab workspace={workspace} account={account} />}
               {tab === 'members'      && <MembersTab members={members} />}
               {tab === 'keys'         && <KeysTab apiKeys={apiKeys} apiKeySecret={flash?.apiKeySecret} />}
-              {tab === 'billing'      && <BillingTab billing={billing} invoices={invoices} />}
+              {tab === 'billing'      && <BillingTab billing={billing} invoices={invoices} powerPacks={powerPacks} />}
               {tab === 'integrations' && <ComingSoonTab subject="Integrations" />}
               {tab === 'security'     && <ComingSoonTab subject="Security & audit log" />}
               {tab === 'notifications'&& <ComingSoonTab subject="Notification channels" />}
