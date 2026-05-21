@@ -142,17 +142,19 @@ class SettingsController extends Controller
             return ['sessions' => [], 'activity' => []];
         }
 
-        // Sessions only available when SESSION_DRIVER=database. Fall
-        // through to an empty list if the table isn't present so we
-        // don't blow up on file/redis-session installs.
+        // Sessions table is populated when SESSION_DRIVER=database (our
+        // default) — list the user's stored sessions newest first. On
+        // file / cookie / redis installs the table won't exist so we
+        // fall through silently and rely on the current-session pseudo
+        // row added below.
         $sessions = [];
+        $currentId = $request->session()?->getId();
         try {
             $rows = DB::table('sessions')
                 ->where('user_id', $user->id)
                 ->orderByDesc('last_activity')
                 ->limit(10)
                 ->get(['id', 'ip_address', 'user_agent', 'last_activity']);
-            $currentId = $request->session()?->getId();
             $sessions = $rows->map(fn ($s) => [
                 'id' => $s->id,
                 'ip' => $s->ip_address,
@@ -162,6 +164,22 @@ class SettingsController extends Controller
             ])->values()->all();
         } catch (\Throwable $e) {
             $sessions = [];
+        }
+
+        // Always surface a "current session" row even when the DB has
+        // nothing — happens when (a) the driver isn't database, or (b)
+        // the user_id was never written (some session drivers don't fill
+        // it until next write). The pseudo row is non-revocable because
+        // killing it would just be a logout.
+        $hasCurrent = collect($sessions)->contains('current', true);
+        if (! $hasCurrent && $currentId) {
+            array_unshift($sessions, [
+                'id' => $currentId,
+                'ip' => $request->ip(),
+                'agent' => $this->prettyUserAgent($request->userAgent()),
+                'lastActive' => 'now',
+                'current' => true,
+            ]);
         }
 
         // Real audit log — populated by the AuditLog service from every
@@ -179,8 +197,26 @@ class SettingsController extends Controller
                 'at' => $e->created_at->diffForHumans(),
                 'ts' => $e->created_at->format('M d, Y H:i'),
                 'meta' => $e->metadata,
+                // Carbon kept around for cross-source sorting if we
+                // fall through to the synthesised feed below.
+                '_sort' => $e->created_at,
             ])
             ->all();
+
+        // Backfill for accounts that existed before the audit log shipped
+        // (or before they did anything that emits an event). Once audit
+        // accrues a few rows the synthesised history naturally fades —
+        // we only render it while the real log is sparse.
+        if (count($activity) < 3) {
+            $activity = $this->synthesisedActivity($user, $activity);
+        }
+
+        // Strip the internal Carbon sort key before shipping to JS.
+        $activity = array_map(function ($e) {
+            unset($e['_sort']);
+
+            return $e;
+        }, $activity);
 
         return [
             'sessions' => $sessions,
@@ -193,6 +229,95 @@ class SettingsController extends Controller
      * Human-readable label for a single audit_events row. Uses the
      * event_type as the base + any metadata that adds context.
      */
+    /**
+     * Best-effort activity feed for users whose audit_events history is
+     * still empty (account predates the audit log, or they haven't done
+     * anything yet that emits an event). We pull from existing tables
+     * — api_keys, user_oauth_tokens, invoices, account-creation — and
+     * merge with whatever real events DO exist so the page never reads
+     * as empty even on first visit.
+     *
+     * @param  array<int, array<string, mixed>>  $existing already-formatted real events
+     * @return array<int, array<string, mixed>>
+     */
+    private function synthesisedActivity(User $user, array $existing): array
+    {
+        $rows = collect($existing);
+
+        // Account creation as the seed event so the feed always has at least one row.
+        if ($user->created_at) {
+            $rows->push([
+                'kind' => 'auth.register',
+                'label' => 'Account created',
+                'icon' => $this->iconForEvent('auth.register'),
+                'at' => $user->created_at->diffForHumans(),
+                'ts' => $user->created_at->format('M d, Y H:i'),
+                'meta' => [],
+                '_sort' => $user->created_at,
+            ]);
+        }
+
+        foreach ($user->apiKeys()->latest('created_at')->limit(10)->get() as $k) {
+            $rows->push([
+                'kind' => 'api_key.create',
+                'label' => "API key created · {$k->name}",
+                'icon' => $this->iconForEvent('api_key.create'),
+                'at' => $k->created_at?->diffForHumans(),
+                'ts' => $k->created_at?->format('M d, Y H:i'),
+                'meta' => ['name' => $k->name],
+                '_sort' => $k->created_at,
+            ]);
+            if ($k->revoked_at) {
+                $rows->push([
+                    'kind' => 'api_key.revoke',
+                    'label' => "API key revoked · {$k->name}",
+                    'icon' => $this->iconForEvent('api_key.revoke'),
+                    'at' => $k->revoked_at?->diffForHumans(),
+                    'ts' => $k->revoked_at?->format('M d, Y H:i'),
+                    'meta' => ['name' => $k->name],
+                    '_sort' => $k->revoked_at,
+                ]);
+            }
+        }
+
+        foreach ($user->oauthTokens()->latest('created_at')->limit(10)->get() as $t) {
+            $rows->push([
+                'kind' => 'oauth.connect',
+                'label' => 'Connected '.$t->provider.($t->account_label ? " · {$t->account_label}" : ''),
+                'icon' => $this->iconForEvent('oauth.connect'),
+                'at' => $t->created_at?->diffForHumans(),
+                'ts' => $t->created_at?->format('M d, Y H:i'),
+                'meta' => ['provider' => $t->provider],
+                '_sort' => $t->created_at,
+            ]);
+        }
+
+        foreach ($user->invoices()->latest('created_at')->limit(10)->get() as $inv) {
+            $rows->push([
+                'kind' => 'topup.requested',
+                'label' => 'Top-up invoice · €'.number_format($inv->total_cents / 100, 2),
+                'icon' => $this->iconForEvent('topup.requested'),
+                'at' => $inv->created_at?->diffForHumans(),
+                'ts' => $inv->created_at?->format('M d, Y H:i'),
+                'meta' => ['amount_cents' => $inv->total_cents],
+                '_sort' => $inv->created_at,
+            ]);
+        }
+
+        // _sort lets us order across sources; strip before returning to JS.
+        return $rows
+            ->filter(fn ($e) => ! empty($e['ts']))
+            ->sortByDesc(fn ($e) => $e['_sort'] ?? $e['ts'] ?? '')
+            ->take(20)
+            ->map(function ($e) {
+                unset($e['_sort']);
+
+                return $e;
+            })
+            ->values()
+            ->all();
+    }
+
     private function describeEvent(\App\Models\AuditEvent $e): string
     {
         $meta = $e->metadata ?? [];
