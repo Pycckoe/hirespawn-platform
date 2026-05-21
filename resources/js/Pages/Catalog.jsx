@@ -24,7 +24,7 @@ const Catalog = (() => {
   const BuyerTopBar = ({ user, isAdmin, workspaceName, powerBalance }) => {
     const initials = (user?.name || 'U').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'rgba(5,7,10,0.7)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'var(--p-topbar-bg)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>/ roster</span>
@@ -114,7 +114,7 @@ const Catalog = (() => {
 
   // ---- Header bar (sticky) ----
   const CatalogHeader = ({ filteredCount, query, setQuery, sort, setSort, view, setView }) => (
-    <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '20px 40px', background: 'rgba(5,7,10,0.7)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', borderBottom: `1px solid ${palette.border}` }}>
+    <div style={{ position: 'sticky', top: 0, zIndex: 9, padding: '20px 40px', background: 'var(--p-topbar-bg)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', borderBottom: `1px solid ${palette.border}` }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 12 }}>▸</span>

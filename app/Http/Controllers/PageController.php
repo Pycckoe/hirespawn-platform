@@ -136,13 +136,4 @@ class PageController extends Controller
         return Inertia::render('Emails');
     }
 
-    public function blogIndex(): Response
-    {
-        return Inertia::render('Blog/Index');
-    }
-
-    public function blogPost(string $slug): Response
-    {
-        return Inertia::render('Blog/Post', ['slug' => $slug]);
-    }
 }

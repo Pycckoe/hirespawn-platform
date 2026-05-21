@@ -11,6 +11,7 @@ use App\Http\Controllers\RunController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\SubscriptionSettingsController;
+use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TopupController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorCredentialsController;
@@ -33,8 +34,12 @@ Route::get('/status', [PageController::class, 'status'])->name('status');
 Route::get('/changelog', [PageController::class, 'changelog'])->name('changelog');
 Route::get('/legal', [PageController::class, 'legal'])->name('legal');
 Route::get('/emails', [PageController::class, 'emails'])->name('emails');
-Route::get('/blog', [PageController::class, 'blogIndex'])->name('blog.index');
-Route::get('/blog/{slug}', [PageController::class, 'blogPost'])->name('blog.show');
+
+// Support / contact — public form. Anyone (signed-in or not) can file
+// a ticket via /support. POSTed tickets land in support_tickets.
+Route::get('/support', [SupportController::class, 'show'])->name('support');
+Route::get('/contact', [SupportController::class, 'show'])->name('contact');
+Route::post('/support', [SupportController::class, 'store'])->name('support.store');
 
 // CMS markdown pages (Terms, Privacy, DPA, AUP, etc. — admin-editable).
 Route::get('/p/{slug}', [PageController::class, 'showPage'])->name('cms.page');
@@ -85,6 +90,9 @@ Route::middleware(['auth'])->group(function () {
     // into system_prompt at runtime via {{key}}.
     Route::get('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'show'])->name('subscriptions.configure');
     Route::patch('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'update'])->name('subscriptions.configure.update');
+    // Buyer-side dispute creation — files a SupportTicket(kind=dispute)
+    // against an active subscription the buyer owns.
+    Route::post('/console/disputes', [SupportController::class, 'storeDispute'])->name('disputes.store');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
 
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');

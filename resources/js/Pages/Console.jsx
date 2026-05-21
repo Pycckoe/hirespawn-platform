@@ -67,7 +67,7 @@ const Dashboard = (() => {
       .join('')
       .toUpperCase();
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'rgba(5,7,10,0.7)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'var(--p-topbar-bg)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 9 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
           <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>/ console</span>
@@ -266,7 +266,14 @@ const Dashboard = (() => {
             {a.status}
           </span>
           {a.subscriptionId && (
-            <Link href={`/console/subscriptions/${a.subscriptionId}/configure`} title="Configure variables" style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>⚙</Link>
+            <>
+              <Link href={`/console/subscriptions/${a.subscriptionId}/configure`} title="Configure variables" style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>⚙</Link>
+              <button
+                title="File a dispute"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-dispute', { detail: { subscriptionId: a.subscriptionId, agentName: a.name } }))}
+                style={{ background: 'transparent', border: 0, color: palette.textMute, cursor: 'pointer', fontSize: 14, padding: 0 }}
+              >!</button>
+            </>
           )}
           <a href={`/agent/${a.id}`} style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>›</a>
         </div>
@@ -518,6 +525,102 @@ const Dashboard = (() => {
   );
 
   // ---- Page ----
+  // ---- Dispute modal ----
+  // Listens for window 'open-dispute' events (fired by AgentRow's
+  // exclamation button). Posts to /console/disputes which creates a
+  // SupportTicket(kind=dispute) row visible in /vendor → Disputes.
+  const DisputeModal = () => {
+    const [ctx, setCtx] = useState(null); // {subscriptionId, agentName} or null
+    const { data, setData, post, processing, errors, reset } = useForm({
+      subscription_id: '',
+      subject: '',
+      category: 'sla_breach',
+      body: '',
+      refund_power: '',
+    });
+
+    useEffect(() => {
+      const open = (e) => {
+        const detail = e.detail || {};
+        setCtx(detail);
+        setData({
+          subscription_id: detail.subscriptionId,
+          subject: '',
+          category: 'sla_breach',
+          body: '',
+          refund_power: '',
+        });
+      };
+      window.addEventListener('open-dispute', open);
+      return () => window.removeEventListener('open-dispute', open);
+    }, []);
+
+    if (!ctx) return null;
+
+    const close = () => { setCtx(null); reset(); };
+    const submit = (e) => {
+      e.preventDefault();
+      post(route('disputes.store'), {
+        preserveScroll: true,
+        onSuccess: () => close(),
+      });
+    };
+
+    return (
+      <div onClick={close} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, background: 'var(--p-glass-strong)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', border: `1px solid ${palette.borderStrong}`, borderRadius: 14, padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.amber, letterSpacing: 1, textTransform: 'uppercase' }}>! File a dispute</div>
+            <button onClick={close} style={{ background: 'transparent', border: 0, color: palette.textMute, fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
+          <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, margin: '0 0 6px 0' }}>
+            Dispute · {ctx.agentName}
+          </h2>
+          <p style={{ fontSize: 12, color: palette.textDim, margin: '0 0 18px 0', lineHeight: 1.5 }}>
+            We notify the vendor + our support team. SLA-backed runs that failed get Power credited back to your workspace.
+          </p>
+
+          <form onSubmit={submit}>
+            <DisputeField palette={palette} label="Subject" error={errors.subject}>
+              <input value={data.subject} onChange={e => setData('subject', e.target.value)} maxLength={200} placeholder="Latency > 120s on 3 deals" style={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${errors.subject ? palette.red : palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' }} />
+            </DisputeField>
+            <DisputeField palette={palette} label="Category" error={errors.category}>
+              <select value={data.category} onChange={e => setData('category', e.target.value)} style={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}>
+                <option value="sla_breach">SLA breach</option>
+                <option value="incorrect_output">Incorrect / hallucinated output</option>
+                <option value="data_leak">Data leak / privacy</option>
+                <option value="overcharged">Overcharged Power</option>
+                <option value="integration_broken">Integration broken</option>
+                <option value="other">Other</option>
+              </select>
+            </DisputeField>
+            <DisputeField palette={palette} label="What happened" error={errors.body}>
+              <textarea value={data.body} onChange={e => setData('body', e.target.value)} rows={5} maxLength={8000} placeholder="Include run IDs / timestamps / what you expected vs what happened." style={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${errors.body ? palette.red : palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
+            </DisputeField>
+            <DisputeField palette={palette} label="Refund amount (⚡, optional)" error={errors.refund_power}>
+              <input type="number" min={0} value={data.refund_power} onChange={e => setData('refund_power', e.target.value)} placeholder="240" style={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${errors.refund_power ? palette.red : palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'Geist Mono, monospace', fontSize: 13, outline: 'none' }} />
+            </DisputeField>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button type="button" onClick={close} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', color: palette.textDim, border: `1px solid ${palette.border}`, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={processing} style={{ padding: '10px 20px', borderRadius: 8, background: palette.amber, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.6 : 1 }}>
+                {processing ? 'Filing…' : 'Open dispute →'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const DisputeField = ({ palette, label, error, children }) => (
+    <label style={{ display: 'block', marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
+      {children}
+      {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+    </label>
+  );
+
   const Page = () => {
     const { subscriptions = [], powerBalance = 0, flash = {}, auth, workspaceName = 'Your workspace', metrics = null, sidebarCounts = {}, billing = [], integrations = [] } = usePage().props;
     const user = auth?.user || null;
@@ -547,6 +650,7 @@ const Dashboard = (() => {
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <TopBar isAdmin={isAdmin} user={user} workspaceName={workspaceName} />
+          <DisputeModal />
           {flashMsg && (
             <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 50, padding: '12px 18px', background: palette.accentDim, border: `1px solid ${palette.accent}`, color: palette.accent, borderRadius: 10, fontSize: 13, fontWeight: 500, fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.32)' }}>
               {flashMsg}

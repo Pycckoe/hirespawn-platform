@@ -237,7 +237,9 @@ const DirA = (() => {
         ))}
         <ThemeToggle />
         <a href="#/console" style={{ padding: '9px 16px', borderRadius: 10, marginLeft: 4, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>Console</a>
-        <button style={{ padding: '9px 18px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+        <a href="/power" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '9px 18px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+        </a>
       </div>
     </div>
   );
@@ -962,8 +964,12 @@ const DirA = (() => {
             10,000⚡ for €99. Enough to run an SDR for a quarter. Enough to ship 250 PR reviews. Enough to reconcile 2,500 transactions.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 32 }}>
-            <button style={{ padding: '15px 28px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Starter pack →</button>
-            <button style={{ padding: '15px 28px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+            <a href="/power" style={{ textDecoration: 'none' }}>
+              <button style={{ padding: '15px 28px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+            </a>
+            <a href="/support" style={{ textDecoration: 'none' }}>
+              <button style={{ padding: '15px 28px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+            </a>
           </div>
         </div>
       </Glass>
@@ -1052,9 +1058,15 @@ const DirA = (() => {
                 Ready to <span style={{ color: palette.accent }}>spawn?</span>
               </h2>
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-                <button style={{ padding: '15px 26px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy 10,000⚡ for €99 →</button>
-                <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Browse the roster</button>
-                <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+                <a href="/power" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 26px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+                </a>
+                <a href="/roster" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Browse the roster</button>
+                </a>
+                <a href="/support" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+                </a>
               </div>
             </div>
             {/* Live ops widget */}
@@ -1192,7 +1204,8 @@ const DirA = (() => {
         <Reveal><PowerCalculator /></Reveal>
         <Reveal><Integrations /></Reveal>
         <Reveal><SellerStrip /></Reveal>
-        <Reveal><Testimonials /></Reveal>
+        {/* Testimonials removed — will be re-added when verifiable
+            reviews land via TrustPilot / G2 / etc. */}
         <Reveal><Roi /></Reveal>
         <Reveal><Faq /></Reveal>
         <Reveal><Cta /></Reveal>

@@ -146,7 +146,30 @@ class VendorController extends Controller
             'payoutMethods' => $payoutMethods,
             'cashOut' => $cashOut,
             'subs' => $subs,
-            'disputes' => [],
+            'disputes' => $user
+                ? \App\Models\SupportTicket::query()
+                    ->where('kind', 'dispute')
+                    ->whereHas('subscription', fn ($q) => $q->whereIn('agent_id', $agentIds))
+                    ->with(['subscription.agent', 'subscription.buyer'])
+                    ->latest('created_at')
+                    ->limit(50)
+                    ->get()
+                    ->map(fn ($t) => [
+                        'id' => $t->reference,
+                        'customer' => $t->subscription?->buyer?->name ?? $t->name,
+                        'listing' => $t->subscription?->agent?->name ?? '—',
+                        'issue' => $t->subject,
+                        'opened' => $t->created_at?->diffForHumans(['short' => true]) ?? '—',
+                        'state' => match ($t->status) {
+                            'resolved', 'closed' => 'resolved',
+                            'investigating' => 'investigating',
+                            default => 'open',
+                        },
+                        'credit' => (int) ($t->refund_power ?? 0),
+                    ])
+                    ->values()
+                    ->all()
+                : [],
             'perf' => $perf,
             'llmCredentials' => $llmCredentials,
             'llmProviders' => $llmProviders,

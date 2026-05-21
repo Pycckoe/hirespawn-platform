@@ -47,7 +47,7 @@ class CmsMenusSeeder extends Seeder
                 ['label' => 'API reference',   'url' => '/docs'],
                 ['label' => 'Changelog',       'url' => '/changelog'],
                 ['label' => 'Status',          'url' => '/status'],
-                ['label' => 'Blog',            'url' => '/blog'],
+                ['label' => 'Support',         'url' => '/support'],
             ]],
             ['key' => 'footer_company',       'label' => 'Footer · Company column',    'location' => 'footer',        'sort' => 5, 'items' => [
                 ['label' => 'Manifesto',       'url' => '/about'],
