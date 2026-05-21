@@ -36,14 +36,22 @@ const Settings = (() => {
     </div>
   );
 
+  // Used for fields the buyer can't change (auto-derived slug, region,
+  // signed-in identity). Rendered visually distinct from editable
+  // <Field> rows so people don't try to click and get confused.
   const StaticField = ({ label, value, mono, hint, suffix }) => (
     <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 18, alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${palette.border}` }}>
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          {label}
+          <span style={{ padding: '1px 6px', background: palette.glass, color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 3, border: `1px solid ${palette.border}` }}>read-only</span>
+        </div>
         {hint && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 2 }}>{hint}</div>}
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input defaultValue={value} readOnly style={{ flex: 1, padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: mono ? 'Geist Mono, monospace' : 'inherit', fontSize: 13, outline: 'none' }} />
+        <div style={{ flex: 1, padding: '10px 12px', background: 'var(--p-inset-soft)', border: `1px dashed ${palette.border}`, borderRadius: 8, color: palette.textDim, fontFamily: mono ? 'Geist Mono, monospace' : 'inherit', fontSize: 13, cursor: 'default', userSelect: 'text' }}>
+          {value || <span style={{ color: palette.textMute }}>—</span>}
+        </div>
         {suffix && <span style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace' }}>{suffix}</span>}
       </div>
     </div>
