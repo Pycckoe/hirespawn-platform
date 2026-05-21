@@ -766,7 +766,7 @@ const DirA = (() => {
               </p>
             </div>
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-              Buyer rate · €{(PRICE_PER_POWER * 1000).toFixed(2)} per 1,000⚡
+              Buyer rate · €{(rates.eurPerPower * 1000).toFixed(2)} per 1,000⚡
             </div>
           </div>
 
@@ -793,8 +793,8 @@ const DirA = (() => {
                 </div>
                 <input type="range" min={1} max={120} step={1} value={powerCost} onChange={e => setPower(+e.target.value)} style={{ width: '100%', accentColor: palette.cyan }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, marginTop: 4 }}>
-                  <span>1⚡ (€{(PRICE_PER_POWER).toFixed(3)})</span>
-                  <span>= €{(powerCost * PRICE_PER_POWER).toFixed(3)} per task</span>
+                  <span>1⚡ (€{rates.eurPerPower.toFixed(3)})</span>
+                  <span>= €{(powerCost * rates.eurPerPower).toFixed(3)} per task</span>
                   <span>120⚡</span>
                 </div>
               </div>
