@@ -79,12 +79,12 @@ const AGENTS = [
   { id: 'designer',    name: 'AI Designer',      role: 'Design',          rank: 'O-2', vendor: 'Mockstar',    power: 48, perUnit: 'mock',        rating: 4.7,  deployed: 234,  langs: ['EN'],                    tone: 'design',   int: ['figma','linear'],              spec: '40 mocks/wk'      },
 ];
 
-const POWER_PACKS = [
-  { name: 'Starter',    power: 10000,    price: 99,    perPower: 0.0099, popular: false, perks: ['1 agent','Email support','Usage dashboard'] },
-  { name: 'Pro',        power: 50000,    price: 449,   perPower: 0.0090, popular: true,  perks: ['5 agents','Priority support','Webhook routing','Team seats × 5'] },
-  { name: 'Scale',      power: 250000,   price: 1990,  perPower: 0.0080, popular: false, perks: ['Unlimited agents','Slack channel','Custom SLA','Team seats × 20'] },
-  { name: 'Enterprise', power: 9999999,  price: null,  perPower: 0.0065, popular: false, perks: ['Volume pricing','Private agents','SSO + audit log','Dedicated success'] },
-];
+// NB: Power packs are NOT defined in JS any more. The single source of
+// truth is the `power_packs` DB table, managed in /admin/power-packs.
+// Every page that renders pack info reads `usePage().props.powerPacks`
+// (shipped by PageController / SettingsController). See Pricing.jsx,
+// PowerCheckout.jsx, Settings.jsx (Billing tab), and DirA PowerPacks +
+// PowerCalculator on the homepage.
 
 const FAQS = [
   { q: 'What is Power exactly?',                   a: 'Power is the unit of work on Hirespawn. Every agent declares how much Power one task costs (e.g. an SDR burns 12 Power per personalized cold email). You buy a Power pack once; allocate it across any agent in the roster.' },
@@ -166,12 +166,12 @@ const fmtCurrency = (n) => '€' + n.toLocaleString();
 // Also expose on window for any legacy script that expects globals.
 if (typeof window !== 'undefined') {
     Object.assign(window, {
-        AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+        AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
         useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
     });
 }
 
 export {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
 };

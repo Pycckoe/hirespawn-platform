@@ -10,6 +10,17 @@ import {
 const Pricing = (() => {
   const { palette, Glass, Pill, Mesh, Nav, Footer } = DirA;
 
+  // Single row in the compare-packs table. Pulled out so the JSX
+  // generating the rows from PACKS reads as a flat list.
+  const Row = ({ label, cells }) => (
+    <tr style={{ borderBottom: `1px solid ${palette.border}` }}>
+      <td style={{ padding: '12px 18px', color: palette.textDim, fontWeight: 500 }}>{label}</td>
+      {cells.map((c, j) => (
+        <td key={j} style={{ padding: '12px 18px', color: c === '—' ? palette.textMute : palette.text, fontFamily: 'Geist Mono, monospace' }}>{c}</td>
+      ))}
+    </tr>
+  );
+
   const Page = () => {
     const { powerPacks = [] } = usePage().props;
     const PACKS = powerPacks;
@@ -102,43 +113,46 @@ const Pricing = (() => {
             </Glass>
           </div>
 
-          {/* Comparison table */}
-          <div style={{ padding: '40px 40px', maxWidth: 1280, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 38, fontWeight: 600, letterSpacing: -1.2, margin: 0, marginBottom: 24 }}>Compare packs side-by-side.</h2>
-            <Glass style={{ padding: 0, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--p-inset)' }}>
-                    {['', 'Starter', 'Pro', 'Scale', 'Fleet'].map(h => (
-                      <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['Price',                  '€249',      '€899',     '€3,999',   'Custom'],
-                    ['Power',                  '25k⚡',     '100k⚡',   '500k⚡',   'Unlimited'],
-                    ['Approx runs / month',    '~ 400',     '~ 1,700',  '~ 8,500',  'unlimited'],
-                    ['€/⚡',                   '0.0099',    '0.0089',   '0.0079',   'custom'],
-                    ['Log retention',          '90d',       '180d',     '365d',     'custom'],
-                    ['SSO',                    '—',         '✓',        '✓',        '✓'],
-                    ['Audit log',              '—',         '✓',        '✓',        '✓'],
-                    ['Custom data residency',  '—',         '—',        '✓',        '✓'],
-                    ['SLA refunds in €',       '—',         '—',        '✓',        '✓'],
-                    ['Dedicated CSM',          '—',         '—',        '✓',        '✓'],
-                    ['On-prem gateway',        '—',         '—',        '—',        '✓'],
-                    ['Phone support',          '—',         '—',        '—',        '24/7'],
-                  ].map((row, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${palette.border}` }}>
-                      {row.map((c, j) => (
-                        <td key={j} style={{ padding: '12px 18px', color: j === 0 ? palette.textDim : (c === '—' ? palette.textMute : palette.text), fontWeight: j === 0 ? 500 : 400, fontFamily: j === 0 ? 'Inter, sans-serif' : 'Geist Mono, monospace' }}>{c}</td>
+          {/* Comparison table — Price / Power / €-per-⚡ are derived from
+              the same PACKS array the cards above use. Feature bullets
+              come straight from each pack's `perks` field, so admins
+              control the whole comparison from /admin/power-packs. */}
+          {PACKS.length > 0 && (() => {
+            // Union of all feature strings across packs so each row is
+            // a feature name with ✓/— per pack.
+            const allFeatures = Array.from(new Set(
+              PACKS.flatMap(p => p.features || p.perks || [])
+            ));
+            return (
+              <div style={{ padding: '40px 40px', maxWidth: 1280, margin: '0 auto' }}>
+                <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 38, fontWeight: 600, letterSpacing: -1.2, margin: 0, marginBottom: 24 }}>Compare packs side-by-side.</h2>
+                <Glass style={{ padding: 0, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--p-inset)' }}>
+                        <th style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }} />
+                        {PACKS.map(p => (
+                          <th key={p.name} style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }}>{p.name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <Row label="Price"      cells={PACKS.map(p => p.custom ? 'Custom' : `€${(+p.eur).toLocaleString()}`)} />
+                      <Row label="Power"      cells={PACKS.map(p => p.custom ? 'Unlimited' : `${(p.power/1000).toLocaleString()}k⚡`)} />
+                      <Row label="€ per ⚡"   cells={PACKS.map(p => p.custom ? 'custom' : p.perPower.toFixed(4))} />
+                      {allFeatures.map(feat => (
+                        <Row
+                          key={feat}
+                          label={feat}
+                          cells={PACKS.map(p => (p.features || p.perks || []).includes(feat) ? '✓' : '—')}
+                        />
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Glass>
-          </div>
+                    </tbody>
+                  </table>
+                </Glass>
+              </div>
+            );
+          })()}
 
           {/* FAQ */}
           <div style={{ padding: '60px 40px', maxWidth: 1280, margin: '0 auto' }}>

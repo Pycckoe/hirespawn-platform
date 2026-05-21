@@ -2,6 +2,7 @@ import '@/setup';
 import { useState, useMemo } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
+import { useRates } from '@/lib/shared';
 
 // Buy Power / Checkout page — reads `powerPacks` from PageController@power.
 // The buyer can either pick a pre-set pack (volume discount) or enter a
@@ -17,19 +18,18 @@ const PowerCheckout = (() => {
 
   const Page = () => {
     const { powerPacks = [] } = usePage().props;
-    const settings = usePage().props?.cms?.settings || {};
-    // All thresholds + tax rate are read from /admin/site-settings.
-    const minTopupEur = parseInt(settings.min_topup_eur, 10) || 5;
-    const maxTopupEur = parseInt(settings.max_topup_eur, 10) || 50000;
-    const vatPct = parseFloat(settings.vat_rate_pct) || 20;
-    const vatFraction = vatPct / 100;
+    // All thresholds + tax rate flow from the same admin CMS lookup
+    // used everywhere on the platform — no per-page fallback numbers.
+    const rates = useRates();
+    const { minTopupEur, maxTopupEur, vatPct, vatFraction } = rates;
 
     // Pre-set packs only (strip "Talk to sales" custom-priced rows).
     const PACKS = powerPacks.filter(p => p.price !== null && p.price !== undefined);
 
-    // Rate for free-form amounts — Starter tier (highest €/⚡); falls
-    // back to 0.0099 if nothing is seeded.
-    const customRate = PACKS[0]?.perPower || 0.0099;
+    // Rate for free-form amounts — prefer the first (lowest) priced
+    // pack's perPower so volume tiers still beat custom orders. When
+    // no packs exist, fall through to the CMS flat eur_cents_per_power.
+    const customRate = PACKS[0]?.perPower ?? rates.eurPerPower;
 
     const defaultPack = PACKS.find(p => p.popular)?.name || PACKS[0]?.name || CUSTOM_KEY;
     const [pack, setPack] = useState(defaultPack);

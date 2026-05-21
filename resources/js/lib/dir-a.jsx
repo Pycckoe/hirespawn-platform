@@ -6,7 +6,7 @@ import '@/setup';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
@@ -403,15 +403,17 @@ const DirA = (() => {
   };
 
   // === Power packs (admin-managed via /admin/power-packs) ===
-  // Reads `powerPacks` from Inertia props (shipped by PageController@home).
-  // Falls back to the hardcoded POWER_PACKS shape if a page renders this
-  // component without shipping the prop. Custom / "talk to sales" packs
-  // (price === null) are filtered out so the grid shows priced ones.
+  // Single source of truth: the `power_packs` DB table, shipped via
+  // usePage().props.powerPacks. If a page renders this component but
+  // ships no packs (or the table is empty) we render nothing — better
+  // a missing section than stale hardcoded numbers.
   const PowerPacks = () => {
     const dbPacks = usePage().props?.powerPacks;
-    const source = Array.isArray(dbPacks) && dbPacks.length ? dbPacks : POWER_PACKS;
-    const packs = source.filter(p => p.price !== null && p.price !== undefined);
+    const packs = Array.isArray(dbPacks)
+      ? dbPacks.filter(p => p.price !== null && p.price !== undefined)
+      : [];
     const t = useT();
+    if (packs.length === 0) return null;
     return (
     <div style={{ padding: '80px 40px' }}>
       <SectionLabel kicker={t('pricing.kicker', 'Pricing')} title={<>Buy Power. <span style={{ color: palette.textDim }}>That's it.</span></>} sub={t('pricing.sub', 'Volume discount built in. Higher pack = lower €/Power. Power rolls over (90 days Starter, 12 months Pro & Scale).')} />
@@ -466,8 +468,10 @@ const DirA = (() => {
 
     const totalPower = expanded.reduce((s, r) => s + r.power, 0);
     const dbPacks = usePage().props?.powerPacks;
-    const source = Array.isArray(dbPacks) && dbPacks.length ? dbPacks : POWER_PACKS;
-    const packs = source.filter(p => p.price !== null && p.price !== undefined);
+    const packs = Array.isArray(dbPacks)
+      ? dbPacks.filter(p => p.price !== null && p.price !== undefined)
+      : [];
+    if (packs.length === 0) return null;
     // recommended pack: smallest pack whose power >= totalPower, else largest
     const rec = packs.find(p => p.power >= totalPower) || packs[packs.length - 1];
     const recCost = rec.price;
