@@ -36,9 +36,22 @@ const VendorPublish = (() => {
       languages: agent?.languages ?? defaults.languages ?? ['EN'],
       integrations: agent?.integrations ?? defaults.integrations ?? [],
       skills: agent?.skills ?? [],
+      settingDefs: agent?.settingDefs ?? [],
     });
 
     const oauthProviders = usePage().props.oauthProviders ?? [];
+
+    const addSettingDef = () => setData('settingDefs', [...data.settingDefs, {
+      key: '',
+      label: '',
+      type: 'text',
+      default_value: '',
+      options: [],
+      is_required: false,
+      description: '',
+    }]);
+    const updateSettingDef = (idx, patch) => setData('settingDefs', data.settingDefs.map((d, i) => i === idx ? { ...d, ...patch } : d));
+    const removeSettingDef = (idx) => setData('settingDefs', data.settingDefs.filter((_, i) => i !== idx));
 
     const addSkill = () => setData('skills', [...data.skills, {
       name: '',
@@ -197,6 +210,30 @@ const VendorPublish = (() => {
                   <MarginPanel palette={palette} model={selectedModel} calc={economicsCalc} powerCost={data.powerCost} perUnit={data.perUnit} />
                 </Section>
 
+                <Section title="Configuration variables" sub={<>Declare variables the buyer fills in when they hire your agent. Reference them in the system prompt as <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>{'{{key}}'}</code> — we substitute the buyer's value at runtime. Use this for tone, signature, daily caps, target persona, etc.</>}>
+                  {data.settingDefs.length === 0 && (
+                    <div style={{ padding: '18px 0 6px', fontSize: 13, color: palette.textDim, textAlign: 'center' }}>
+                      No variables yet — the agent will run with a fixed system prompt for every buyer.
+                    </div>
+                  )}
+                  {data.settingDefs.map((d, idx) => (
+                    <SettingDefEditor
+                      key={idx}
+                      palette={palette}
+                      def={d}
+                      onChange={(patch) => updateSettingDef(idx, patch)}
+                      onRemove={() => removeSettingDef(idx)}
+                      errors={errors}
+                      idx={idx}
+                    />
+                  ))}
+                  <div style={{ textAlign: 'right', marginTop: 12 }}>
+                    <button type="button" onClick={addSettingDef} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', color: palette.accent, border: `1px dashed ${palette.accent}`, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      + Add variable
+                    </button>
+                  </div>
+                </Section>
+
                 <Section title="Skills (tools the LLM can call)" sub={<>Define functions the model can invoke during a run. Each skill becomes a tool the LLM sees — when it decides to call it, we POST a signed JSON payload to your <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>webhook_url</code>. Your service does the work, replies with JSON, and the model continues.{agent?.webhookSecret && <> The HMAC secret for this agent: <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace', userSelect: 'all' }}>{agent.webhookSecret}</code></>}</>}>
                   {data.skills.length === 0 && (
                     <div style={{ padding: '18px 0 6px', fontSize: 13, color: palette.textDim, textAlign: 'center' }}>
@@ -295,6 +332,113 @@ const VendorPublish = (() => {
   };
 
   // Single skill row — collapsible card with all fields the LLM will see.
+  // One row of the "Configuration variables" editor. Lets the vendor
+  // declare a variable buyers will fill in (e.g. tone, signature).
+  // For type=select we render a tags input so they can list options.
+  const SettingDefEditor = ({ palette, def, onChange, onRemove, errors, idx }) => {
+    const errPrefix = `settingDefs.${idx}`;
+    const err = (field) => errors[`${errPrefix}.${field}`];
+    return (
+      <div style={{ marginBottom: 14, padding: 16, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Variable #{idx + 1}</span>
+          <button type="button" onClick={onRemove} style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', color: palette.red, border: `1px solid ${palette.red}`, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer' }}>
+            Remove
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <Field
+            label="Key (snake_case)"
+            value={def.key}
+            onChange={(v) => onChange({ key: v.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
+            placeholder="tone"
+            error={err('key')}
+            hint="Reference as {{tone}} in system prompt."
+            maxLength={60}
+          />
+          <Field
+            label="Display label"
+            value={def.label}
+            onChange={(v) => onChange({ label: v })}
+            placeholder="Tone of voice"
+            error={err('label')}
+            maxLength={120}
+          />
+          <SelectField
+            label="Type"
+            value={def.type}
+            onChange={(v) => onChange({ type: v })}
+            error={err('type')}
+            options={[
+              { value: 'text', label: 'Text (single line)' },
+              { value: 'textarea', label: 'Text (multi-line)' },
+              { value: 'select', label: 'Dropdown (select one)' },
+              { value: 'number', label: 'Number' },
+              { value: 'boolean', label: 'Boolean (on/off)' },
+            ]}
+          />
+        </div>
+
+        <Field
+          label="Default value (optional)"
+          value={def.default_value ?? ''}
+          onChange={(v) => onChange({ default_value: v })}
+          placeholder={def.type === 'boolean' ? 'true / false' : 'consultative'}
+          error={err('default_value')}
+          maxLength={2000}
+        />
+
+        {def.type === 'select' && (
+          <ChipMultiSelect
+            label="Allowed options"
+            selected={def.options || []}
+            onToggle={(v) => {
+              const set = new Set(def.options || []);
+              set.has(v) ? set.delete(v) : set.add(v);
+              onChange({ options: Array.from(set) });
+            }}
+            options={def.options || []}
+            error={err('options')}
+          />
+        )}
+        {def.type === 'select' && (
+          <Field
+            label="Add option"
+            value=""
+            onChange={(v) => {
+              const trimmed = v.trim();
+              if (!trimmed) return;
+              if ((def.options || []).includes(trimmed)) return;
+              onChange({ options: [...(def.options || []), trimmed] });
+            }}
+            placeholder="Type and press Enter / blur"
+            hint="Type a value and click away — it'll be added to the list."
+          />
+        )}
+
+        <Field
+          label="Description (hint to buyer)"
+          value={def.description ?? ''}
+          onChange={(v) => onChange({ description: v })}
+          placeholder="One-line explanation shown under the input."
+          error={err('description')}
+          maxLength={500}
+        />
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: palette.textDim, marginTop: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!def.is_required}
+            onChange={(e) => onChange({ is_required: e.target.checked })}
+            style={{ width: 16, height: 16, accentColor: palette.accent, cursor: 'pointer' }}
+          />
+          Required — buyer must fill this before hiring.
+        </label>
+      </div>
+    );
+  };
+
   const SkillEditor = ({ palette, skill, oauthProviders = [], onChange, onRemove, errors, idx }) => {
     const errPrefix = `skills.${idx}`;
     const err = (field) => errors[`${errPrefix}.${field}`];

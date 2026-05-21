@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Agent;
 use App\Models\AgentCategory;
+use App\Models\AgentSettingDef;
 use App\Models\AgentSkill;
 use App\Models\LlmModel;
 use App\Models\OauthApp;
@@ -81,6 +82,7 @@ class VendorPublishController extends Controller
         ]);
 
         $this->persistSkills($agent, $validated['skills'] ?? []);
+        $this->persistSettingDefs($agent, $validated['settingDefs'] ?? []);
 
         return redirect()
             ->route('vendor')
@@ -126,6 +128,7 @@ class VendorPublishController extends Controller
         ])->save();
 
         $this->persistSkills($agent, $validated['skills'] ?? []);
+        $this->persistSettingDefs($agent, $validated['settingDefs'] ?? []);
 
         return redirect()
             ->route('vendor')
@@ -238,6 +241,15 @@ class VendorPublishController extends Controller
                     'parametersSchema' => $s->parameters_schema ? json_encode($s->parameters_schema, JSON_PRETTY_PRINT) : '',
                     'timeoutSeconds' => (int) $s->timeout_seconds,
                 ])->values()->all(),
+                'settingDefs' => $agent->settingDefs()->get()->map(fn (AgentSettingDef $d) => [
+                    'key' => $d->key,
+                    'label' => $d->label,
+                    'type' => $d->type,
+                    'default_value' => $d->default_value,
+                    'options' => $d->options ?? [],
+                    'is_required' => (bool) $d->is_required,
+                    'description' => $d->description,
+                ])->values()->all(),
             ] : null,
             'defaults' => $defaults,
         ];
@@ -276,6 +288,18 @@ class VendorPublishController extends Controller
             'skills.*.required_oauth_provider' => ['nullable', 'string', 'max:30', 'exists:oauth_apps,provider'],
             'skills.*.parameters_schema' => ['nullable'],
             'skills.*.timeout_seconds' => ['nullable', 'integer', 'min:1', 'max:300'],
+            // Per-deployment settings — variables the buyer will fill
+            // in when they subscribe. Substituted into system_prompt at
+            // runtime as {{key}}.
+            'settingDefs' => ['nullable', 'array', 'max:30'],
+            'settingDefs.*.key' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/i'],
+            'settingDefs.*.label' => ['required', 'string', 'max:120'],
+            'settingDefs.*.type' => ['required', Rule::in(['text', 'textarea', 'select', 'number', 'boolean'])],
+            'settingDefs.*.default_value' => ['nullable', 'string', 'max:2000'],
+            'settingDefs.*.options' => ['nullable', 'array', 'max:30'],
+            'settingDefs.*.options.*' => ['string', 'max:120'],
+            'settingDefs.*.is_required' => ['nullable', 'boolean'],
+            'settingDefs.*.description' => ['nullable', 'string', 'max:500'],
         ]);
     }
 
@@ -313,6 +337,32 @@ class VendorPublishController extends Controller
                     'required_oauth_provider' => $s['transport'] === 'oauth_proxy' ? ($s['required_oauth_provider'] ?? null) : null,
                     'timeout_seconds' => (int) ($s['timeout_seconds'] ?? 30),
                     'is_active' => true,
+                    'sort_order' => $i,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Persist setting defs (the per-deployment variables the vendor
+     * declares for buyers to fill). Full-replace on save — same pattern
+     * as persistSkills().
+     */
+    private function persistSettingDefs(Agent $agent, array $defs): void
+    {
+        DB::transaction(function () use ($agent, $defs) {
+            $agent->settingDefs()->delete();
+
+            foreach ($defs as $i => $d) {
+                AgentSettingDef::create([
+                    'agent_id' => $agent->id,
+                    'key' => strtolower($d['key']),
+                    'label' => $d['label'],
+                    'type' => $d['type'],
+                    'default_value' => $d['default_value'] ?? null,
+                    'options' => ($d['type'] === 'select' && ! empty($d['options'])) ? array_values($d['options']) : null,
+                    'is_required' => (bool) ($d['is_required'] ?? false),
+                    'description' => $d['description'] ?? null,
                     'sort_order' => $i,
                 ]);
             }

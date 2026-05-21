@@ -63,6 +63,12 @@ class LlmGateway
         $tools = $this->toolsFor($model->provider, $skills);
         $skillsByName = $skills->keyBy('name');
 
+        // Substitute {{key}} placeholders in system_prompt with values
+        // the buyer picked at /console/subscriptions/{sub}/configure.
+        // Unfilled / unknown keys keep their literal {{...}} so the LLM
+        // can flag the gap instead of silently dropping context.
+        $systemPrompt = $this->renderSystemPrompt($agent, $subscription);
+
         $messages = [['role' => 'user', 'content' => $userPrompt]];
 
         $totalIn = 0;
@@ -76,7 +82,7 @@ class LlmGateway
             $request = new LlmRequest(
                 model: $model,
                 apiKey: $apiKey,
-                systemPrompt: $agent->system_prompt,
+                systemPrompt: $systemPrompt,
                 messages: $messages,
                 maxOutputTokens: $maxOutput,
                 tools: $tools,
@@ -198,6 +204,44 @@ class LlmGateway
     /**
      * Build the provider-specific tool catalogue from an agent's skills.
      */
+    /**
+     * Resolve {{key}} placeholders in the agent's system_prompt using
+     * the buyer's subscription.settings, falling back to each setting
+     * def's default_value. Keys with no value anywhere are left as
+     * literal {{key}} so the model can ask the buyer to configure.
+     */
+    private function renderSystemPrompt(\App\Models\Agent $agent, ?\App\Models\Subscription $subscription): ?string
+    {
+        $prompt = $agent->system_prompt;
+        if (! $prompt) {
+            return null;
+        }
+
+        $defs = $agent->settingDefs ?? collect();
+        if ($defs->isEmpty() || ! str_contains($prompt, '{{')) {
+            return $prompt;
+        }
+
+        $values = (array) ($subscription?->settings ?? []);
+        $defaults = $defs->mapWithKeys(fn ($d) => [$d->key => $d->default_value])->all();
+
+        return preg_replace_callback(
+            '/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/i',
+            function ($m) use ($values, $defaults) {
+                $key = $m[1];
+                if (array_key_exists($key, $values) && $values[$key] !== null && $values[$key] !== '') {
+                    return is_scalar($values[$key]) ? (string) $values[$key] : json_encode($values[$key]);
+                }
+                if (array_key_exists($key, $defaults) && $defaults[$key] !== null && $defaults[$key] !== '') {
+                    return (string) $defaults[$key];
+                }
+
+                return $m[0]; // keep literal so the gap is visible
+            },
+            $prompt
+        );
+    }
+
     private function toolsFor(string $provider, $skills): array
     {
         return $skills

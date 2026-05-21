@@ -119,6 +119,8 @@ class ConsoleController extends Controller
                     : '—',
                 'spend24h' => (int) $events24h->sum('power_consumed'),
                 'status' => $sub->status === 'active' ? 'on' : 'paused',
+                // Used by the Console row's ⚙ link to /console/subscriptions/{id}/configure.
+                'subscriptionId' => $sub->id,
             ];
         })->values()->all();
 

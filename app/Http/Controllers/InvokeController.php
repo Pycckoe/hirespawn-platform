@@ -58,7 +58,7 @@ class InvokeController extends Controller
         // through the buyer's stored credentials (v2) and so the audit
         // log on UsageEvent.metadata knows who triggered what.
         $response = $gateway->run(
-            $agent->fresh(['llmModel', 'seller', 'skills']),
+            $agent->fresh(['llmModel', 'seller', 'skills', 'settingDefs']),
             $validated['input'],
             $subscription,
         );

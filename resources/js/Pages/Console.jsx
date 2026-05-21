@@ -265,6 +265,9 @@ const Dashboard = (() => {
             <span style={{ width: 6, height: 6, borderRadius: 99, background: a.status === 'on' ? palette.accent : palette.textMute, boxShadow: a.status === 'on' ? `0 0 6px ${palette.accent}` : 'none' }} />
             {a.status}
           </span>
+          {a.subscriptionId && (
+            <Link href={`/console/subscriptions/${a.subscriptionId}/configure`} title="Configure variables" style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>⚙</Link>
+          )}
           <a href={`/agent/${a.id}`} style={{ color: palette.textMute, textDecoration: 'none', fontSize: 14 }}>›</a>
         </div>
       </div>

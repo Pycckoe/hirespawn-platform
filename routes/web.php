@@ -10,6 +10,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RunController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\SubscriptionSettingsController;
 use App\Http\Controllers\TopupController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\VendorCredentialsController;
@@ -78,6 +79,12 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
     Route::delete('/settings/sessions/{sessionId}', [SettingsController::class, 'revokeSession'])->name('settings.sessions.revoke');
     Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications'])->name('settings.notifications.update');
+
+    // Per-subscription configuration — buyer fills in the variables the
+    // vendor declared (AgentSettingDef rows). Values get substituted
+    // into system_prompt at runtime via {{key}}.
+    Route::get('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'show'])->name('subscriptions.configure');
+    Route::patch('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'update'])->name('subscriptions.configure.update');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
 
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');

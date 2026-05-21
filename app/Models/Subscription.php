@@ -12,6 +12,7 @@ class Subscription extends Model
 
     protected $casts = [
         'metadata' => 'array',
+        'settings' => 'array',
         'started_at' => 'datetime',
         'current_period_start' => 'datetime',
         'current_period_end' => 'datetime',

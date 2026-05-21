@@ -51,6 +51,11 @@ class Agent extends Model
         return $this->hasMany(AgentSkill::class)->orderBy('sort_order');
     }
 
+    public function settingDefs(): HasMany
+    {
+        return $this->hasMany(AgentSettingDef::class)->orderBy('sort_order');
+    }
+
     public function capabilities(): HasMany
     {
         return $this->hasMany(AgentCapability::class);
