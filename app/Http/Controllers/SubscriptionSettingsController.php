@@ -83,6 +83,10 @@ class SubscriptionSettingsController extends Controller
         }
 
         $subscription->forceFill(['settings' => $clean])->save();
+        audit('subscription.configure', $subscription, [
+            'agent' => $subscription->agent?->slug,
+            'keys' => array_keys($clean),
+        ]);
 
         return redirect()
             ->route('console')

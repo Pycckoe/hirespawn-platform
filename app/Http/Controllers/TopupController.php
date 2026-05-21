@@ -75,6 +75,12 @@ class TopupController extends Controller
         // to its URL. For now the invoice stays "pending" until paid —
         // visible to the buyer on /console under Billing & history.
 
+        audit('topup.requested', $invoice, [
+            'amount_cents' => $amountCents,
+            'pack_slug' => $data['pack_slug'] ?? null,
+            'description' => $description,
+        ]);
+
         return redirect()
             ->route('console')
             ->with('status', "{$description} · invoice #{$invoice->id} pending payment.");

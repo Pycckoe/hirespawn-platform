@@ -84,6 +84,13 @@ class VendorPublishController extends Controller
         $this->persistSkills($agent, $validated['skills'] ?? []);
         $this->persistSettingDefs($agent, $validated['settingDefs'] ?? []);
 
+        audit('agent.create', $agent, [
+            'name' => $agent->name,
+            'category' => $category->slug,
+            'skills' => count($validated['skills'] ?? []),
+            'setting_defs' => count($validated['settingDefs'] ?? []),
+        ]);
+
         return redirect()
             ->route('vendor')
             ->with('status', "Submitted {$agent->name} for review. We'll notify you when it goes live.");
@@ -129,6 +136,12 @@ class VendorPublishController extends Controller
 
         $this->persistSkills($agent, $validated['skills'] ?? []);
         $this->persistSettingDefs($agent, $validated['settingDefs'] ?? []);
+
+        audit('agent.update', $agent, [
+            'name' => $agent->name,
+            'skills' => count($validated['skills'] ?? []),
+            'setting_defs' => count($validated['settingDefs'] ?? []),
+        ]);
 
         return redirect()
             ->route('vendor')

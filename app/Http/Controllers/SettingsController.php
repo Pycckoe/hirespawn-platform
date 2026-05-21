@@ -164,56 +164,22 @@ class SettingsController extends Controller
             $sessions = [];
         }
 
-        $activity = collect();
-
-        // API key creations + revocations
-        foreach ($user->apiKeys()->latest('created_at')->limit(15)->get() as $k) {
-            $activity->push([
-                'kind' => 'api_key',
-                'label' => "API key created · {$k->name}",
-                'at' => $k->created_at,
-                'icon' => '⌘',
-            ]);
-            if ($k->revoked_at) {
-                $activity->push([
-                    'kind' => 'api_key_revoke',
-                    'label' => "API key revoked · {$k->name}",
-                    'at' => $k->revoked_at,
-                    'icon' => '✕',
-                ]);
-            }
-        }
-
-        // OAuth connections
-        foreach ($user->oauthTokens()->latest('created_at')->limit(15)->get() as $t) {
-            $activity->push([
-                'kind' => 'oauth_connect',
-                'label' => "Connected {$t->provider}".($t->account_label ? " · {$t->account_label}" : ''),
-                'at' => $t->created_at,
-                'icon' => '⚷',
-            ]);
-        }
-
-        // Invoices (top-ups)
-        foreach ($user->invoices()->latest('created_at')->limit(15)->get() as $inv) {
-            $activity->push([
-                'kind' => 'invoice',
-                'label' => 'Top-up invoice · €'.number_format($inv->total_cents / 100, 2),
-                'at' => $inv->created_at,
-                'icon' => '⚡',
-            ]);
-        }
-
-        $activity = $activity
-            ->filter(fn ($e) => $e['at'] !== null)
-            ->sortByDesc('at')
-            ->take(20)
+        // Real audit log — populated by the AuditLog service from every
+        // controller that does anything interesting, plus the auth-event
+        // subscriber (login / logout / password reset / failed login).
+        $activity = \App\Models\AuditEvent::query()
+            ->where('user_id', $user->id)
+            ->latest('created_at')
+            ->limit(30)
+            ->get()
             ->map(fn ($e) => [
-                ...$e,
-                'at' => $e['at']->diffForHumans(),
-                'ts' => $e['at']->format('M d, Y H:i'),
+                'kind' => $e->event_type,
+                'label' => $this->describeEvent($e),
+                'icon' => $this->iconForEvent($e->event_type),
+                'at' => $e->created_at->diffForHumans(),
+                'ts' => $e->created_at->format('M d, Y H:i'),
+                'meta' => $e->metadata,
             ])
-            ->values()
             ->all();
 
         return [
@@ -221,6 +187,57 @@ class SettingsController extends Controller
             'activity' => $activity,
             'passwordChangedAt' => null, // wired when we track this; placeholder for UI
         ];
+    }
+
+    /**
+     * Human-readable label for a single audit_events row. Uses the
+     * event_type as the base + any metadata that adds context.
+     */
+    private function describeEvent(\App\Models\AuditEvent $e): string
+    {
+        $meta = $e->metadata ?? [];
+
+        return match ($e->event_type) {
+            'auth.login' => 'Signed in',
+            'auth.logout' => 'Signed out',
+            'auth.register' => 'Account created',
+            'auth.password_update' => 'Password changed',
+            'auth.password_reset' => 'Password reset via email',
+            'auth.failed' => 'Failed sign-in attempt'.(isset($meta['email']) ? " · {$meta['email']}" : ''),
+            'auth.session_revoke' => 'Signed out another device',
+            'api_key.create' => 'API key created'.(isset($meta['name']) ? " · {$meta['name']}" : ''),
+            'api_key.revoke' => 'API key revoked'.(isset($meta['name']) ? " · {$meta['name']}" : ''),
+            'oauth.connect' => 'Connected '.($meta['provider'] ?? 'integration').(isset($meta['account_label']) ? " · {$meta['account_label']}" : ''),
+            'oauth.disconnect' => 'Disconnected '.($meta['provider'] ?? 'integration'),
+            'llm_credential.save' => 'Saved '.($meta['provider'] ?? 'LLM').' API key'.(isset($meta['last4']) ? " · ••••{$meta['last4']}" : ''),
+            'llm_credential.delete' => 'Removed '.($meta['provider'] ?? 'LLM').' API key',
+            'agent.create' => 'Published agent'.(isset($meta['name']) ? " · {$meta['name']}" : ''),
+            'agent.update' => 'Updated agent'.(isset($meta['name']) ? " · {$meta['name']}" : ''),
+            'workspace.update' => 'Workspace settings updated',
+            'notifications.update' => 'Notification preferences updated',
+            'member.invite' => 'Invited '.($meta['email'] ?? 'a teammate'),
+            'member.remove' => 'Removed '.($meta['email'] ?? 'a teammate'),
+            'topup.requested' => 'Power top-up requested'.(isset($meta['amount_cents']) ? ' · €'.number_format($meta['amount_cents'] / 100, 2) : ''),
+            'subscription.configure' => 'Configured '.($meta['agent'] ?? 'subscription'),
+            default => str_replace(['.', '_'], [' ', ' '], $e->event_type),
+        };
+    }
+
+    private function iconForEvent(string $eventType): string
+    {
+        return match (true) {
+            str_starts_with($eventType, 'auth.') => '◆',
+            str_starts_with($eventType, 'api_key.') => '⌘',
+            str_starts_with($eventType, 'oauth.') => '⚷',
+            str_starts_with($eventType, 'llm_credential.') => '⚙',
+            str_starts_with($eventType, 'agent.') => '◇',
+            str_starts_with($eventType, 'workspace.') => '◈',
+            str_starts_with($eventType, 'notifications.') => '◉',
+            str_starts_with($eventType, 'member.') => '◊',
+            str_starts_with($eventType, 'topup.') => '⚡',
+            str_starts_with($eventType, 'subscription.') => '▸',
+            default => '·',
+        };
     }
 
     private function prettyUserAgent(?string $ua): string
@@ -314,6 +331,10 @@ class SettingsController extends Controller
             'vat_number' => $validated['vatNumber'] ?: null,
         ])->save();
 
+        audit('workspace.update', $profile, [
+            'fields' => array_keys($validated),
+        ]);
+
         return back()->with('status', 'Workspace settings saved.');
     }
 
@@ -338,6 +359,8 @@ class SettingsController extends Controller
             'environment' => $env,
         ]);
 
+        audit('api_key.create', $key, ['name' => $key->name, 'environment' => $env]);
+
         // Flash the plaintext exactly once. The next page load won't see it.
         return back()
             ->with('status', "API key “{$key->name}” created.")
@@ -354,6 +377,8 @@ class SettingsController extends Controller
         if (! $apiKey->isRevoked()) {
             $apiKey->forceFill(['revoked_at' => now()])->save();
         }
+
+        audit('api_key.revoke', $apiKey, ['name' => $apiKey->name]);
 
         return back()->with('status', "API key “{$apiKey->name}” revoked.");
     }
@@ -389,6 +414,8 @@ class SettingsController extends Controller
             ],
         );
 
+        audit('member.invite', null, ['email' => $email, 'role' => $validated['role']]);
+
         return back()->with('status', "Invite sent to {$email}.");
     }
 
@@ -397,6 +424,8 @@ class SettingsController extends Controller
         abort_unless($member->owner_id === $request->user()->id, 403);
         $email = $member->email;
         $member->delete();
+
+        audit('member.remove', null, ['email' => $email]);
 
         return back()->with('status', "Removed {$email} from workspace.");
     }
@@ -419,6 +448,8 @@ class SettingsController extends Controller
             'password' => Hash::make($validated['password']),
         ])->save();
 
+        audit('auth.password_update', $request->user());
+
         return back()->with('status', 'Password updated. Stay safe out there.');
     }
 
@@ -440,6 +471,10 @@ class SettingsController extends Controller
             return back()->with('status', 'Session storage is not database-backed — nothing to revoke.');
         }
 
+        if ($count) {
+            audit('auth.session_revoke', null, ['session_id' => $sessionId]);
+        }
+
         return back()->with('status', $count ? 'Session revoked.' : 'Session not found.');
     }
 
@@ -459,6 +494,8 @@ class SettingsController extends Controller
             ->all();
 
         $request->user()->forceFill(['notification_prefs' => $prefs])->save();
+
+        audit('notifications.update', null, ['keys' => array_keys($prefs)]);
 
         return back()->with('status', 'Notification preferences saved.');
     }

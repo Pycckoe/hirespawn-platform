@@ -130,6 +130,12 @@ class OauthController extends Controller
             ?? null;
         $token->save();
 
+        audit('oauth.connect', $token, [
+            'provider' => $provider,
+            'account_label' => $token->account_label,
+            'scopes' => $token->scopes,
+        ]);
+
         return redirect($returnTo)->with('status', "✓ Connected {$app->label}".($token->account_label ? " ({$token->account_label})" : '').'.');
     }
 
@@ -147,6 +153,7 @@ class OauthController extends Controller
         if ($token) {
             $token->delete();
         }
+        audit('oauth.disconnect', null, ['provider' => $provider]);
 
         return back()->with('status', "Disconnected {$provider}.");
     }

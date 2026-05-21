@@ -39,6 +39,11 @@ class VendorCredentialsController extends Controller
         $credential->verified_at = null;
         $credential->save();
 
+        audit('llm_credential.save', $credential, [
+            'provider' => $credential->provider,
+            'last4' => $credential->last4,
+        ]);
+
         return back()->with('status', "Saved {$validated['provider']} key (••••{$credential->last4}).");
     }
 
@@ -53,6 +58,8 @@ class VendorCredentialsController extends Controller
 
         $provider = $credential->provider;
         $credential->delete();
+
+        audit('llm_credential.delete', null, ['provider' => $provider]);
 
         return back()->with('status', "Removed {$provider} key.");
     }
