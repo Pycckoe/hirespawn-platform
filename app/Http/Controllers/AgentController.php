@@ -10,7 +10,7 @@ use Inertia\Response;
 
 class AgentController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $agents = Agent::query()
             ->with(['category', 'seller'])
@@ -26,9 +26,28 @@ class AgentController extends Controller
             ->map(fn ($c) => ['key' => $c->slug, 'label' => $c->name, 'icon' => $c->icon])
             ->values();
 
+        // Buyer context — when authenticated, ship the agents the buyer
+        // has already hired (so cards can render a "✓ Hired" badge instead
+        // of "Deploy") + their power balance for the topbar.
+        $user = $request->user();
+        $subscribedSlugs = $user
+            ? $user->subscriptions()
+                ->with('agent:id,slug')
+                ->whereIn('status', ['active', 'paused'])
+                ->get()
+                ->pluck('agent.slug')
+                ->filter()
+                ->values()
+                ->all()
+            : [];
+
         return Inertia::render('Catalog', [
             'agents' => $agents,
             'categories' => $categories,
+            'subscribedSlugs' => $subscribedSlugs,
+            'powerBalance' => (int) ($user?->buyerProfile?->power_balance ?? 0),
+            'workspaceName' => $user?->buyerProfile?->company_name
+                ?? ($user?->name ? "{$user->name}'s workspace" : 'Workspace'),
         ]);
     }
 
