@@ -53,15 +53,15 @@ class AgentController extends Controller
 
     public function show(Request $request, Agent $agent): Response
     {
-        $agent->load(['category', 'seller', 'pricingTiers', 'screenshots', 'reviews.buyer']);
+        $agent->load(['category', 'seller', 'pricingTiers', 'screenshots', 'reviews.buyer', 'skills', 'settingDefs']);
 
         $user = $request->user();
-        $isSubscribed = $user
+        $subscription = $user
             ? $user->subscriptions()
                 ->where('agent_id', $agent->id)
                 ->whereIn('status', ['active', 'paused'])
-                ->exists()
-            : false;
+                ->first()
+            : null;
 
         $related = Agent::query()
             ->with('category')
@@ -77,10 +77,57 @@ class AgentController extends Controller
             ->map(fn (Agent $a) => $this->transformForCard($a))
             ->values();
 
+        // Pre-hire checklist: every OAuth provider this agent's skills
+        // require + whether the buyer already has a connected token for
+        // it. Used by the UI to show "Connect Slack to run" warnings.
+        $requiredProviders = $agent->skills
+            ->where('transport', 'oauth_proxy')
+            ->pluck('required_oauth_provider')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $oauthChecklist = $requiredProviders->map(function (string $provider) use ($user) {
+            $token = $user?->oauthTokenFor($provider);
+
+            return [
+                'provider' => $provider,
+                'connected' => (bool) $token,
+                'accountLabel' => $token?->account_label,
+                'expired' => $token?->isExpired() ?? false,
+            ];
+        })->all();
+
         return Inertia::render('AgentDetail', [
             'relatedAgents' => $related,
-            'isSubscribed' => $isSubscribed,
+            'subscription' => $subscription ? [
+                'id' => $subscription->id,
+                'status' => $subscription->status,
+                'startedAt' => $subscription->started_at?->format('M d, Y'),
+            ] : null,
+            'isSubscribed' => (bool) $subscription,
             'isAuthenticated' => (bool) $user,
+            'oauthChecklist' => $oauthChecklist,
+            // settingDefs ship to UI so we can show buyers what they
+            // need to configure before hiring (and after, deep-link
+            // to the configure page).
+            'settingDefs' => $agent->settingDefs->map(fn ($d) => [
+                'key' => $d->key,
+                'label' => $d->label,
+                'type' => $d->type,
+                'isRequired' => (bool) $d->is_required,
+                'description' => $d->description,
+            ])->values(),
+            'skills' => $agent->skills->map(fn ($s) => [
+                'name' => $s->name,
+                'label' => $s->label,
+                'description' => $s->description,
+                'transport' => $s->transport,
+                'requiredOauthProvider' => $s->required_oauth_provider,
+            ])->values(),
+            'powerBalance' => (int) ($user?->buyerProfile?->power_balance ?? 0),
+            'workspaceName' => $user?->buyerProfile?->company_name
+                ?? ($user?->name ? "{$user->name}'s workspace" : 'Workspace'),
             'agent' => array_merge($this->transformForCard($agent), [
                 'description' => $agent->description,
                 'manifestUrl' => $agent->manifest_url,

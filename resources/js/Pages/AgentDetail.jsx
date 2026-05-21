@@ -1,10 +1,10 @@
 import '@/setup';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
     CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    useCountUp, useLiveFeed, useTheme, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 // =====================================================================
@@ -13,7 +13,72 @@ import {
 // =====================================================================
 
 const AgentDetail = (() => {
-  const { palette, Glass, Pill, Mesh, Nav, SectionLabel, Reveal, Footer } = DirA;
+  const { palette, Glass, Pill, Mesh, Nav, Logo, SectionLabel, Reveal, Footer, ThemeToggle } = DirA;
+
+  // ---- Buyer top bar (signed-in only) ----
+  // Mirrors the Console / Catalog topbars so /agent/{slug} feels like
+  // part of the buyer surface, not the marketing site.
+  const BuyerTopBar = ({ user, isAdmin, workspaceName, powerBalance, agentName }) => {
+    const initials = (user?.name || 'U').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'rgba(5,7,10,0.7)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
+          <Link href="/roster" style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>/ roster</Link>
+          {agentName && <>
+            <span style={{ color: palette.textMute }}>/</span>
+            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, letterSpacing: 1, textTransform: 'uppercase' }}>{agentName}</span>
+          </>}
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, padding: '4px 9px', background: 'var(--p-chip)', border: `1px solid ${palette.border}`, borderRadius: 6, marginLeft: 8 }}>{workspaceName}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text }}>
+            <span style={{ color: palette.accent }}>⚡</span>{(powerBalance || 0).toLocaleString()}
+          </span>
+          <ThemeToggle size={32} />
+          {isAdmin && <a href="/admin" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
+          <Link href="/console" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Console →</Link>
+          <Link href="/settings?tab=billing" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
+          <BuyerMenu user={user} initials={initials} />
+        </div>
+      </div>
+    );
+  };
+
+  const BuyerMenu = ({ user, initials }) => {
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+      if (!open) return;
+      const close = () => setOpen(false);
+      window.addEventListener('click', close);
+      return () => window.removeEventListener('click', close);
+    }, [open]);
+    return (
+      <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label="Account menu"
+          style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #b4f25b, #7dd3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent, border: 0, cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+        {open && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220, background: 'var(--p-glass-strong, rgba(15,17,23,0.95))', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', border: `1px solid ${palette.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 30 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${palette.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{user?.name || 'You'}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>{user?.email || ''}</div>
+            </div>
+            <Link href="/profile" style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}>Profile</Link>
+            <Link href="/settings" style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}>Settings</Link>
+            <div style={{ height: 1, background: palette.border, margin: '4px 6px' }} />
+            <button onClick={() => router.post('/logout')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 0, background: 'transparent', color: palette.red, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 6 }}>
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Sample tasks per agent role tone — show what the agent actually does
   const SAMPLE_TASKS = {
@@ -80,7 +145,9 @@ const AgentDetail = (() => {
   );
 
   // Header — hero of the agent
-  const AgentHeader = ({ agent, isSubscribed = false, isAuthenticated = false }) => (
+  const AgentHeader = ({ agent, isSubscribed = false, isAuthenticated = false, subscription = null }) => {
+    const rates = useRates();
+    return (
     <div style={{ padding: '40px 40px 28px' }}>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5, textTransform: 'uppercase' }}>
@@ -129,50 +196,147 @@ const AgentDetail = (() => {
             <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim, marginLeft: 4 }}>per {agent.perUnit}</span>
           </div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 6 }}>
-            ≈ €{(agent.power * 0.009).toFixed(3)} per task at Pro rate
+            ≈ €{(agent.power * rates.eurPerPower).toFixed(3)} per task
           </div>
 
           <div style={{ marginTop: 22, padding: 14, background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, padding: '4px 0' }}>
-              <span>100 tasks</span><span style={{ color: palette.text }}>{(agent.power * 100).toLocaleString()}⚡ · €{(agent.power * 100 * 0.009).toFixed(0)}</span>
+              <span>100 tasks</span><span style={{ color: palette.text }}>{(agent.power * 100).toLocaleString()}⚡ · €{(agent.power * 100 * rates.eurPerPower).toFixed(0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, padding: '4px 0' }}>
-              <span>1,000 tasks</span><span style={{ color: palette.text }}>{(agent.power * 1000).toLocaleString()}⚡ · €{(agent.power * 1000 * 0.009).toFixed(0)}</span>
+              <span>1,000 tasks</span><span style={{ color: palette.text }}>{(agent.power * 1000).toLocaleString()}⚡ · €{(agent.power * 1000 * rates.eurPerPower).toFixed(0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent, padding: '4px 0', borderTop: `1px dashed ${palette.border}`, marginTop: 4, paddingTop: 8 }}>
-              <span>10,000 tasks</span><span>{(agent.power * 10000).toLocaleString()}⚡ · €{(agent.power * 10000 * 0.009).toFixed(0)}</span>
+              <span>10,000 tasks</span><span>{(agent.power * 10000).toLocaleString()}⚡ · €{(agent.power * 10000 * rates.eurPerPower).toFixed(0)}</span>
             </div>
           </div>
 
           {isAuthenticated && isSubscribed ? (
-            <button
-              onClick={() => router.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true })}
-              style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              ✓ Deployed · Cancel
-            </button>
+            <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center' }}>
+                ✓ Hired · since {subscription?.startedAt || '—'}
+              </div>
+              {subscription?.id && (
+                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'block', padding: '12px', borderRadius: 10, background: palette.accent, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none' }}>
+                  Configure →
+                </Link>
+              )}
+              <Link href="/console" style={{ display: 'block', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none' }}>
+                Open Console
+              </Link>
+              <button
+                onClick={() => {
+                  if (!confirm(`Cancel ${agent.name} subscription? You'll lose access to its tools.`)) return;
+                  router.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true });
+                }}
+                style={{ width: '100%', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.red, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}
+              >
+                Cancel subscription
+              </button>
+            </div>
           ) : isAuthenticated ? (
             <button
               onClick={() => router.post(`/agent/${agent.id}/subscribe`)}
               style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
             >
-              Deploy {agent.name} →
+              Hire {agent.name} →
             </button>
           ) : (
             <a href={`/login?intended=${encodeURIComponent('/agent/' + agent.id)}`} style={{ display: 'block', textDecoration: 'none' }}>
               <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
-                Sign in to deploy →
+                Sign in to hire →
               </button>
             </a>
           )}
-          <button style={{ width: '100%', padding: '12px', borderRadius: 10, marginTop: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>
-            Try in sandbox
-          </button>
-          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textAlign: 'center', marginTop: 10 }}>Self-installs in &lt; 90s · scoped key</div>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textAlign: 'center', marginTop: 10 }}>Hires instantly · cancel anytime</div>
         </Glass>
       </div>
     </div>
-  );
+    );
+  };
+
+  // ---- Setup requirements ----
+  // Shows the buyer what they need to set up to actually use the agent:
+  // 1. OAuth providers required by oauth_proxy skills
+  // 2. Configuration variables the vendor declared (settingDefs)
+  // Renders nothing when the agent has zero requirements.
+  const SetupRequirements = ({ oauthChecklist = [], settingDefs = [], subscription = null, isAuthenticated = false }) => {
+    if (oauthChecklist.length === 0 && settingDefs.length === 0) return null;
+    const needsOauth = oauthChecklist.filter(o => !o.connected || o.expired);
+    const allReady = needsOauth.length === 0;
+
+    return (
+      <div style={{ padding: '0 40px 28px' }}>
+        <Glass style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Setup checklist</div>
+              <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>
+                {subscription ? 'Configure your deployment' : 'What you need to run this agent'}
+              </div>
+            </div>
+            {isAuthenticated && (
+              <span style={{ padding: '4px 10px', borderRadius: 4, background: allReady ? palette.accentDim : 'rgba(255,184,77,0.12)', color: allReady ? palette.accent : palette.amber, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                {allReady ? '✓ ready' : `${needsOauth.length} pending`}
+              </span>
+            )}
+          </div>
+
+          {oauthChecklist.length > 0 && (
+            <div style={{ marginBottom: settingDefs.length > 0 ? 22 : 0 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Integrations</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {oauthChecklist.map(o => {
+                  const ok = o.connected && !o.expired;
+                  return (
+                    <div key={o.provider} style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 14, alignItems: 'center', padding: '12px 14px', background: 'var(--p-inset-soft)', border: `1px solid ${ok ? palette.accentDim : palette.border}`, borderRadius: 8 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 7, background: ok ? palette.accentDim : 'var(--p-chip)', color: ok ? palette.accent : palette.textDim, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                        {o.provider.slice(0, 3).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: palette.text, fontWeight: 500, textTransform: 'capitalize' }}>{o.provider}</div>
+                        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: ok ? palette.accent : palette.textMute, marginTop: 2 }}>
+                          {ok ? `✓ connected${o.accountLabel ? ' · ' + o.accountLabel : ''}` : o.expired ? 'expired · reconnect' : 'not connected'}
+                        </div>
+                      </div>
+                      {isAuthenticated && (
+                        <a href={`/oauth/${o.provider}/connect?return=${encodeURIComponent(window.location.pathname)}`} style={{ padding: '7px 12px', borderRadius: 6, background: ok ? 'transparent' : palette.accent, color: ok ? palette.textDim : palette.onAccent, border: ok ? `1px solid ${palette.border}` : 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                          {ok ? 'Reconnect' : 'Connect →'}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {settingDefs.length > 0 && (
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Variables you'll configure</div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {settingDefs.map(d => (
+                  <div key={d.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 12px', background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>
+                    <div>
+                      <span style={{ fontSize: 13, color: palette.text, fontWeight: 500 }}>{d.label}</span>
+                      {d.isRequired && <span style={{ marginLeft: 8, fontSize: 10, color: palette.red, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>}
+                      {d.description && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 2 }}>{d.description}</div>}
+                    </div>
+                    <code style={{ color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>{d.type}</code>
+                  </div>
+                ))}
+              </div>
+              {subscription && (
+                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'inline-block', marginTop: 12, padding: '8px 14px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                  Configure now →
+                </Link>
+              )}
+            </div>
+          )}
+        </Glass>
+      </div>
+    );
+  };
 
   // Run-task panel — only shown to subscribed buyers. Posts to
   // /agent/{slug}/run which debits power and logs a UsageEvent.
@@ -413,7 +577,7 @@ const AgentDetail = (() => {
         <SectionLabel kicker="Reinforcements" title={<>You might also <span style={{ color: palette.accent }}>deploy</span>.</>} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           {same.map(a => (
-            <a key={a.id} href={`#/agent/${a.id}`} style={{ textDecoration: 'none' }}>
+            <Link key={a.id} href={`/agent/${a.id}`} style={{ textDecoration: 'none' }}>
               <Glass style={{ padding: 18, cursor: 'pointer', transition: 'border-color 0.25s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{CATEGORIES.find(c => c.key === a.tone)?.icon || '◇'}</div>
@@ -427,7 +591,7 @@ const AgentDetail = (() => {
                   <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute }}>★ {a.rating}</span>
                 </div>
               </Glass>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -436,26 +600,49 @@ const AgentDetail = (() => {
 
   // Page
   const Page = () => {
-    const { agent = null, relatedAgents = [], isSubscribed = false, isAuthenticated = false } = usePage().props;
+    const {
+      agent = null, relatedAgents = [],
+      subscription = null, isSubscribed = false, isAuthenticated = false,
+      oauthChecklist = [], settingDefs = [],
+      auth, workspaceName = 'Workspace', powerBalance = 0,
+    } = usePage().props;
+    const user = auth?.user || null;
+    const isAdmin = !!user?.is_admin;
+
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 1440, margin: '0 auto' }}>
-          <Nav />
+          {isAuthenticated
+            ? <BuyerTopBar user={user} isAdmin={isAdmin} workspaceName={workspaceName} powerBalance={powerBalance} agentName={agent?.name} />
+            : <Nav />}
           {!agent ? <NotFound /> : (
             <>
-              <AgentHeader agent={agent} isSubscribed={isSubscribed} isAuthenticated={isAuthenticated} />
+              <AgentHeader
+                agent={agent}
+                isSubscribed={isSubscribed}
+                isAuthenticated={isAuthenticated}
+                subscription={subscription}
+              />
+              {isAuthenticated && (oauthChecklist.length > 0 || settingDefs.length > 0) && (
+                <SetupRequirements
+                  oauthChecklist={oauthChecklist}
+                  settingDefs={settingDefs}
+                  subscription={subscription}
+                  isAuthenticated={isAuthenticated}
+                />
+              )}
               {isSubscribed && <RunTaskPanel agent={agent} />}
               <SpecStrip agent={agent} />
               <Reveal><Capabilities agent={agent} /></Reveal>
               <Reveal><SampleTasks agent={agent} /></Reveal>
               <Reveal><Integrations agent={agent} /></Reveal>
               <Reveal><SlaPanel agent={agent} /></Reveal>
-              <Reveal><DeployFlow agent={agent} /></Reveal>
+              {!isAuthenticated && <Reveal><DeployFlow agent={agent} /></Reveal>}
               <Reveal><RelatedAgents related={relatedAgents} /></Reveal>
             </>
           )}
-          <Footer />
+          {!isAuthenticated && <Footer />}
         </div>
       </div>
     );
