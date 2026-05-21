@@ -75,6 +75,9 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/settings/keys/{apiKey}', [SettingsController::class, 'revokeKey'])->name('settings.keys.revoke');
     Route::post('/settings/members', [SettingsController::class, 'storeMember'])->name('settings.members.store');
     Route::delete('/settings/members/{member}', [SettingsController::class, 'destroyMember'])->name('settings.members.destroy');
+    Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password.update');
+    Route::delete('/settings/sessions/{sessionId}', [SettingsController::class, 'revokeSession'])->name('settings.sessions.revoke');
+    Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications'])->name('settings.notifications.update');
     Route::get('/run/{run}', [RunController::class, 'show'])->name('run.show');
 
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');

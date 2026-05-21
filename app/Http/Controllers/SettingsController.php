@@ -4,14 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiKey;
 use App\Models\Invoice;
+use App\Models\OauthApp;
 use App\Models\PowerPack;
 use App\Models\UsageEvent;
+use App\Models\User;
 use App\Models\WorkspaceMember;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -77,6 +83,8 @@ class SettingsController extends Controller
             'account' => [
                 'name' => $user?->name,
                 'email' => $user?->email,
+                'emailVerifiedAt' => $user?->email_verified_at?->format('M d, Y H:i'),
+                'createdAt' => $user?->created_at?->format('M d, Y'),
             ],
             'apiKeys' => $apiKeys,
             'members' => $ownerRow ? array_merge([$ownerRow], $members) : $members,
@@ -86,7 +94,175 @@ class SettingsController extends Controller
             // on the Billing tab. Same shape PageController@power ships
             // to /power so the math + submission target stay identical.
             'powerPacks' => $this->powerPacks(),
+            // Tabs that landed in this commit:
+            'integrations' => $this->integrations($user),
+            'security' => $this->securityData($user, $request),
+            'notifications' => $this->notificationData($user),
         ]);
+    }
+
+    /**
+     * OAuth providers the buyer can connect — same shape as the Console
+     * tab so the UI components are interchangeable.
+     */
+    private function integrations(?User $user): array
+    {
+        return OauthApp::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function (OauthApp $app) use ($user) {
+                $token = $user?->oauthTokenFor($app->provider);
+
+                return [
+                    'provider' => $app->provider,
+                    'label' => $app->label,
+                    'icon' => $app->icon,
+                    'scopes' => $app->default_scopes ?? [],
+                    'connected' => (bool) $token,
+                    'accountLabel' => $token?->account_label,
+                    'connectedAt' => $token?->created_at?->format('M d, Y'),
+                    'expiresAt' => $token?->expires_at?->format('M d, Y H:i'),
+                    'expired' => $token?->isExpired() ?? false,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Security tab — active sessions + a synthesised recent-activity
+     * timeline built from the same tables we already write to (API key
+     * creates, OAuth connects, power top-ups). No new logs table yet;
+     * good enough until a dedicated audit log lands.
+     */
+    private function securityData(?User $user, Request $request): array
+    {
+        if (! $user) {
+            return ['sessions' => [], 'activity' => []];
+        }
+
+        // Sessions only available when SESSION_DRIVER=database. Fall
+        // through to an empty list if the table isn't present so we
+        // don't blow up on file/redis-session installs.
+        $sessions = [];
+        try {
+            $rows = DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->orderByDesc('last_activity')
+                ->limit(10)
+                ->get(['id', 'ip_address', 'user_agent', 'last_activity']);
+            $currentId = $request->session()?->getId();
+            $sessions = $rows->map(fn ($s) => [
+                'id' => $s->id,
+                'ip' => $s->ip_address,
+                'agent' => $this->prettyUserAgent($s->user_agent),
+                'lastActive' => Carbon::createFromTimestamp($s->last_activity)->diffForHumans(),
+                'current' => $s->id === $currentId,
+            ])->values()->all();
+        } catch (\Throwable $e) {
+            $sessions = [];
+        }
+
+        $activity = collect();
+
+        // API key creations + revocations
+        foreach ($user->apiKeys()->latest('created_at')->limit(15)->get() as $k) {
+            $activity->push([
+                'kind' => 'api_key',
+                'label' => "API key created · {$k->name}",
+                'at' => $k->created_at,
+                'icon' => '⌘',
+            ]);
+            if ($k->revoked_at) {
+                $activity->push([
+                    'kind' => 'api_key_revoke',
+                    'label' => "API key revoked · {$k->name}",
+                    'at' => $k->revoked_at,
+                    'icon' => '✕',
+                ]);
+            }
+        }
+
+        // OAuth connections
+        foreach ($user->oauthTokens()->latest('created_at')->limit(15)->get() as $t) {
+            $activity->push([
+                'kind' => 'oauth_connect',
+                'label' => "Connected {$t->provider}".($t->account_label ? " · {$t->account_label}" : ''),
+                'at' => $t->created_at,
+                'icon' => '⚷',
+            ]);
+        }
+
+        // Invoices (top-ups)
+        foreach ($user->invoices()->latest('created_at')->limit(15)->get() as $inv) {
+            $activity->push([
+                'kind' => 'invoice',
+                'label' => 'Top-up invoice · €'.number_format($inv->total_cents / 100, 2),
+                'at' => $inv->created_at,
+                'icon' => '⚡',
+            ]);
+        }
+
+        $activity = $activity
+            ->filter(fn ($e) => $e['at'] !== null)
+            ->sortByDesc('at')
+            ->take(20)
+            ->map(fn ($e) => [
+                ...$e,
+                'at' => $e['at']->diffForHumans(),
+                'ts' => $e['at']->format('M d, Y H:i'),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'sessions' => $sessions,
+            'activity' => $activity,
+            'passwordChangedAt' => null, // wired when we track this; placeholder for UI
+        ];
+    }
+
+    private function prettyUserAgent(?string $ua): string
+    {
+        if (! $ua) {
+            return 'Unknown';
+        }
+        $browser = 'Browser';
+        foreach (['Firefox', 'Edg', 'Chrome', 'Safari', 'curl', 'PostmanRuntime'] as $needle) {
+            if (str_contains($ua, $needle)) {
+                $browser = $needle === 'Edg' ? 'Edge' : $needle;
+                break;
+            }
+        }
+        $os = 'Unknown';
+        foreach (['Windows', 'Macintosh', 'iPhone', 'Android', 'Linux'] as $needle) {
+            if (str_contains($ua, $needle)) {
+                $os = $needle === 'Macintosh' ? 'macOS' : $needle;
+                break;
+            }
+        }
+
+        return "{$browser} · {$os}";
+    }
+
+    private function notificationData(?User $user): array
+    {
+        $defaults = User::notificationDefaults();
+        if (! $user) {
+            return ['defaults' => $defaults, 'prefs' => $defaults];
+        }
+        $saved = $user->notification_prefs ?? [];
+
+        // Merge: every default key is present, saved values override.
+        $prefs = collect($defaults)
+            ->map(fn ($v, $k) => array_key_exists($k, $saved) ? (bool) $saved[$k] : (bool) $v)
+            ->all();
+
+        return [
+            'defaults' => $defaults,
+            'prefs' => $prefs,
+        ];
     }
 
     /**
@@ -223,6 +399,68 @@ class SettingsController extends Controller
         $member->delete();
 
         return back()->with('status', "Removed {$email} from workspace.");
+    }
+
+    // ---------------- Security ----------------
+
+    /**
+     * Update the buyer's password. Mirrors Breeze's flow but kept inside
+     * SettingsController so the Inertia Settings page can submit to a
+     * single namespace.
+     */
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $request->user()->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+
+        return back()->with('status', 'Password updated. Stay safe out there.');
+    }
+
+    /**
+     * Revoke a sessions-table row by id. Used by the "Active sessions"
+     * list to sign out other devices. Only the row's owner can kill it.
+     */
+    public function revokeSession(Request $request, string $sessionId): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        try {
+            $count = DB::table('sessions')
+                ->where('id', $sessionId)
+                ->where('user_id', $user->id)
+                ->delete();
+        } catch (\Throwable) {
+            return back()->with('status', 'Session storage is not database-backed — nothing to revoke.');
+        }
+
+        return back()->with('status', $count ? 'Session revoked.' : 'Session not found.');
+    }
+
+    // ---------------- Notifications ----------------
+
+    public function updateNotifications(Request $request): RedirectResponse
+    {
+        $defaults = User::notificationDefaults();
+        $rules = collect($defaults)
+            ->mapWithKeys(fn ($_, $k) => [$k => ['nullable', 'boolean']])
+            ->all();
+
+        $validated = $request->validate($rules);
+
+        $prefs = collect($defaults)
+            ->map(fn ($default, $k) => array_key_exists($k, $validated) ? (bool) $validated[$k] : (bool) $default)
+            ->all();
+
+        $request->user()->forceFill(['notification_prefs' => $prefs])->save();
+
+        return back()->with('status', 'Notification preferences saved.');
     }
 
     // ---------------- transforms ----------------

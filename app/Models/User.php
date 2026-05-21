@@ -34,6 +34,25 @@ class User extends Authenticatable implements FilamentUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'notification_prefs' => 'array',
+        ];
+    }
+
+    /**
+     * The notification toggles we expose on /settings → Notifications.
+     * Keys are stable; admin can add new events here + UI picks them up
+     * automatically.
+     */
+    public static function notificationDefaults(): array
+    {
+        return [
+            'low_power' => true,
+            'agent_failed' => true,
+            'payout_sent' => true,
+            'dispute_update' => true,
+            'invoice_issued' => true,
+            'weekly_digest' => false,
+            'product_updates' => false,
         ];
     }
 

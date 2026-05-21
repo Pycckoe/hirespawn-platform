@@ -325,6 +325,210 @@ const Settings = (() => {
   // existing /power/checkout endpoint (TopupController). All thresholds
   // (min / max / VAT / per-power rate) flow from /admin/site-settings
   // via the useRates() hook, no hardcoded numbers.
+  // ---------------- Integrations tab ----------------
+  // Same shape ConsoleController ships — buyer's OAuth connections,
+  // each row has Connect / Reconnect / Disconnect actions that bounce
+  // through the /oauth/{provider}/* endpoints.
+  const IntegrationsTab = ({ integrations }) => (
+    <div>
+      <Section title="Third-party integrations" sub="Agents that act on your behalf (send Slack messages, create HubSpot leads, push to GitHub) need access to those services. Connect each provider once — your tokens are encrypted at rest and only used when an agent calls a matching tool.">
+        {integrations.length === 0 ? (
+          <div style={{ padding: '20px 0', textAlign: 'center', color: palette.textMute }}>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>⚷</div>
+            <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No integrations registered</div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>An admin needs to register OAuth apps at /admin/oauth-apps first.</div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+            {integrations.map(i => (
+              <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected && !i.expired ? palette.accentDim : palette.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{i.icon || i.provider.slice(0,1).toUpperCase()}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{i.label}</div>
+                    <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, marginTop: 2 }}>{i.provider}</div>
+                  </div>
+                  {i.connected && !i.expired && <span style={{ padding: '2px 7px', background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>✓ on</span>}
+                  {i.connected && i.expired && <span style={{ padding: '2px 7px', background: 'rgba(255,184,77,0.12)', color: '#f3b34a', fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>expired</span>}
+                </div>
+                {i.scopes?.length > 0 && (
+                  <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 10, lineHeight: 1.5 }}>
+                    Scopes: {i.scopes.join(', ')}
+                  </div>
+                )}
+                {i.connected ? (
+                  <>
+                    <div style={{ fontSize: 12, color: palette.textDim, marginBottom: 8 }}>
+                      Connected{i.accountLabel ? ` as ${i.accountLabel}` : ''}{i.connectedAt ? ` · ${i.connectedAt}` : ''}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <a href={`/oauth/${i.provider}/connect?return=${encodeURIComponent('/settings?tab=integrations')}`} style={{ flex: 1, padding: '7px 10px', borderRadius: 6, background: 'transparent', color: palette.text, border: `1px solid ${palette.border}`, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none', textAlign: 'center' }}>
+                        Reconnect
+                      </a>
+                      <button
+                        onClick={() => {
+                          if (!confirm(`Disconnect ${i.label}? Agents using it will fail to run.`)) return;
+                          router.delete(route('oauth.disconnect', i.provider), { preserveScroll: true });
+                        }}
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: 6, background: 'transparent', color: palette.red, border: `1px solid ${palette.red}`, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <a href={`/oauth/${i.provider}/connect?return=${encodeURIComponent('/settings?tab=integrations')}`} style={{ display: 'block', textAlign: 'center', padding: '9px 12px', borderRadius: 6, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                    Connect {i.label} →
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+
+  // ---------------- Security tab ----------------
+  // - Change-password form (PATCH /settings/password, current-password rule)
+  // - Active DB sessions (delete to sign out other devices)
+  // - Activity feed (recent api-key creates, oauth connects, top-ups)
+  const SecurityTab = ({ data }) => {
+    const { data: form, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
+      current_password: '',
+      password: '',
+      password_confirmation: '',
+    });
+
+    const submit = (e) => {
+      e.preventDefault();
+      patch(route('settings.password.update'), {
+        preserveScroll: true,
+        onSuccess: () => reset(),
+      });
+    };
+
+    return (
+      <div>
+        <Section title="Password" sub="Use 12+ characters. We hash with bcrypt — even we can't read it.">
+          <form onSubmit={submit} style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
+            <Field label="Current password" type="password" value={form.current_password} onChange={v => setData('current_password', v)} error={errors.current_password} />
+            <Field label="New password" type="password" value={form.password} onChange={v => setData('password', v)} error={errors.password} />
+            <Field label="Confirm new password" type="password" value={form.password_confirmation} onChange={v => setData('password_confirmation', v)} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+              {recentlySuccessful && <span style={{ fontSize: 12, color: palette.accent }}>Saved</span>}
+              <button type="submit" disabled={processing} style={{ padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.6 : 1 }}>
+                {processing ? 'Saving…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </Section>
+
+        <Section title={`Active sessions · ${data.sessions.length}`} sub="Sign out other devices if you suspect anything. Closing your current session ends this tab too.">
+          {data.sessions.length === 0 ? (
+            <div style={{ padding: '14px 0', fontSize: 13, color: palette.textMute, textAlign: 'center' }}>
+              Session storage is not database-backed on this install — nothing to display.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {data.sessions.map(s => (
+                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 130px auto', gap: 14, alignItems: 'center', padding: '10px 14px', background: 'var(--p-inset-soft)', borderRadius: 8, border: `1px solid ${s.current ? palette.accentDim : palette.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: palette.text }}>{s.agent}</div>
+                    <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>{s.ip || 'unknown ip'}</div>
+                  </div>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim }}>{s.lastActive}</div>
+                  {s.current ? (
+                    <span style={{ padding: '2px 7px', background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4, textAlign: 'center' }}>this session</span>
+                  ) : <span />}
+                  <button
+                    disabled={s.current}
+                    onClick={() => {
+                      if (!confirm('Sign out this session?')) return;
+                      router.delete(route('settings.sessions.revoke', s.id), { preserveScroll: true });
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 6, background: 'transparent', color: s.current ? palette.textMute : palette.red, border: `1px solid ${s.current ? palette.border : palette.red}`, fontSize: 11, fontFamily: 'inherit', cursor: s.current ? 'not-allowed' : 'pointer', opacity: s.current ? 0.5 : 1 }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title="Recent activity" sub="Significant security events on your workspace. Persistent audit log lands later.">
+          {data.activity.length === 0 ? (
+            <div style={{ padding: '14px 0', fontSize: 13, color: palette.textMute, textAlign: 'center' }}>No activity yet.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {data.activity.map((e, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 110px', gap: 12, alignItems: 'center', padding: '8px 12px', borderRadius: 6 }}>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 14, color: palette.accent, textAlign: 'center' }}>{e.icon}</div>
+                  <div style={{ fontSize: 13, color: palette.text }}>{e.label}</div>
+                  <div title={e.ts} style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, textAlign: 'right' }}>{e.at}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      </div>
+    );
+  };
+
+  // ---------------- Notifications tab ----------------
+  // Reads the keyed defaults map from the controller and renders one
+  // toggle per event. Saved via PATCH /settings/notifications.
+  const NotificationsTab = ({ data }) => {
+    const { data: form, setData, patch, processing, recentlySuccessful } = useForm(data.prefs);
+    const submit = (e) => {
+      e.preventDefault();
+      patch(route('settings.notifications.update'), { preserveScroll: true });
+    };
+    // Human labels — fall back to the key if we forgot one.
+    const LABELS = {
+      low_power:        ['Low Power balance', 'When your workspace drops below 10% balance.'],
+      agent_failed:     ['Agent run failures', 'When an agent invocation errors out at the LLM or a tool.'],
+      payout_sent:      ['Vendor payouts sent', 'When a cash-out you requested settles to your bank/wallet.'],
+      dispute_update:   ['Dispute updates', 'When a dispute you raised (or one against your listing) changes state.'],
+      invoice_issued:   ['Invoices', 'When a new top-up invoice is generated.'],
+      weekly_digest:    ['Weekly digest', 'Friday rollup of burn, revenue, and notable events.'],
+      product_updates:  ['Product updates', 'Occasional emails about new agent capabilities + platform features.'],
+    };
+
+    return (
+      <Section title="Notification channels" sub="Toggle which events ping you. Email is the only channel today — Slack/webhook routing ships in a later pass.">
+        <form onSubmit={submit}>
+          <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
+            {Object.keys(data.defaults).map(key => {
+              const [label, hint] = LABELS[key] || [key, ''];
+              return (
+                <label key={key} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'center', padding: '12px 14px', borderRadius: 8, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: palette.text, fontWeight: 500 }}>{label}</div>
+                    {hint && <div style={{ fontSize: 12, color: palette.textMute, marginTop: 2 }}>{hint}</div>}
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!form[key]}
+                    onChange={e => setData(key, e.target.checked)}
+                    style={{ width: 18, height: 18, accentColor: palette.accent, cursor: 'pointer' }}
+                  />
+                </label>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+            {recentlySuccessful && <span style={{ fontSize: 12, color: palette.accent }}>Saved</span>}
+            <button type="submit" disabled={processing} style={{ padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.6 : 1 }}>
+              {processing ? 'Saving…' : 'Save preferences'}
+            </button>
+          </div>
+        </form>
+      </Section>
+    );
+  };
+
   const CUSTOM_PACK_KEY = '__custom__';
 
   const TopupPanel = ({ powerPacks, fmtMoney }) => {
@@ -665,6 +869,7 @@ const Settings = (() => {
     const {
       workspace = {}, account = {}, apiKeys = [], members = [], invoices = [], billing = {},
       powerPacks = [],
+      integrations = [], security = { sessions: [], activity: [] }, notifications = { defaults: {}, prefs: {} },
       flash = {},
     } = usePage().props;
 
@@ -739,9 +944,9 @@ const Settings = (() => {
               {tab === 'members'      && <MembersTab members={members} />}
               {tab === 'keys'         && <KeysTab apiKeys={apiKeys} apiKeySecret={flash?.apiKeySecret} />}
               {tab === 'billing'      && <BillingTab billing={billing} invoices={invoices} powerPacks={powerPacks} />}
-              {tab === 'integrations' && <ComingSoonTab subject="Integrations" />}
-              {tab === 'security'     && <ComingSoonTab subject="Security & audit log" />}
-              {tab === 'notifications'&& <ComingSoonTab subject="Notification channels" />}
+              {tab === 'integrations' && <IntegrationsTab integrations={integrations} />}
+              {tab === 'security'     && <SecurityTab data={security} />}
+              {tab === 'notifications'&& <NotificationsTab data={notifications} />}
               {tab === 'danger'       && <DangerZone workspace={workspace} />}
             </div>
           </div>
