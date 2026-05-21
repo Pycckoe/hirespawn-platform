@@ -82,7 +82,7 @@ const Dashboard = (() => {
           {isAdmin && <a href="/admin" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
           <Link href="/roster" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Hire agent</Link>
           <Link href="/vendor" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.cyan, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Vendor view →</Link>
-          <Link href="/power" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
+          <Link href="/settings?tab=billing" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
           <UserMenu user={user} initials={initials} />
         </div>
       </div>
@@ -171,7 +171,7 @@ const Dashboard = (() => {
       <div style={{ marginTop: 'auto', padding: 12, borderRadius: 8, background: 'rgba(180,242,91,0.05)', border: `1px solid ${palette.accentDim}` }}>
         <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>Power balance</div>
         <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 4 }}>{powerBalance.toLocaleString()}<span style={{ fontSize: 14, color: palette.accent, marginLeft: 4 }}>⚡</span></div>
-        <Link href="/power" style={{ display: 'inline-block', marginTop: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textDecoration: 'none' }}>top up →</Link>
+        <Link href="/settings?tab=billing" style={{ display: 'inline-block', marginTop: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textDecoration: 'none' }}>top up →</Link>
       </div>
       <style>{`@keyframes dirA-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
     </div>
@@ -414,7 +414,7 @@ const Dashboard = (() => {
           <div style={{ fontSize: 24, marginBottom: 6 }}>⚡</div>
           <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No invoices yet</div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 14 }}>Top up power to start your billing history.</div>
-          <Link href="/power" style={{ display: 'inline-block', padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Buy Power +</Link>
+          <Link href="/settings?tab=billing" style={{ display: 'inline-block', padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Buy Power +</Link>
         </div>
       )}
     </Glass>
@@ -424,7 +424,7 @@ const Dashboard = (() => {
   const QuickActions = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
       {[
-        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',                href: '/power' },
+        { icon: '⚡', t: 'Buy Power',     d: 'Top up balance',                href: '/settings?tab=billing' },
         { icon: '◇', t: 'Hire agent',    d: 'Browse the roster',             href: '/roster' },
         { icon: '⌘', t: 'API keys',      d: 'Manage in settings',            href: '/settings?tab=keys' },
         { icon: '◈', t: 'Invite team',    d: 'Members & roles',              href: '/settings?tab=members' },

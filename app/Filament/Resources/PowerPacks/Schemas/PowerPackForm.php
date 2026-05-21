@@ -43,20 +43,33 @@ class PowerPackForm
                             ->required()
                             ->numeric()
                             ->minValue(0),
+                        // Admin enters the price in euros (the unit they
+                        // think in); we transform between euros (form) and
+                        // cents (DB) so the column stays integer + the
+                        // number always matches the buyer-facing price.
                         TextInput::make('price_cents')
-                            ->label('Price (cents)')
-                            ->helperText('Leave blank for "Talk to sales" packs. €1 = 100 cents.')
+                            ->label('Price (€)')
+                            ->helperText('Buyer-facing price. Leave blank for "Talk to sales" packs.')
                             ->numeric()
-                            ->minValue(0),
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->prefix('€')
+                            ->formatStateUsing(fn ($state) => $state === null
+                                ? null
+                                : number_format($state / 100, 2, '.', ''))
+                            ->dehydrateStateUsing(fn ($state) => $state === null || $state === ''
+                                ? null
+                                : (int) round(((float) $state) * 100)),
                         TextInput::make('currency')
                             ->required()
                             ->maxLength(3)
                             ->default('EUR'),
                         TextInput::make('per_power_eur')
                             ->label('€ per ⚡ (effective rate)')
-                            ->helperText('Auto-display rate. e.g. 0.009 = €0.009 per Power.')
+                            ->helperText('Sticker rate per Power. e.g. 0.0099 = €0.0099 per ⚡.')
                             ->numeric()
-                            ->step(0.0001),
+                            ->step(0.0001)
+                            ->prefix('€'),
                     ])
                     ->columns(2),
 

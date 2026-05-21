@@ -16,46 +16,63 @@ class PowerPacksTable
         return $table
             ->columns([
                 TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->weight('bold'),
                 TextColumn::make('slug')
-                    ->searchable(),
+                    ->fontFamily('mono')
+                    ->color('gray')
+                    ->searchable()
+                    ->toggleable(),
+                // Power → human "100k⚡" instead of raw "100,000" so it
+                // matches what the buyer sees on /pricing + /power.
                 TextColumn::make('power')
-                    ->numeric()
-                    ->sortable(),
+                    ->label('Power (⚡)')
+                    ->formatStateUsing(fn (int $state): string => $state >= 1000
+                        ? number_format($state / 1000, $state % 1000 === 0 ? 0 : 1, '.', '').'k'
+                        : (string) $state)
+                    ->sortable()
+                    ->alignEnd(),
+                // Price as euros with 2 decimals, matching the buyer
+                // view. Underlying column is cents; we just format.
                 TextColumn::make('price_cents')
-                    ->numeric()
-                    ->sortable(),
+                    ->label('Price (€)')
+                    ->formatStateUsing(fn (?int $state): string => $state === null
+                        ? 'Custom'
+                        : '€'.number_format($state / 100, 2, '.', ''))
+                    ->sortable()
+                    ->alignEnd(),
                 TextColumn::make('currency')
-                    ->searchable(),
+                    ->badge()
+                    ->color('gray')
+                    ->toggleable(),
+                // Per-power rate shown at 4 decimals so admins see the
+                // real number (the model stores 0.0099, not 0.01).
                 TextColumn::make('per_power_eur')
-                    ->numeric()
-                    ->sortable(),
+                    ->label('€ per ⚡')
+                    ->formatStateUsing(fn ($state): string => $state === null
+                        ? '—'
+                        : '€'.number_format((float) $state, 4, '.', ''))
+                    ->sortable()
+                    ->alignEnd(),
                 IconColumn::make('is_popular')
-                    ->boolean(),
+                    ->boolean()
+                    ->sortable(),
                 TextColumn::make('sort_order')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('audience')
-                    ->searchable(),
+                    ->searchable()
+                    ->limit(40)
+                    ->toggleable(),
+                TextColumn::make('updated_at')
+                    ->dateTime('M d, H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
-                //
-            ])
-            ->recordActions([
-                EditAction::make(),
-            ])
+            ->recordActions([EditAction::make()])
             ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+                BulkActionGroup::make([DeleteBulkAction::make()]),
+            ])
+            ->defaultSort('sort_order');
     }
 }

@@ -711,6 +711,7 @@ sla:
 
   const PayoutsTab = ({ payoutMethods, cashOut, payouts }) => {
     const [showAdd, setShowAdd] = useState(payoutMethods.length === 0);
+    const rates = useRates();
 
     return (
       <div>
