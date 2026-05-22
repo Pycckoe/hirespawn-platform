@@ -18,6 +18,15 @@ class SubscriptionController extends Controller
     public function store(Request $request, Agent $agent): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user, 401);
+
+        // Refuse if the agent isn't approved — keeps draft / pending /
+        // rejected listings from being subscribed to by mistake (the
+        // catalog shouldn't surface them in the first place, but the
+        // detail URL is guessable).
+        if ($agent->status !== 'approved') {
+            return back()->withErrors(['hire' => 'This agent is not currently available for hire.']);
+        }
 
         $existing = Subscription::query()
             ->where('buyer_id', $user->id)
@@ -28,13 +37,13 @@ class SubscriptionController extends Controller
         if ($existing) {
             return redirect()
                 ->route('console')
-                ->with('status', "Already deployed: {$agent->name}");
+                ->with('status', "Already hired: {$agent->name}");
         }
 
-        DB::transaction(function () use ($user, $agent) {
+        $sub = DB::transaction(function () use ($user, $agent) {
             $user->buyerProfile()->firstOrCreate([], []);
 
-            Subscription::create([
+            $sub = Subscription::create([
                 'buyer_id' => $user->id,
                 'agent_id' => $agent->id,
                 'status' => 'active',
@@ -44,11 +53,18 @@ class SubscriptionController extends Controller
             ]);
 
             $agent->increment('subscribers_count');
+
+            return $sub;
         });
+
+        audit('subscription.hire', $sub, [
+            'agent' => $agent->slug,
+            'agent_name' => $agent->name,
+        ]);
 
         return redirect()
             ->route('console')
-            ->with('status', "Deployed {$agent->name}");
+            ->with('status', "✓ Hired {$agent->name} — open Console to configure + run.");
     }
 
     /**
@@ -80,6 +96,11 @@ class SubscriptionController extends Controller
                 $agent->decrement('subscribers_count');
             }
         });
+
+        audit('subscription.cancel', $sub, [
+            'agent' => $agent->slug,
+            'agent_name' => $agent->name,
+        ]);
 
         return back()->with('status', "Cancelled deployment of {$agent->name}.");
     }

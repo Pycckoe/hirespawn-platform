@@ -147,6 +147,31 @@ const AgentDetail = (() => {
   // Header — hero of the agent
   const AgentHeader = ({ agent, isSubscribed = false, isAuthenticated = false, subscription = null }) => {
     const rates = useRates();
+    // useForm gives us processing + onError so the buyer sees the
+    // button transition to "Hiring…" + a visible error if the server
+    // rejects (e.g. session expired, validation). The previous
+    // router.post(...) call had no visible feedback at all — clicks
+    // looked like nothing happened.
+    const hire = useForm({});
+    const cancel = useForm({});
+    const [hireError, setHireError] = useState(null);
+
+    const onHire = () => {
+      setHireError(null);
+      hire.post(`/agent/${agent.id}/subscribe`, {
+        preserveScroll: true,
+        onError: (errors) => {
+          const msg = Object.values(errors || {})[0] || 'Could not hire — please try again.';
+          setHireError(String(msg));
+        },
+      });
+    };
+
+    const onCancel = () => {
+      if (!confirm(`Cancel ${agent.name} subscription? You'll lose access to its tools.`)) return;
+      cancel.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true });
+    };
+
     return (
     <div style={{ padding: '40px 40px 28px' }}>
       {/* Breadcrumb */}
@@ -225,22 +250,30 @@ const AgentDetail = (() => {
                 Open Console
               </Link>
               <button
-                onClick={() => {
-                  if (!confirm(`Cancel ${agent.name} subscription? You'll lose access to its tools.`)) return;
-                  router.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true });
-                }}
-                style={{ width: '100%', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.red, fontSize: 12, fontFamily: 'inherit', cursor: 'pointer' }}
+                type="button"
+                disabled={cancel.processing}
+                onClick={onCancel}
+                style={{ width: '100%', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.red, fontSize: 12, fontFamily: 'inherit', cursor: cancel.processing ? 'wait' : 'pointer', opacity: cancel.processing ? 0.6 : 1 }}
               >
-                Cancel subscription
+                {cancel.processing ? 'Cancelling…' : 'Cancel subscription'}
               </button>
             </div>
           ) : isAuthenticated ? (
-            <button
-              onClick={() => router.post(`/agent/${agent.id}/subscribe`)}
-              style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              Hire {agent.name} →
-            </button>
+            <div style={{ marginTop: 18 }}>
+              <button
+                type="button"
+                disabled={hire.processing}
+                onClick={onHire}
+                style={{ width: '100%', padding: '14px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: hire.processing ? 'wait' : 'pointer', opacity: hire.processing ? 0.65 : 1 }}
+              >
+                {hire.processing ? `Hiring ${agent.name}…` : `Hire ${agent.name} →`}
+              </button>
+              {hireError && (
+                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,99,99,0.08)', border: `1px solid ${palette.red}`, color: palette.red, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>
+                  ✗ {hireError}
+                </div>
+              )}
+            </div>
           ) : (
             <a href={`/login?intended=${encodeURIComponent('/agent/' + agent.id)}`} style={{ display: 'block', textDecoration: 'none' }}>
               <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
