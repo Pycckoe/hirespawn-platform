@@ -63,6 +63,34 @@ class AgentController extends Controller
                 ->first()
             : null;
 
+        // Chat history — last 12 runs against this subscription. Used
+        // by the Run panel on /agent/{slug} to render a real conversation
+        // (input → output) instead of fire-and-forget.
+        $recentRuns = $subscription
+            ? \App\Models\UsageEvent::query()
+                ->where('subscription_id', $subscription->id)
+                ->where('event_type', 'run')
+                ->latest('recorded_at')
+                ->limit(12)
+                ->get()
+                ->map(fn ($e) => [
+                    'id' => $e->id,
+                    'input' => $e->metadata['input_preview'] ?? $e->metadata['input'] ?? '',
+                    'output' => $e->metadata['output'] ?? $e->metadata['output_preview'] ?? '',
+                    'error' => $e->metadata['error'] ?? null,
+                    'ok' => $e->agent_response_status < 400,
+                    'cost' => (int) $e->power_consumed,
+                    'inputTokens' => (int) ($e->input_tokens ?? 0),
+                    'outputTokens' => (int) ($e->output_tokens ?? 0),
+                    'latencyMs' => (int) ($e->latency_ms ?? 0),
+                    'toolCalls' => $e->metadata['tool_calls'] ?? [],
+                    'at' => $e->recorded_at?->diffForHumans() ?? '—',
+                ])
+                ->reverse() // oldest → newest, chat reads top-to-bottom
+                ->values()
+                ->all()
+            : [];
+
         $related = Agent::query()
             ->with('category')
             ->where('status', 'approved')
@@ -108,6 +136,7 @@ class AgentController extends Controller
             'isSubscribed' => (bool) $subscription,
             'isAuthenticated' => (bool) $user,
             'oauthChecklist' => $oauthChecklist,
+            'recentRuns' => $recentRuns,
             // settingDefs ship to UI so we can show buyers what they
             // need to configure before hiring (and after, deep-link
             // to the configure page).

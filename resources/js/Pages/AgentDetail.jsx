@@ -1,5 +1,5 @@
 import '@/setup';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
@@ -373,40 +373,122 @@ const AgentDetail = (() => {
 
   // Run-task panel — only shown to subscribed buyers. Posts to
   // /agent/{slug}/run which debits power and logs a UsageEvent.
-  const RunTaskPanel = ({ agent }) => {
+  // Chat-style run panel — scrollable conversation history above an
+  // input field. After each submit we reload only the `recentRuns` prop
+  // so the new turn appears in the history without a full page swap.
+  const RunTaskPanel = ({ agent, recentRuns = [] }) => {
+    const rates = useRates();
     const { data, setData, post, processing, errors, reset } = useForm({ input: '' });
+    const historyRef = useRef(null);
+
+    // Scroll the conversation to the latest turn whenever the runs list
+    // grows (after a submit's reload, or on first mount).
+    useEffect(() => {
+      if (historyRef.current) {
+        historyRef.current.scrollTop = historyRef.current.scrollHeight;
+      }
+    }, [recentRuns.length]);
+
     const submit = (e) => {
       e.preventDefault();
       post(route('agent.run', agent.id), {
         preserveScroll: true,
-        onSuccess: () => reset('input'),
+        // Refresh only the recentRuns prop on success so the new turn
+        // shows up instantly without re-rendering the whole page.
+        onSuccess: () => {
+          reset('input');
+          router.reload({ only: ['recentRuns', 'powerBalance'] });
+        },
       });
+    };
+
+    const onEnterKey = (e) => {
+      // Cmd/Ctrl + Enter to submit — typical chat shortcut.
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && data.input.trim() && !processing) {
+        e.preventDefault();
+        submit(e);
+      }
     };
 
     return (
       <div style={{ padding: '0 40px 36px' }}>
-        <Glass style={{ padding: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+        <Glass style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${palette.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● Run a task</div>
-              <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, color: palette.text, margin: '6px 0 0' }}>Send work to {agent.name}.</h3>
-              <p style={{ fontSize: 13, color: palette.textDim, margin: '4px 0 0' }}>One run · burns <span style={{ color: palette.accent }}>{agent.power}⚡</span> · ≈ €{(agent.power * 0.009).toFixed(3)} at Pro rate.</p>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● Chat with {agent.name}</div>
+              <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, color: palette.text, margin: '6px 0 0' }}>Send work · see the result inline</h3>
+              <p style={{ fontSize: 13, color: palette.textDim, margin: '4px 0 0' }}>
+                Each run burns <span style={{ color: palette.accent }}>{agent.power}⚡</span> · ≈ €{(agent.power * rates.eurPerPower).toFixed(4)}
+              </p>
             </div>
+            <Link href="/console" style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, textDecoration: 'none', letterSpacing: 1, textTransform: 'uppercase' }}>full log →</Link>
           </div>
-          <form onSubmit={submit}>
+
+          {/* Conversation history */}
+          <div
+            ref={historyRef}
+            style={{ maxHeight: 480, overflowY: 'auto', padding: '20px 24px', background: 'var(--p-inset-soft)' }}
+          >
+            {recentRuns.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: palette.textDim }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>▸</div>
+                <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No runs yet</div>
+                <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>Type a task below — answers land here.</div>
+              </div>
+            ) : (
+              recentRuns.map(run => (
+                <div key={run.id} style={{ marginBottom: 22 }}>
+                  {/* User turn */}
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, flexShrink: 0 }}>YOU</div>
+                    <div style={{ flex: 1, padding: '10px 14px', background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                      {run.input || <span style={{ color: palette.textMute }}>(no input)</span>}
+                    </div>
+                  </div>
+                  {/* Agent turn */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: run.ok ? palette.accentDim : 'rgba(255,99,99,0.12)', color: run.ok ? palette.accent : palette.red, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>AI</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ padding: '10px 14px', background: run.ok ? 'rgba(180,242,91,0.04)' : 'rgba(255,99,99,0.05)', borderRadius: 10, border: `1px solid ${run.ok ? palette.accentDim : 'rgba(255,99,99,0.3)'}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                        {run.error
+                          ? <span style={{ color: palette.red, fontFamily: 'Geist Mono, monospace', fontSize: 12 }}>✗ {run.error}</span>
+                          : (run.output || <span style={{ color: palette.textMute }}>(empty response)</span>)
+                        }
+                      </div>
+                      <div style={{ marginTop: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <span>{run.at}</span>
+                        {run.cost > 0 && <span><span style={{ color: palette.accent }}>{run.cost}⚡</span> burned</span>}
+                        {(run.inputTokens > 0 || run.outputTokens > 0) && <span>{run.inputTokens}+{run.outputTokens} tok</span>}
+                        {run.latencyMs > 0 && <span>{run.latencyMs}ms</span>}
+                        {run.toolCalls?.length > 0 && (
+                          <span style={{ color: palette.cyan }}>{run.toolCalls.length} tool{run.toolCalls.length !== 1 ? 's' : ''} called</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Input */}
+          <form onSubmit={submit} style={{ padding: '16px 24px 20px', borderTop: `1px solid ${palette.border}` }}>
             <textarea
               value={data.input}
               onChange={(e) => setData('input', e.target.value)}
-              placeholder={`What should ${agent.name} do? — e.g. "${agent.spec}"`}
-              rows={4}
-              maxLength={4000}
+              onKeyDown={onEnterKey}
+              placeholder={`Ask ${agent.name} to do something. E.g. "${agent.spec || 'process a task'}"`}
+              rows={3}
+              maxLength={8000}
               style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${errors.input ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
             />
             {errors.input && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{errors.input}</div>}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>{data.input.length} / 4000</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
+                {data.input.length} / 8000 · <span style={{ opacity: 0.7 }}>⌘+Enter to send</span>
+              </div>
               <button type="submit" disabled={processing || !data.input.trim()} style={{ padding: '12px 24px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: processing || !data.input.trim() ? 'not-allowed' : 'pointer', opacity: processing || !data.input.trim() ? 0.5 : 1 }}>
-                {processing ? 'Running…' : `Run · ${agent.power}⚡`}
+                {processing ? 'Running…' : `Send · ${agent.power}⚡`}
               </button>
             </div>
           </form>
@@ -636,7 +718,7 @@ const AgentDetail = (() => {
     const {
       agent = null, relatedAgents = [],
       subscription = null, isSubscribed = false, isAuthenticated = false,
-      oauthChecklist = [], settingDefs = [],
+      oauthChecklist = [], settingDefs = [], recentRuns = [],
       auth, workspaceName = 'Workspace', powerBalance = 0,
     } = usePage().props;
     const user = auth?.user || null;
@@ -665,7 +747,7 @@ const AgentDetail = (() => {
                   isAuthenticated={isAuthenticated}
                 />
               )}
-              {isSubscribed && <RunTaskPanel agent={agent} />}
+              {isSubscribed && <RunTaskPanel agent={agent} recentRuns={recentRuns} />}
               <SpecStrip agent={agent} />
               <Reveal><Capabilities agent={agent} /></Reveal>
               <Reveal><SampleTasks agent={agent} /></Reveal>

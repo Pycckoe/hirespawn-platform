@@ -86,6 +86,7 @@ class InvokeController extends Controller
                 'provider_cost_cents' => $response->providerCostCents,
                 'recorded_at' => now(),
                 'metadata' => [
+                    'input' => $validated['input'],
                     'input_preview' => Str::limit($validated['input'], 200),
                     'error' => $response->errorMessage,
                     'agent_slug' => $agent->slug,
@@ -114,6 +115,11 @@ class InvokeController extends Controller
                 'provider_cost_cents' => $response->providerCostCents,
                 'recorded_at' => now(),
                 'metadata' => [
+                    // Full input + output so the chat UI on /agent/{slug}
+                    // can render real turns; preview kept for the
+                    // condensed Live Ops feed on /console.
+                    'input' => $validated['input'],
+                    'output' => $response->text,
                     'input_preview' => Str::limit($validated['input'], 200),
                     'output_preview' => Str::limit($response->text, 200),
                     'agent_slug' => $agent->slug,
