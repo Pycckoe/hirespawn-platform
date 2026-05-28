@@ -65,7 +65,7 @@ class SubscriptionSettingsController extends Controller
             if ($d->type === 'select' && ! empty($d->options)) {
                 $rule[] = \Illuminate\Validation\Rule::in($d->options);
             }
-            if (in_array($d->type, ['text', 'textarea', 'select'], true)) {
+            if (in_array($d->type, ['text', 'textarea', 'select', 'slack_channel'], true)) {
                 $rule[] = 'max:4000';
             }
             $rules[$field] = $rule;

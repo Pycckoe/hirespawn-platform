@@ -1,4 +1,5 @@
 import '@/setup';
+import { useEffect, useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 
@@ -86,6 +87,52 @@ const SubscriptionConfigure = (() => {
   };
 
   // One row in the configure form. Switches input based on def.type.
+  // Live Slack channel dropdown — fetches the buyer's real channels
+  // from /oauth/slack/channels (which calls Slack's conversations.list
+  // with their stored token). Falls back to a "connect Slack" prompt
+  // when they haven't authorised yet.
+  const SlackChannelPicker = ({ palette, value, onChange, inputStyle, isRequired }) => {
+    const [state, setState] = useState({ loading: true, connected: false, channels: [] });
+
+    useEffect(() => {
+      let alive = true;
+      fetch('/oauth/slack/channels', { headers: { Accept: 'application/json' } })
+        .then(r => r.json())
+        .then(d => { if (alive) setState({ loading: false, connected: !!d.connected, channels: d.channels || [] }); })
+        .catch(() => { if (alive) setState({ loading: false, connected: false, channels: [] }); });
+      return () => { alive = false; };
+    }, []);
+
+    if (state.loading) {
+      return <div style={{ ...inputStyle, color: palette.textMute, fontFamily: 'Geist Mono, monospace' }}>Loading channels…</div>;
+    }
+
+    if (!state.connected) {
+      return (
+        <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 12, color: palette.amber, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <span>Slack not connected.</span>
+          <a href={`/oauth/slack/connect?return=${encodeURIComponent(window.location.pathname)}`} style={{ color: palette.amber, fontWeight: 600, textDecoration: 'underline' }}>Connect Slack →</a>
+        </div>
+      );
+    }
+
+    if (state.channels.length === 0) {
+      return (
+        <div style={{ ...inputStyle, color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 12 }}>
+          No channels visible. Invite the Hirespawn bot to a channel, then reload.
+        </div>
+      );
+    }
+
+    return (
+      <select value={value ?? ''} onChange={e => onChange(e.target.value)} style={inputStyle}>
+        {!isRequired && <option value="">— none —</option>}
+        {!value && isRequired && <option value="">— pick a channel —</option>}
+        {state.channels.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+      </select>
+    );
+  };
+
   const DefField = ({ palette, def, value, onChange, error }) => {
     const inputStyle = {
       width: '100%',
@@ -117,6 +164,8 @@ const SubscriptionConfigure = (() => {
               {(def.options || []).map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           );
+        case 'slack_channel':
+          return <SlackChannelPicker palette={palette} value={value} onChange={onChange} inputStyle={inputStyle} isRequired={def.isRequired} />;
         case 'number':
           return (
             <input type="number" value={value ?? ''} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, fontFamily: 'Geist Mono, monospace' }} />

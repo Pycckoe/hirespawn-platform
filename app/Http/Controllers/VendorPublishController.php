@@ -307,7 +307,7 @@ class VendorPublishController extends Controller
             'settingDefs' => ['nullable', 'array', 'max:30'],
             'settingDefs.*.key' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/i'],
             'settingDefs.*.label' => ['required', 'string', 'max:120'],
-            'settingDefs.*.type' => ['required', Rule::in(['text', 'textarea', 'select', 'number', 'boolean'])],
+            'settingDefs.*.type' => ['required', Rule::in(['text', 'textarea', 'select', 'slack_channel', 'number', 'boolean'])],
             'settingDefs.*.default_value' => ['nullable', 'string', 'max:2000'],
             'settingDefs.*.options' => ['nullable', 'array', 'max:30'],
             'settingDefs.*.options.*' => ['string', 'max:120'],

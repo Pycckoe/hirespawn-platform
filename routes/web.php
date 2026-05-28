@@ -73,6 +73,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/oauth/{provider}/connect', [OauthController::class, 'start'])->name('oauth.start');
     Route::get('/oauth/{provider}/callback', [OauthController::class, 'callback'])->name('oauth.callback');
     Route::delete('/oauth/{provider}', [OauthController::class, 'disconnect'])->name('oauth.disconnect');
+    // Live resource pickers for the agent-configure UI.
+    Route::get('/oauth/slack/channels', [OauthController::class, 'slackChannels'])->name('oauth.slack.channels');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');

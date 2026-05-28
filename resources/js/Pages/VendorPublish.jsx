@@ -374,6 +374,7 @@ const VendorPublish = (() => {
               { value: 'text', label: 'Text (single line)' },
               { value: 'textarea', label: 'Text (multi-line)' },
               { value: 'select', label: 'Dropdown (select one)' },
+              { value: 'slack_channel', label: 'Slack channel (live picker)' },
               { value: 'number', label: 'Number' },
               { value: 'boolean', label: 'Boolean (on/off)' },
             ]}

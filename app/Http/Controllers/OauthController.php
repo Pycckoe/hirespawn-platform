@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\OauthApp;
 use App\Models\UserOauthToken;
+use App\Services\Oauth\SlackClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -156,6 +158,27 @@ class OauthController extends Controller
         audit('oauth.disconnect', null, ['provider' => $provider]);
 
         return back()->with('status', "Disconnected {$provider}.");
+    }
+
+    /**
+     * Live resource picker — returns the buyer's Slack channels so the
+     * agent-configure UI can render a dropdown instead of asking them
+     * to type a channel name by hand. Returns [] (+ connected:false)
+     * if Slack isn't connected.
+     */
+    public function slackChannels(Request $request, SlackClient $slack): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        if (! $user->oauthTokenFor('slack')) {
+            return response()->json(['connected' => false, 'channels' => []]);
+        }
+
+        return response()->json([
+            'connected' => true,
+            'channels' => $slack->listChannels($user),
+        ]);
     }
 
     private function redirectUri(string $provider): string
