@@ -27,11 +27,21 @@ class OauthAppsTable
                 TextColumn::make('client_id')
                     ->fontFamily('mono')
                     ->color('gray')
-                    ->limit(30)
+                    ->limit(20)
+                    ->placeholder('— not set —')
                     ->toggleable(),
                 TextColumn::make('default_scopes')
-                    ->formatStateUsing(fn ($state) => is_array($state) ? count($state).' scopes' : '0 scopes')
+                    ->label('Scopes')
+                    // Read straight off the record so Filament doesn't
+                    // iterate the array element-by-element (which rendered
+                    // "0 scopes, 0 scopes, 0 scopes").
+                    ->state(fn ($record): string => count($record->default_scopes ?? []).' scopes')
                     ->color('gray'),
+                TextColumn::make('configured')
+                    ->label('Credentials')
+                    ->state(fn ($record): string => $record->isConfigured() ? '✓ keys set' : '⚠ no keys')
+                    ->badge()
+                    ->color(fn ($record): string => $record->isConfigured() ? 'success' : 'warning'),
                 IconColumn::make('is_active')
                     ->boolean()
                     ->sortable(),
