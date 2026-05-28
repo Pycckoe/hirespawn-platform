@@ -34,16 +34,25 @@ class OauthController extends Controller
         $user = $request->user();
         abort_unless($user, 401);
 
-        $app = OauthApp::query()->where('provider', $provider)->where('is_active', true)->first();
-        abort_unless($app, 404, "Unknown OAuth provider: {$provider}");
+        $returnTo = $request->query('return', '/console');
+
+        // Find the provider regardless of active flag so we can give a
+        // clear message instead of a raw 404 when it's disabled / unconfigured.
+        $app = OauthApp::query()->where('provider', $provider)->first();
+        if (! $app) {
+            return redirect($returnTo)->with('status', "Unknown integration: {$provider}.");
+        }
+        if (! $app->is_active) {
+            return redirect($returnTo)->with('status', "{$app->label} is disabled. An admin can enable it at /admin/oauth-apps.");
+        }
         if (! $app->isConfigured()) {
-            return redirect('/console')->with('status', "{$app->label} is not yet configured. Ask an admin to add a client_id + client_secret at /admin/oauth-apps.");
+            return redirect($returnTo)->with('status', "{$app->label} is not yet configured. Ask an admin to add a client_id + client_secret at /admin/oauth-apps.");
         }
 
         $state = Str::random(40);
         $request->session()->put("oauth_state.{$provider}", $state);
         // Where to bounce back to after success — defaults to /console.
-        $request->session()->put("oauth_return.{$provider}", $request->query('return', '/console'));
+        $request->session()->put("oauth_return.{$provider}", $returnTo);
 
         $params = [
             'client_id' => $app->client_id,
@@ -172,12 +181,15 @@ class OauthController extends Controller
         abort_unless($user, 401);
 
         if (! $user->oauthTokenFor('slack')) {
-            return response()->json(['connected' => false, 'channels' => []]);
+            return response()->json(['connected' => false, 'channels' => [], 'error' => null]);
         }
+
+        $result = $slack->listChannels($user);
 
         return response()->json([
             'connected' => true,
-            'channels' => $slack->listChannels($user),
+            'channels' => $result['channels'],
+            'error' => $result['error'],
         ]);
     }
 

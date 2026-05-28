@@ -15,28 +15,30 @@ class SlackClient
 {
     /**
      * List the public + private channels the buyer's connected Slack
-     * token can see. Returns [{id, name}] sorted by name. Empty array
-     * on any failure (caller renders an empty dropdown + hint).
+     * token can see. Returns ['ok' => bool, 'channels' => [...], 'error' => ?string].
      *
-     * @return array<int, array{id: string, name: string}>
+     * Note: with a bot token + `channels:read` scope, conversations.list
+     * returns ALL public channels whether or not the bot is a member —
+     * membership only matters for POSTING. So an empty list almost always
+     * means a missing scope, not "invite the bot".
      */
     public function listChannels(User $user): array
     {
         $token = $user->oauthTokenFor('slack');
         if (! $token) {
-            return [];
+            return ['ok' => false, 'channels' => [], 'error' => 'not_connected'];
         }
 
         $access = $token->freshAccessToken();
         if (! $access) {
-            return [];
+            return ['ok' => false, 'channels' => [], 'error' => 'token_expired'];
         }
 
         try {
             $channels = [];
             $cursor = null;
+            $error = null;
 
-            // conversations.list paginates; pull up to ~1000 channels.
             do {
                 $resp = Http::withToken($access)
                     ->timeout(20)
@@ -49,6 +51,9 @@ class SlackClient
 
                 $json = $resp->json();
                 if (! ($json['ok'] ?? false)) {
+                    // Surface Slack's own error code (missing_scope,
+                    // invalid_auth, account_inactive, …) for the UI.
+                    $error = $json['error'] ?? 'slack_error';
                     break;
                 }
 
@@ -60,12 +65,11 @@ class SlackClient
             } while ($cursor && count($channels) < 1000);
 
             usort($channels, fn ($a, $b) => strcmp($a['name'], $b['name']));
-
             $token->forceFill(['last_used_at' => now()])->save();
 
-            return $channels;
-        } catch (Throwable) {
-            return [];
+            return ['ok' => $error === null, 'channels' => $channels, 'error' => $error];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'channels' => [], 'error' => 'request_failed'];
         }
     }
 }

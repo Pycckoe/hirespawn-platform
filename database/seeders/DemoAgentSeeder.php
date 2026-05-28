@@ -28,6 +28,13 @@ class DemoAgentSeeder extends Seeder
             return;
         }
 
+        // Only wire the demo on first run. Once it has a model assigned
+        // we assume the owner may have customised it — don't clobber on
+        // the next deploy (db:seed runs every time on Laravel Cloud).
+        if ($agent->llm_model_id) {
+            return;
+        }
+
         $model = LlmModel::where('slug', 'claude-sonnet-4-6')->first();
 
         $agent->forceFill([

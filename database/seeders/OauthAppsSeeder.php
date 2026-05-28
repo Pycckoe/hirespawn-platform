@@ -27,7 +27,7 @@ class OauthAppsSeeder extends Seeder
                 'authorize_url' => 'https://slack.com/oauth/v2/authorize',
                 'token_url' => 'https://slack.com/api/oauth.v2.access',
                 'api_base_url' => 'https://slack.com/api',
-                'default_scopes' => ['chat:write', 'channels:read', 'users:read'],
+                'default_scopes' => ['chat:write', 'chat:write.public', 'channels:read', 'users:read'],
                 'sort_order' => 10,
             ],
             [
@@ -96,18 +96,35 @@ class OauthAppsSeeder extends Seeder
             ],
         ];
 
+        // IMPORTANT: Laravel Cloud runs db:seed on every deploy. We must
+        // NOT clobber admin-entered credentials / active state on re-seed,
+        // otherwise the OAuth app gets reset and /oauth/{provider}/connect
+        // 404s after each deploy. So:
+        //   - new row  → insert catalog defaults + inactive + blank creds
+        //   - existing → refresh ONLY the catalog metadata (urls, scopes,
+        //     label, icon), leaving client_id / secret / is_active alone.
         foreach ($rows as $row) {
-            OauthApp::updateOrCreate(
-                ['provider' => $row['provider']],
-                $row + [
-                    // Newly inserted rows start INACTIVE — admin must fill
-                    // client_id + client_secret and flip the toggle before
-                    // they show up on the buyer's console.
-                    'is_active' => false,
-                    'client_id' => '',
-                    'encrypted_client_secret' => '',
-                ],
-            );
+            $existing = OauthApp::query()->where('provider', $row['provider'])->first();
+
+            if ($existing) {
+                $existing->forceFill([
+                    'label' => $row['label'],
+                    'icon' => $row['icon'],
+                    'authorize_url' => $row['authorize_url'],
+                    'token_url' => $row['token_url'],
+                    'api_base_url' => $row['api_base_url'],
+                    'default_scopes' => $row['default_scopes'],
+                    'sort_order' => $row['sort_order'],
+                ])->save();
+
+                continue;
+            }
+
+            OauthApp::create($row + [
+                'is_active' => false,
+                'client_id' => '',
+                'encrypted_client_secret' => '',
+            ]);
         }
     }
 }

@@ -150,7 +150,7 @@ const SubscriptionConfigure = (() => {
               inputStyle={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
               isRequired={false}
             />
-            <div style={{ fontSize: 11, color: palette.textMute, marginTop: 6 }}>The agent posts here when it has something to share. Invite the Hirespawn bot to the channel first.</div>
+            <div style={{ fontSize: 11, color: palette.textMute, marginTop: 6 }}>The agent posts here when it has something to share. Public channels work out of the box; for private channels, add the app to the channel via Slack → channel → Integrations → Add app.</div>
           </div>
         )}
       </Glass>
@@ -163,14 +163,14 @@ const SubscriptionConfigure = (() => {
   // with their stored token). Falls back to a "connect Slack" prompt
   // when they haven't authorised yet.
   const SlackChannelPicker = ({ palette, value, onChange, inputStyle, isRequired }) => {
-    const [state, setState] = useState({ loading: true, connected: false, channels: [] });
+    const [state, setState] = useState({ loading: true, connected: false, channels: [], error: null });
 
     useEffect(() => {
       let alive = true;
       fetch('/oauth/slack/channels', { headers: { Accept: 'application/json' } })
         .then(r => r.json())
-        .then(d => { if (alive) setState({ loading: false, connected: !!d.connected, channels: d.channels || [] }); })
-        .catch(() => { if (alive) setState({ loading: false, connected: false, channels: [] }); });
+        .then(d => { if (alive) setState({ loading: false, connected: !!d.connected, channels: d.channels || [], error: d.error || null }); })
+        .catch(() => { if (alive) setState({ loading: false, connected: false, channels: [], error: 'request_failed' }); });
       return () => { alive = false; };
     }, []);
 
@@ -187,10 +187,26 @@ const SubscriptionConfigure = (() => {
       );
     }
 
+    // Slack returned an error — surface what it actually was so the
+    // admin knows it's a scope problem, not a "missing channels" one.
+    if (state.error) {
+      const hint = {
+        missing_scope: 'The Slack app is missing the channels:read scope. Add it in the Slack app + /admin/oauth-apps, then reconnect.',
+        invalid_auth: 'Slack rejected the token. Reconnect Slack below.',
+        account_inactive: 'The Slack token belongs to a deactivated account. Reconnect.',
+      }[state.error] || `Slack error: ${state.error}.`;
+      return (
+        <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 12, color: palette.amber }}>
+          {hint}{' '}
+          <a href={`/oauth/slack/connect?return=${encodeURIComponent(window.location.pathname)}`} style={{ color: palette.amber, fontWeight: 600, textDecoration: 'underline' }}>Reconnect →</a>
+        </div>
+      );
+    }
+
     if (state.channels.length === 0) {
       return (
         <div style={{ ...inputStyle, color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 12 }}>
-          No channels visible. Invite the Hirespawn bot to a channel, then reload.
+          No channels found in this workspace.
         </div>
       );
     }
