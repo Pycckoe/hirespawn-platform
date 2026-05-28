@@ -11,12 +11,15 @@ const SubscriptionConfigure = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
   const Page = () => {
-    const { subscription, defs = [], values = {} } = usePage().props;
+    const { subscription, defs = [], values = {}, connections = [], routing = {} } = usePage().props;
 
     const initial = Object.fromEntries(
       defs.map(d => [d.key, values[d.key] ?? d.defaultValue ?? (d.type === 'boolean' ? false : '')])
     );
-    const { data, setData, patch, processing, errors, recentlySuccessful } = useForm({ values: initial });
+    const { data, setData, patch, processing, errors, recentlySuccessful } = useForm({
+      values: initial,
+      routing: routing || {},
+    });
 
     const submit = (e) => {
       e.preventDefault();
@@ -24,6 +27,12 @@ const SubscriptionConfigure = (() => {
     };
 
     const setVal = (k, v) => setData('values', { ...data.values, [k]: v });
+    const setRouting = (provider, field, v) => setData('routing', {
+      ...data.routing,
+      [provider]: { ...(data.routing[provider] || {}), [field]: v },
+    });
+
+    const nothingToConfigure = defs.length === 0 && connections.length === 0;
 
     return (
       <>
@@ -46,30 +55,55 @@ const SubscriptionConfigure = (() => {
               <Pill dot={palette.accent} style={{ marginBottom: 14 }}>{subscription.agentName} · status {subscription.status}</Pill>
               <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 40, fontWeight: 600, letterSpacing: -1.2, margin: '0 0 8px 0' }}>Configure {subscription.agentName}.</h1>
               <p style={{ fontSize: 15, color: palette.textDim, lineHeight: 1.55, marginBottom: 28 }}>
-                Values you pick here are substituted into the agent's system prompt as <code style={{ color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>{'{{key}}'}</code> on every run.
+                Connect the services this agent needs + pick where it acts. Variable values feed the agent's system prompt on every run.
               </p>
 
-              {defs.length === 0 ? (
+              {nothingToConfigure ? (
                 <Glass style={{ padding: 32, textAlign: 'center' }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>◌</div>
-                  <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No configuration needed</div>
-                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 16 }}>The vendor hasn't declared any variables for this agent.</div>
-                  <Link href={route('console')} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>← Back to console</Link>
+                  <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No setup needed</div>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 16 }}>This agent runs without integrations or variables — just chat with it.</div>
+                  <Link href={`/agent/${subscription.agentSlug}`} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Open agent →</Link>
                 </Glass>
               ) : (
                 <form onSubmit={submit}>
-                  <Glass style={{ padding: 24, marginBottom: 18 }}>
-                    {defs.map(d => (
-                      <DefField
-                        key={d.key}
-                        palette={palette}
-                        def={d}
-                        value={data.values[d.key]}
-                        onChange={(v) => setVal(d.key, v)}
-                        error={errors[`values.${d.key}`]}
-                      />
-                    ))}
-                  </Glass>
+                  {/* Connections — services the agent's skills require */}
+                  {connections.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Connections · where this agent acts</div>
+                      <div style={{ display: 'grid', gap: 12 }}>
+                        {connections.map(c => (
+                          <ConnectionCard
+                            key={c.provider}
+                            palette={palette}
+                            conn={c}
+                            channel={data.routing[c.provider]?.channel ?? ''}
+                            onChannel={(v) => setRouting(c.provider, 'channel', v)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vendor-declared variables */}
+                  {defs.length > 0 && (
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Variables</div>
+                      <Glass style={{ padding: 24 }}>
+                        {defs.map(d => (
+                          <DefField
+                            key={d.key}
+                            palette={palette}
+                            def={d}
+                            value={data.values[d.key]}
+                            onChange={(v) => setVal(d.key, v)}
+                            error={errors[`values.${d.key}`]}
+                          />
+                        ))}
+                      </Glass>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
                     {recentlySuccessful && <span style={{ fontSize: 12, color: palette.accent, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>✓ Saved</span>}
                     <Link href={route('console')} style={{ padding: '10px 18px', borderRadius: 8, background: 'transparent', color: palette.textDim, border: `1px solid ${palette.border}`, fontSize: 13, fontFamily: 'inherit', textDecoration: 'none' }}>Cancel</Link>
@@ -83,6 +117,43 @@ const SubscriptionConfigure = (() => {
           </div>
         </div>
       </>
+    );
+  };
+
+  // A single integration the agent needs. Shows connect status; for
+  // Slack, an inline channel picker once connected.
+  const ConnectionCard = ({ palette, conn, channel, onChannel }) => {
+    const ready = conn.connected && !conn.expired;
+    return (
+      <Glass style={{ padding: 18, border: `1px solid ${ready ? palette.accentDim : palette.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{conn.icon || conn.provider.slice(0, 1).toUpperCase()}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{conn.label}</div>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: ready ? palette.accent : palette.textMute, marginTop: 2 }}>
+              {ready ? `✓ connected${conn.accountLabel ? ' · ' + conn.accountLabel : ''}` : conn.expired ? 'expired · reconnect' : 'not connected'}
+            </div>
+          </div>
+          <a href={`/oauth/${conn.provider}/connect?return=${encodeURIComponent(window.location.pathname)}`} style={{ padding: '8px 14px', borderRadius: 8, background: ready ? 'transparent' : palette.accent, color: ready ? palette.textDim : palette.onAccent, border: ready ? `1px solid ${palette.border}` : 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+            {ready ? 'Reconnect' : `Connect ${conn.label} →`}
+          </a>
+        </div>
+
+        {/* Channel picker — only once Slack is connected */}
+        {ready && conn.supportsChannelPicker && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${palette.border}` }}>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Post to channel</div>
+            <SlackChannelPicker
+              palette={palette}
+              value={channel}
+              onChange={onChannel}
+              inputStyle={{ width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' }}
+              isRequired={false}
+            />
+            <div style={{ fontSize: 11, color: palette.textMute, marginTop: 6 }}>The agent posts here when it has something to share. Invite the Hirespawn bot to the channel first.</div>
+          </div>
+        )}
+      </Glass>
     );
   };
 

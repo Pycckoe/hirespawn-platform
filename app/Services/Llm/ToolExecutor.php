@@ -111,6 +111,14 @@ class ToolExecutor
                 'account_label' => $token->account_label,
                 'scopes' => $token->scopes,
             ];
+
+            // Routing the buyer picked for this provider on the configure
+            // page (e.g. the Slack channel). The vendor's webhook uses it
+            // as the destination when the LLM didn't name one explicitly.
+            $routing = ($subscription->settings['routing'][$required] ?? null);
+            if (! empty($routing)) {
+                $payload['routing'] = $routing;
+            }
         }
 
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

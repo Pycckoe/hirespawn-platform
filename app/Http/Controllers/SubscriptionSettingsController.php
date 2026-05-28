@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AgentSettingDef;
+use App\Models\OauthApp;
 use App\Models\Subscription;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,18 +11,23 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Per-subscription configuration. Each agent the vendor publishes can
- * declare variables (AgentSettingDef rows); the buyer picks values on
- * /console/subscriptions/{sub}/configure and they're persisted to
- * subscriptions.settings as a flat key→value map. LlmGateway then
- * substitutes {{key}} → value into system_prompt at invocation time.
+ * Per-subscription configuration. Two parts:
+ *
+ * 1. Connections — which third-party services this agent needs (derived
+ *    from its skills' required_oauth_provider). The buyer connects each
+ *    + picks routing (e.g. the Slack channel). Stored under
+ *    settings['routing'][provider].
+ *
+ * 2. Variables — vendor-declared AgentSettingDef values, substituted as
+ *    {{key}} into system_prompt by LlmGateway at run time.
  */
 class SubscriptionSettingsController extends Controller
 {
     public function show(Request $request, Subscription $subscription): Response
     {
         $this->authorize($request, $subscription);
-        $subscription->load(['agent.settingDefs']);
+        $subscription->load(['agent.settingDefs', 'agent.skills']);
+        $user = $request->user();
 
         $defs = $subscription->agent->settingDefs->map(fn (AgentSettingDef $d) => [
             'id' => $d->id,
@@ -34,6 +40,35 @@ class SubscriptionSettingsController extends Controller
             'description' => $d->description,
         ])->values()->all();
 
+        // Providers this agent's skills need (oauth_proxy transport).
+        $providers = $subscription->agent->skills
+            ->where('transport', 'oauth_proxy')
+            ->pluck('required_oauth_provider')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $apps = OauthApp::query()->whereIn('provider', $providers)->get()->keyBy('provider');
+
+        $connections = $providers->map(function (string $provider) use ($apps, $user) {
+            $app = $apps->get($provider);
+            $token = $user?->oauthTokenFor($provider);
+
+            return [
+                'provider' => $provider,
+                'label' => $app?->label ?? ucfirst($provider),
+                'icon' => $app?->icon,
+                'connected' => (bool) $token,
+                'accountLabel' => $token?->account_label,
+                'expired' => $token?->isExpired() ?? false,
+                // Slack supports an in-app channel picker; other providers
+                // just need the connection for now.
+                'supportsChannelPicker' => $provider === 'slack',
+            ];
+        })->values()->all();
+
+        $settings = (array) ($subscription->settings ?? []);
+
         return Inertia::render('SubscriptionConfigure', [
             'subscription' => [
                 'id' => $subscription->id,
@@ -42,7 +77,9 @@ class SubscriptionSettingsController extends Controller
                 'status' => $subscription->status,
             ],
             'defs' => $defs,
-            'values' => (array) ($subscription->settings ?? []),
+            'connections' => $connections,
+            'values' => $settings,
+            'routing' => $settings['routing'] ?? [],
         ]);
     }
 
@@ -52,7 +89,13 @@ class SubscriptionSettingsController extends Controller
         $subscription->load(['agent.settingDefs']);
 
         $defs = $subscription->agent->settingDefs;
-        $rules = ['values' => ['nullable', 'array']];
+        $rules = [
+            'values' => ['nullable', 'array'],
+            // Routing — per-provider channel/target the buyer picked.
+            // e.g. routing[slack][channel] = "#sales".
+            'routing' => ['nullable', 'array'],
+            'routing.*.channel' => ['nullable', 'string', 'max:200'],
+        ];
 
         foreach ($defs as $d) {
             $field = "values.{$d->key}";
@@ -82,10 +125,21 @@ class SubscriptionSettingsController extends Controller
             $clean[$d->key] = $d->coerce($raw[$d->key]);
         }
 
+        // Preserve / overwrite routing. Drop empty channel values so we
+        // don't store {slack: {channel: ''}}.
+        $routing = collect($validated['routing'] ?? [])
+            ->map(fn ($cfg) => array_filter($cfg, fn ($v) => $v !== null && $v !== ''))
+            ->filter(fn ($cfg) => ! empty($cfg))
+            ->all();
+        if (! empty($routing)) {
+            $clean['routing'] = $routing;
+        }
+
         $subscription->forceFill(['settings' => $clean])->save();
         audit('subscription.configure', $subscription, [
             'agent' => $subscription->agent?->slug,
             'keys' => array_keys($clean),
+            'routing' => array_keys($routing),
         ]);
 
         return redirect()

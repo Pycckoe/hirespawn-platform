@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             CmsMenusSeeder::class,
             TranslationsSeeder::class,
             DemoUserSeeder::class,
+            DemoAgentSeeder::class,
         ]);
     }
 }
