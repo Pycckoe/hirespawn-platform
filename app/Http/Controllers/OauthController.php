@@ -110,6 +110,14 @@ class OauthController extends Controller
         }
 
         $json = $resp->json();
+
+        // Slack returns HTTP 200 with {ok:false, error:"..."} on failure
+        // (invalid_code, bad_redirect_uri, …). Surface it instead of
+        // silently storing a null token.
+        if (array_key_exists('ok', $json) && $json['ok'] === false) {
+            return redirect($returnTo)->with('status', "✗ {$provider}: ".($json['error'] ?? 'authorization failed').'.');
+        }
+
         $access = $json['access_token'] ?? null;
         if (! $access) {
             return redirect($returnTo)->with('status', "✗ {$provider} returned no access token.");
@@ -127,17 +135,17 @@ class OauthController extends Controller
         }
         $token->scopes = array_values($scopes);
         $token->expires_at = $expiresIn > 0 ? Carbon::now()->addSeconds($expiresIn) : null;
-        // Some providers (Slack, GitHub) return user info inline — surface
-        // whatever label we can find so the UI shows "Connected as ...".
-        $token->account_label = $json['authed_user']['id']
+        // Friendly label — prefer a human name (team / email / login)
+        // over a raw user id. Slack v2 nests the workspace under `team`.
+        $token->account_label = $json['team']['name']
             ?? $json['user']['email']
             ?? $json['user']['login']
-            ?? $json['team']['name']
+            ?? $json['authed_user']['id']
             ?? $json['account_id']
             ?? null;
-        $token->account_id = $json['authed_user']['id']
+        $token->account_id = $json['team']['id']
+            ?? $json['authed_user']['id']
             ?? $json['user']['id']
-            ?? $json['team']['id']
             ?? null;
         $token->save();
 
