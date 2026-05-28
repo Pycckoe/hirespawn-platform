@@ -40,10 +40,17 @@ class SlackClient
             $error = null;
 
             do {
+                // Only request public_channel: private_channel requires the
+                // `groups:read` scope, which the default Slack app config does
+                // NOT include (we ask for channels:read). Requesting it anyway
+                // makes Slack reject the WHOLE call with missing_scope, so the
+                // buyer sees zero channels even for public ones. Public is the
+                // common case for posting summaries; private support can be
+                // added later alongside the groups:read scope.
                 $resp = Http::withToken($access)
                     ->timeout(20)
                     ->get('https://slack.com/api/conversations.list', array_filter([
-                        'types' => 'public_channel,private_channel',
+                        'types' => 'public_channel',
                         'exclude_archived' => 'true',
                         'limit' => 200,
                         'cursor' => $cursor,
