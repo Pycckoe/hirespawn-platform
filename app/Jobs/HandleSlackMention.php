@@ -7,27 +7,26 @@ use App\Models\UserOauthToken;
 use App\Services\Agents\RunRecorder;
 use App\Services\Llm\LlmGateway;
 use App\Services\Oauth\SlackClient;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Handles a bot @-mention coming from Slack: figures out which buyer +
  * agent the channel belongs to, runs the agent on the message, and posts
- * the reply back into the thread. Queued so the HTTP endpoint can ack
- * Slack within its 3s window.
+ * the reply back into the thread.
+ *
+ * Dispatched via dispatchAfterResponse() so it runs in the same process
+ * right after we ack Slack (within its 3s window) — no queue worker
+ * required, which is the usual reason Slack replies never arrive.
  *
  * Routing: the buyer is the user who connected this workspace (team id ↔
  * UserOauthToken.account_id). The agent is whichever of that buyer's
  * subscriptions has this channel selected in its config (settings.routing
- * .slack.channel).
+ * .slack.channel); falls back to the buyer's only Slack-routed agent.
  */
-class HandleSlackMention implements ShouldQueue
+class HandleSlackMention
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable;
 
     public function __construct(
         public string $teamId,
@@ -38,7 +37,11 @@ class HandleSlackMention implements ShouldQueue
 
     public function handle(LlmGateway $gateway, SlackClient $slack, RunRecorder $recorder): void
     {
+        Log::info('[slack] handling mention', ['team' => $this->teamId, 'channel' => $this->channelId]);
+
         if ($this->teamId === '' || $this->channelId === '') {
+            Log::warning('[slack] missing team/channel');
+
             return;
         }
 
@@ -49,7 +52,7 @@ class HandleSlackMention implements ShouldQueue
             ->first();
         $buyer = $token?->user;
         if (! $buyer) {
-            Log::info('Slack mention: no buyer for team', ['team' => $this->teamId]);
+            Log::warning('[slack] no buyer for team — is the workspace connected on Hirespawn?', ['team' => $this->teamId]);
 
             return;
         }
@@ -57,6 +60,7 @@ class HandleSlackMention implements ShouldQueue
         // 2. Resolve the channel ID → "#name" and match a subscription.
         $channelName = $slack->channelName($buyer, $this->channelId);
         $subscription = $this->matchSubscription($buyer, $channelName);
+        Log::info('[slack] routing', ['buyer' => $buyer->id, 'channelName' => $channelName, 'subscription' => $subscription?->id]);
         if (! $subscription) {
             $slack->postMessage($buyer, $this->channelId, "No agent is wired to this channel yet. Pick this channel in the agent's configuration on Hirespawn, then mention me again.", $this->threadTs);
 
@@ -95,28 +99,37 @@ class HandleSlackMention implements ShouldQueue
             ? ($response->text !== '' ? $response->text : '(the agent returned an empty response)')
             : "⚠️ Couldn't complete that: {$response->errorMessage}";
 
-        $slack->postMessage($buyer, $this->channelId, $reply, $this->threadTs);
+        $posted = $slack->postMessage($buyer, $this->channelId, $reply, $this->threadTs);
+        Log::info('[slack] replied', ['ok' => $response->ok, 'posted' => $posted['ok'] ?? false, 'post_error' => $posted['error'] ?? null]);
     }
 
     /**
-     * First active/paused subscription of the buyer whose Slack routing
-     * channel matches the mention's channel (normalised, case-insensitive).
+     * Find the subscription whose Slack routing channel matches the
+     * mention. Matches by channel name (#name) first; if the channel can't
+     * be resolved (e.g. private channel without groups:read), falls back to
+     * the buyer's single Slack-routed subscription.
      */
     private function matchSubscription($buyer, ?string $channelName): ?Subscription
     {
-        if (! $channelName) {
-            return null;
-        }
-        $target = strtolower(ltrim($channelName, '#'));
-
-        return $buyer->subscriptions()
+        $slackRouted = $buyer->subscriptions()
             ->whereIn('status', ['active', 'paused'])
             ->with('agent')
             ->get()
-            ->first(function (Subscription $sub) use ($target) {
-                $ch = $sub->settings['routing']['slack']['channel'] ?? null;
+            ->filter(fn (Subscription $sub) => ! empty($sub->settings['routing']['slack']['channel']));
 
-                return $ch && strtolower(ltrim($ch, '#')) === $target;
+        if ($channelName) {
+            $target = strtolower(ltrim($channelName, '#'));
+            $match = $slackRouted->first(function (Subscription $sub) use ($target) {
+                $ch = $sub->settings['routing']['slack']['channel'];
+
+                return strtolower(ltrim($ch, '#')) === $target;
             });
+            if ($match) {
+                return $match;
+            }
+        }
+
+        // Fallback: exactly one Slack-routed agent → it's unambiguous.
+        return $slackRouted->count() === 1 ? $slackRouted->first() : null;
     }
 }

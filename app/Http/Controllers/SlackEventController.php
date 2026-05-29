@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Inbound Slack Events API endpoint. Slack POSTs here when the bot is
@@ -27,7 +28,14 @@ class SlackEventController extends Controller
         $app = OauthApp::query()->where('provider', 'slack')->first();
         $signingSecret = $app?->decryptedSigningSecret() ?: '';
 
-        if ($signingSecret === '' || ! $this->verifySignature($request, $signingSecret)) {
+        if ($signingSecret === '') {
+            Log::warning('[slack] inbound event but no signing secret set in /admin/oauth-apps → Slack');
+
+            return response('signing secret not configured', 403);
+        }
+        if (! $this->verifySignature($request, $signingSecret)) {
+            Log::warning('[slack] inbound event signature mismatch (wrong signing secret?)');
+
             return response('invalid signature', 403);
         }
 
@@ -41,6 +49,7 @@ class SlackEventController extends Controller
 
         if ($type === 'event_callback') {
             $event = $payload['event'] ?? [];
+            Log::info('[slack] event_callback', ['event_type' => $event['type'] ?? null, 'bot' => ! empty($event['bot_id'])]);
 
             // Only react to humans @-mentioning the bot. Ignore the bot's own
             // posts / bot messages to avoid loops.
@@ -49,7 +58,9 @@ class SlackEventController extends Controller
                 // is atomic, so only the first delivery of an event_id proceeds.
                 $eventId = $payload['event_id'] ?? md5(json_encode($event));
                 if (Cache::add("slack_evt:{$eventId}", 1, now()->addMinutes(10))) {
-                    HandleSlackMention::dispatch(
+                    // After-response so we ack Slack within 3s, then run the
+                    // LLM + reply in the same process (no queue worker needed).
+                    HandleSlackMention::dispatchAfterResponse(
                         teamId: $payload['team_id'] ?? ($event['team'] ?? ''),
                         channelId: $event['channel'] ?? '',
                         text: $event['text'] ?? '',
