@@ -21,10 +21,6 @@ class KnowledgeController extends Controller
     {
         $this->authorize($request, $subscription);
 
-        if (! $subscription->agent?->accepts_knowledge) {
-            return back()->with('status', 'This agent does not use a knowledge base.');
-        }
-
         $validated = $request->validate([
             'kind' => ['required', 'in:text,file'],
             'title' => ['required', 'string', 'max:160'],

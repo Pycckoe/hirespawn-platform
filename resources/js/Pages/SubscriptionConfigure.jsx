@@ -32,7 +32,9 @@ const SubscriptionConfigure = (() => {
       [provider]: { ...(data.routing[provider] || {}), [field]: v },
     });
 
-    const nothingToConfigure = defs.length === 0 && connections.length === 0 && !acceptsKnowledge;
+    // Knowledge + MCP are available to every deployment, so the page always
+    // has something. nothingToConfigure only reflects vendor-declared fields.
+    const nothingToConfigure = defs.length === 0 && connections.length === 0;
     const hasFormFields = connections.length > 0 || defs.length > 0;
     // MCP is available to every deployment — it enriches any agent with the
     // buyer's own tools, independent of what the vendor declared.
@@ -119,9 +121,7 @@ const SubscriptionConfigure = (() => {
                 </form>
                 )}
 
-                {acceptsKnowledge && (
-                  <KnowledgeSection palette={palette} subscriptionId={subscription.id} ready={knowledgeReady} items={knowledge} />
-                )}
+                <KnowledgeSection palette={palette} subscriptionId={subscription.id} ready={knowledgeReady} items={knowledge} recommended={acceptsKnowledge} />
 
                 <McpSection palette={palette} subscriptionId={subscription.id} items={mcpConnections} catalog={mcpCatalog} />
                 </>
@@ -316,7 +316,7 @@ const SubscriptionConfigure = (() => {
   // retrieve from at run time. Add + delete go through dedicated endpoints
   // (separate from the main configure form), ingested synchronously so the
   // status badge is accurate after the page reloads.
-  const KnowledgeSection = ({ palette, subscriptionId, ready, items = [] }) => {
+  const KnowledgeSection = ({ palette, subscriptionId, ready, items = [], recommended = false }) => {
     const [mode, setMode] = useState('text');
     const { data, setData, post, processing, errors, reset } = useForm({ kind: 'text', title: '', content: '', file: null });
 
@@ -344,7 +344,10 @@ const SubscriptionConfigure = (() => {
 
     return (
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Knowledge base · what the agent knows about you</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Knowledge base · what the agent knows about you</div>
+          {recommended && <span style={{ padding: '2px 7px', borderRadius: 4, background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>recommended</span>}
+        </div>
         <Glass style={{ padding: 24 }}>
           {!ready && (
             <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 12, color: palette.amber, marginBottom: 16 }}>

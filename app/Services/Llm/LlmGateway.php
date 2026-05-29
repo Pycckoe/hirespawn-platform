@@ -87,7 +87,12 @@ class LlmGateway
         // RAG: if the vendor enabled a knowledge base for this agent, pull
         // the chunks most relevant to the user's prompt and append them so
         // the model can ground its answer in the buyer's own docs.
-        if ($subscription && $agent->accepts_knowledge) {
+        // RAG: append the knowledge chunks most relevant to the prompt.
+        // Available to any deployment the buyer has added knowledge to — the
+        // exists() check keeps us from spending an embedding call on agents
+        // with no knowledge. The vendor's accepts_knowledge flag only tunes
+        // the instructions (see appendKnowledge), it no longer gates this.
+        if ($subscription && $subscription->knowledgeChunks()->exists()) {
             $systemPrompt = $this->appendKnowledge($systemPrompt, $agent, $subscription, $userPrompt);
         }
 
