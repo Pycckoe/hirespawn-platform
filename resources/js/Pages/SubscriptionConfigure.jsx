@@ -163,14 +163,14 @@ const SubscriptionConfigure = (() => {
   // with their stored token). Falls back to a "connect Slack" prompt
   // when they haven't authorised yet.
   const SlackChannelPicker = ({ palette, value, onChange, inputStyle, isRequired }) => {
-    const [state, setState] = useState({ loading: true, connected: false, channels: [], error: null });
+    const [state, setState] = useState({ loading: true, connected: false, channels: [], error: null, privateSupported: false });
 
     useEffect(() => {
       let alive = true;
       fetch('/oauth/slack/channels', { headers: { Accept: 'application/json' } })
         .then(r => r.json())
-        .then(d => { if (alive) setState({ loading: false, connected: !!d.connected, channels: d.channels || [], error: d.error || null }); })
-        .catch(() => { if (alive) setState({ loading: false, connected: false, channels: [], error: 'request_failed' }); });
+        .then(d => { if (alive) setState({ loading: false, connected: !!d.connected, channels: d.channels || [], error: d.error || null, privateSupported: !!d.private_supported }); })
+        .catch(() => { if (alive) setState({ loading: false, connected: false, channels: [], error: 'request_failed', privateSupported: false }); });
       return () => { alive = false; };
     }, []);
 
@@ -212,11 +212,18 @@ const SubscriptionConfigure = (() => {
     }
 
     return (
-      <select value={value ?? ''} onChange={e => onChange(e.target.value)} style={inputStyle}>
-        {!isRequired && <option value="">— none —</option>}
-        {!value && isRequired && <option value="">— pick a channel —</option>}
-        {state.channels.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-      </select>
+      <>
+        <select value={value ?? ''} onChange={e => onChange(e.target.value)} style={inputStyle}>
+          {!isRequired && <option value="">— none —</option>}
+          {!value && isRequired && <option value="">— pick a channel —</option>}
+          {state.channels.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <div style={{ fontSize: 11, color: palette.textMute, marginTop: 6 }}>
+          {state.privateSupported
+            ? 'Private channels appear only if the Slack bot has been invited to them (open the channel → type /invite @YourBot).'
+            : 'Only public channels are listed. To include private channels, add the groups:read scope in the Slack app + /admin/oauth-apps, then reconnect.'}
+        </div>
+      </>
     );
   };
 

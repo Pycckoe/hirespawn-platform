@@ -189,7 +189,7 @@ class OauthController extends Controller
         abort_unless($user, 401);
 
         if (! $user->oauthTokenFor('slack')) {
-            return response()->json(['connected' => false, 'channels' => [], 'error' => null]);
+            return response()->json(['connected' => false, 'channels' => [], 'error' => null, 'private_supported' => false]);
         }
 
         $result = $slack->listChannels($user);
@@ -198,6 +198,7 @@ class OauthController extends Controller
             'connected' => true,
             'channels' => $result['channels'],
             'error' => $result['error'],
+            'private_supported' => $result['private_supported'] ?? false,
         ]);
     }
 

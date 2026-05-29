@@ -15,39 +15,53 @@ class SlackClient
 {
     /**
      * List the public + private channels the buyer's connected Slack
-     * token can see. Returns ['ok' => bool, 'channels' => [...], 'error' => ?string].
+     * token can see. Returns
+     * ['ok' => bool, 'channels' => [...], 'error' => ?string, 'private_supported' => bool].
      *
      * Note: with a bot token + `channels:read` scope, conversations.list
-     * returns ALL public channels whether or not the bot is a member —
-     * membership only matters for POSTING. So an empty list almost always
-     * means a missing scope, not "invite the bot".
+     * returns ALL public channels whether or not the bot is a member.
+     * PRIVATE channels are different: they need the `groups:read` scope AND
+     * the bot must have been invited to the channel — Slack never lists a
+     * private channel the bot isn't a member of.
      */
     public function listChannels(User $user): array
     {
         $token = $user->oauthTokenFor('slack');
         if (! $token) {
-            return ['ok' => false, 'channels' => [], 'error' => 'not_connected'];
+            return ['ok' => false, 'channels' => [], 'error' => 'not_connected', 'private_supported' => false];
         }
 
         $access = $token->freshAccessToken();
         if (! $access) {
-            return ['ok' => false, 'channels' => [], 'error' => 'token_expired'];
+            return ['ok' => false, 'channels' => [], 'error' => 'token_expired', 'private_supported' => false];
         }
 
-        // Decide which channel types to request based on the scopes the
-        // buyer's token actually has. private_channel requires `groups:read`;
-        // if the app/token doesn't have it, asking for it makes Slack reject
-        // the WHOLE call with missing_scope (so the buyer would see zero
-        // channels, even public ones). channels:read → public is the baseline;
-        // once an admin adds groups:read and the buyer reconnects, private
-        // channels light up automatically with no further code change.
-        $scopes = $token->scopes ?? [];
-        $types = ['public_channel'];
-        if (in_array('groups:read', $scopes, true)) {
-            $types[] = 'private_channel';
+        // Try to include private channels. private_channel needs the
+        // `groups:read` bot scope; if the token lacks it Slack rejects the
+        // WHOLE call with missing_scope, so we transparently retry with
+        // public channels only. Probing Slack directly (rather than trusting
+        // our stored scope list) means private channels light up the moment
+        // the bot token actually carries groups:read — no matter how the
+        // scopes were parsed at connect time.
+        $result = $this->fetch($access, 'public_channel,private_channel');
+        $privateSupported = $result['error'] !== 'missing_scope';
+        if (! $privateSupported) {
+            $result = $this->fetch($access, 'public_channel');
         }
-        $types = implode(',', $types);
 
+        if ($result['error'] === null) {
+            $token->forceFill(['last_used_at' => now()])->save();
+        }
+
+        return $result + ['private_supported' => $privateSupported];
+    }
+
+    /**
+     * Page through conversations.list for the given comma-separated channel
+     * types. Returns ['ok' => bool, 'channels' => [...], 'error' => ?string].
+     */
+    private function fetch(string $access, string $types): array
+    {
         try {
             $channels = [];
             $cursor = null;
@@ -82,7 +96,6 @@ class SlackClient
             } while ($cursor && count($channels) < 1000);
 
             usort($channels, fn ($a, $b) => strcmp($a['name'], $b['name']));
-            $token->forceFill(['last_used_at' => now()])->save();
 
             return ['ok' => $error === null, 'channels' => $channels, 'error' => $error];
         } catch (Throwable $e) {
