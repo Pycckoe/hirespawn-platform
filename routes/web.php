@@ -21,6 +21,10 @@ use App\Http\Controllers\VendorPayoutController;
 use App\Http\Controllers\VendorPublishController;
 use Illuminate\Support\Facades\Route;
 
+// Inbound Slack Events API (bot @-mentions). Public + CSRF-exempt (see
+// bootstrap/app.php); the request is authenticated by Slack's signature.
+Route::post('/integrations/slack/events', \App\Http\Controllers\SlackEventController::class)->name('slack.events');
+
 // === Public marketplace pages ===
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/roster', [AgentController::class, 'index'])->name('catalog');

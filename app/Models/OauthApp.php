@@ -15,7 +15,7 @@ class OauthApp extends Model
         'sort_order' => 'integer',
     ];
 
-    protected $hidden = ['encrypted_client_secret'];
+    protected $hidden = ['encrypted_client_secret', 'encrypted_signing_secret'];
 
     public function decryptedClientSecret(): string
     {
@@ -27,6 +27,21 @@ class OauthApp extends Model
         }
 
         return Crypt::decryptString($this->encrypted_client_secret);
+    }
+
+    /** Signing secret for verifying inbound events (Slack). '' if unset. */
+    public function decryptedSigningSecret(): string
+    {
+        if (! $this->encrypted_signing_secret) {
+            return '';
+        }
+
+        return Crypt::decryptString($this->encrypted_signing_secret);
+    }
+
+    public function setSigningSecret(?string $plain): void
+    {
+        $this->encrypted_signing_secret = $plain ? Crypt::encryptString(trim($plain)) : null;
     }
 
     /** Whether the admin has filled in real credentials. */

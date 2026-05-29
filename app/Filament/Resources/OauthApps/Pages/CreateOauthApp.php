@@ -21,6 +21,11 @@ class CreateOauthApp extends CreateRecord
         }
         unset($data['client_secret']);
 
+        if (! empty($data['signing_secret'])) {
+            $data['encrypted_signing_secret'] = \Illuminate\Support\Facades\Crypt::encryptString(trim($data['signing_secret']));
+        }
+        unset($data['signing_secret']);
+
         return $data;
     }
 }

@@ -27,7 +27,7 @@ class OauthAppsSeeder extends Seeder
                 'authorize_url' => 'https://slack.com/oauth/v2/authorize',
                 'token_url' => 'https://slack.com/api/oauth.v2.access',
                 'api_base_url' => 'https://slack.com/api',
-                'default_scopes' => ['chat:write', 'chat:write.public', 'channels:read', 'users:read'],
+                'default_scopes' => ['chat:write', 'chat:write.public', 'channels:read', 'users:read', 'app_mentions:read'],
                 'sort_order' => 10,
             ],
             [

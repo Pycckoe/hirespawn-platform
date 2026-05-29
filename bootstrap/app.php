@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
         ]);
+
+        // Slack signs its event POSTs itself — exempt the inbound webhook
+        // from CSRF (verified instead by the request signature).
+        $middleware->validateCsrfTokens(except: [
+            'integrations/slack/events',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

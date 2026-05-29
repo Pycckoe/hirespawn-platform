@@ -102,4 +102,57 @@ class SlackClient
             return ['ok' => false, 'channels' => [], 'error' => 'request_failed'];
         }
     }
+
+    /**
+     * Post a message to a channel with the user's bot token. $threadTs
+     * replies in-thread when provided. Returns ['ok' => bool, 'error' => ?].
+     */
+    public function postMessage(User $user, string $channel, string $text, ?string $threadTs = null): array
+    {
+        $access = $user->oauthTokenFor('slack')?->freshAccessToken();
+        if (! $access) {
+            return ['ok' => false, 'error' => 'not_connected'];
+        }
+
+        try {
+            $resp = Http::withToken($access)->timeout(20)->post('https://slack.com/api/chat.postMessage', array_filter([
+                'channel' => $channel,
+                'text' => $text,
+                'thread_ts' => $threadTs,
+            ]));
+            $json = $resp->json();
+
+            return ['ok' => (bool) ($json['ok'] ?? false), 'error' => $json['error'] ?? null];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => 'request_failed'];
+        }
+    }
+
+    /**
+     * Resolve a channel ID to its "#name" via conversations.info. Null on
+     * failure. Used to match an inbound event's channel (an ID) against the
+     * "#name" stored in a subscription's routing config.
+     */
+    public function channelName(User $user, string $channelId): ?string
+    {
+        $access = $user->oauthTokenFor('slack')?->freshAccessToken();
+        if (! $access) {
+            return null;
+        }
+
+        try {
+            $resp = Http::withToken($access)->timeout(15)->get('https://slack.com/api/conversations.info', [
+                'channel' => $channelId,
+            ]);
+            $json = $resp->json();
+            if (! ($json['ok'] ?? false)) {
+                return null;
+            }
+            $name = $json['channel']['name'] ?? null;
+
+            return $name ? '#'.$name : null;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
 }

@@ -43,6 +43,13 @@ class OauthAppForm
                             ->helperText('Leave blank to keep the existing secret. Type a new value to rotate.')
                             ->maxLength(400)
                             ->columnSpanFull(),
+                        TextInput::make('signing_secret')
+                            ->password()
+                            ->revealable()
+                            ->label('Signing secret (Slack inbound events)')
+                            ->helperText('Slack → Basic Information → Signing Secret. Verifies inbound bot mentions at /integrations/slack/events. Leave blank to keep the existing one.')
+                            ->maxLength(400)
+                            ->columnSpanFull(),
                         TextInput::make('authorize_url')
                             ->required()
                             ->url()

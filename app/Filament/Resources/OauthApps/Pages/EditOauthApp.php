@@ -23,8 +23,9 @@ class EditOauthApp extends EditRecord
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        unset($data['encrypted_client_secret']);
+        unset($data['encrypted_client_secret'], $data['encrypted_signing_secret']);
         $data['client_secret'] = '';
+        $data['signing_secret'] = '';
 
         return $data;
     }
@@ -35,6 +36,11 @@ class EditOauthApp extends EditRecord
             $data['encrypted_client_secret'] = Crypt::encryptString(trim($data['client_secret']));
         }
         unset($data['client_secret']);
+
+        if (! empty($data['signing_secret'])) {
+            $data['encrypted_signing_secret'] = Crypt::encryptString(trim($data['signing_secret']));
+        }
+        unset($data['signing_secret']);
 
         return $data;
     }
