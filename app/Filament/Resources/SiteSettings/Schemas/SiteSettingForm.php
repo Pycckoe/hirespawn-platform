@@ -56,9 +56,13 @@ class SiteSettingForm
                 Section::make('Value')
                     ->schema([
                         // Image upload appears only for type='image'. Stored on
-                        // the public disk; the `value` column gets the relative
-                        // path; SiteSetting::all_keyed() turns it into a URL.
-                        FileUpload::make('value')
+                        // the public disk. NOTE: bound to a SEPARATE field name
+                        // (value_image), NOT `value` — two form components
+                        // sharing one statePath made the hidden FileUpload
+                        // clobber the plain-text `value` on hydration, leaving
+                        // the Textarea blank. The Edit/Create pages map
+                        // value_image <-> the `value` column for image rows.
+                        FileUpload::make('value_image')
                             ->label('Image')
                             ->image()
                             ->imagePreviewHeight('80')
@@ -73,7 +77,7 @@ class SiteSettingForm
                         Textarea::make('value')
                             ->rows(4)
                             ->autosize()
-                            ->visible(fn ($get) => in_array($get('type'), ['text', 'textarea', 'url', 'bool', 'json'], true))
+                            ->visible(fn ($get) => $get('type') !== 'image')
                             ->columnSpanFull(),
 
                         Textarea::make('description')
