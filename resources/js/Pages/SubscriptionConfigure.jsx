@@ -11,7 +11,7 @@ const SubscriptionConfigure = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
   const Page = () => {
-    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [], mcpConnections = [] } = usePage().props;
+    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [], mcpConnections = [], mcpCatalog = [] } = usePage().props;
 
     const initial = Object.fromEntries(
       defs.map(d => [d.key, values[d.key] ?? d.defaultValue ?? (d.type === 'boolean' ? false : '')])
@@ -123,7 +123,7 @@ const SubscriptionConfigure = (() => {
                   <KnowledgeSection palette={palette} subscriptionId={subscription.id} ready={knowledgeReady} items={knowledge} />
                 )}
 
-                <McpSection palette={palette} subscriptionId={subscription.id} items={mcpConnections} />
+                <McpSection palette={palette} subscriptionId={subscription.id} items={mcpConnections} catalog={mcpCatalog} />
                 </>
               )}
             </div>
@@ -405,16 +405,27 @@ const SubscriptionConfigure = (() => {
 
   // MCP servers: the buyer connects remote MCP servers; their tools are
   // exposed to the agent at run time. Available to every deployment.
-  const McpSection = ({ palette, subscriptionId, items = [] }) => {
+  const McpSection = ({ palette, subscriptionId, items = [], catalog = [] }) => {
     const [showAdd, setShowAdd] = useState(items.length === 0);
     const [testingId, setTestingId] = useState(null);
+    const [hint, setHint] = useState(null);
     const { data, setData, post, processing, errors, reset } = useForm({ label: '', url: '', auth_type: 'none', token: '' });
+
+    // Prefill the add form from a catalog entry (CRM / ticketing / finance…).
+    const pickCatalog = (s) => {
+      setData('label', s.name);
+      setData('url', s.url || '');
+      setData('auth_type', s.authType || 'bearer');
+      setData('token', '');
+      setHint(s.setupHint ? { text: s.setupHint, docs: s.docsUrl } : null);
+      setShowAdd(true);
+    };
 
     const submitAdd = (e) => {
       e.preventDefault();
       post(route('subscriptions.mcp.store', subscriptionId), {
         preserveScroll: true,
-        onSuccess: () => { reset(); setShowAdd(false); },
+        onSuccess: () => { reset(); setShowAdd(false); setHint(null); },
       });
     };
 
@@ -463,8 +474,30 @@ const SubscriptionConfigure = (() => {
             </div>
           )}
 
+          {catalog.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Popular services · click to prefill</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                {catalog.map(s => (
+                  <button key={s.slug} type="button" onClick={() => pickCatalog(s)} title={s.summary || ''} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, cursor: 'pointer', color: palette.text, fontFamily: 'inherit' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 15 }}>{s.icon || '◇'}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.category}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {showAdd ? (
-            <form onSubmit={submitAdd} style={{ borderTop: items.length > 0 ? `1px solid ${palette.border}` : 0, paddingTop: items.length > 0 ? 16 : 0 }}>
+            <form onSubmit={submitAdd} style={{ borderTop: (items.length > 0 || catalog.length > 0) ? `1px solid ${palette.border}` : 0, paddingTop: (items.length > 0 || catalog.length > 0) ? 16 : 0 }}>
+              {hint && (
+                <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--p-inset)', border: `1px solid ${palette.border}`, fontSize: 12, color: palette.textDim, lineHeight: 1.5 }}>
+                  {hint.text}{hint.docs && <> · <a href={hint.docs} target="_blank" rel="noreferrer" style={{ color: palette.accent }}>docs ↗</a></>}
+                </div>
+              )}
               <input type="text" placeholder="Label (e.g. My Notion MCP)" value={data.label} onChange={e => setData('label', e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
               {errors.label && <div style={{ fontSize: 11, color: palette.red, marginBottom: 8, fontFamily: 'Geist Mono, monospace' }}>{errors.label}</div>}
               <input type="url" placeholder="https://your-mcp-server.example.com/mcp" value={data.url} onChange={e => setData('url', e.target.value)} style={{ ...inputStyle, marginBottom: 10, fontFamily: 'Geist Mono, monospace' }} />
@@ -479,7 +512,7 @@ const SubscriptionConfigure = (() => {
                 )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                {items.length > 0 && <button type="button" onClick={() => { reset(); setShowAdd(false); }} style={{ padding: '9px 16px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.textDim, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
+                {items.length > 0 && <button type="button" onClick={() => { reset(); setShowAdd(false); setHint(null); }} style={{ padding: '9px 16px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.textDim, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
                 <button type="submit" disabled={processing} style={{ padding: '9px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.5 : 1 }}>{processing ? 'Connecting…' : 'Connect & test'}</button>
               </div>
             </form>

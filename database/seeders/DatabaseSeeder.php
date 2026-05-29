@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             DemoUserSeeder::class,
             DemoAgentSeeder::class,
             AgentTemplateSeeder::class,
+            McpServerSeeder::class,
         ]);
     }
 }

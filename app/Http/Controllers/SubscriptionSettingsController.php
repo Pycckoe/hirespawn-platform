@@ -109,6 +109,21 @@ class SubscriptionSettingsController extends Controller
                 ])->values()->all(),
                 'checkedAt' => $c->checked_at?->format('M d, Y H:i'),
             ])->values()->all(),
+            'mcpCatalog' => \App\Models\McpServer::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(fn ($s) => [
+                    'slug' => $s->slug,
+                    'name' => $s->name,
+                    'icon' => $s->icon,
+                    'category' => $s->category,
+                    'summary' => $s->summary,
+                    'url' => $s->url,
+                    'authType' => $s->auth_type,
+                    'setupHint' => $s->setup_hint,
+                    'docsUrl' => $s->docs_url,
+                ])->values()->all(),
         ]);
     }
 
