@@ -351,7 +351,7 @@ const SubscriptionConfigure = (() => {
         <Glass style={{ padding: 24 }}>
           {!ready && (
             <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 12, color: palette.amber, marginBottom: 16 }}>
-              Indexing is disabled: the agent owner hasn't added an OpenAI key (used to embed your documents). They can add one under /vendor → LLM keys.
+              Knowledge indexing is temporarily unavailable. Your uploads will be saved but won't be searchable until it's back — please try again later.
             </div>
           )}
 

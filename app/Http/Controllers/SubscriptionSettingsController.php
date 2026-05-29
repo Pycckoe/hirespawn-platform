@@ -82,7 +82,10 @@ class SubscriptionSettingsController extends Controller
             'routing' => $settings['routing'] ?? [],
             'acceptsKnowledge' => (bool) $subscription->agent?->accepts_knowledge,
             // Embeddings require the agent owner to have an OpenAI key.
-            'knowledgeReady' => (bool) $subscription->agent?->seller?->llmCredentialFor('openai'),
+            // Knowledge indexing runs on the platform's embeddings key — not
+            // the seller's — so buyers can enrich any agent without the
+            // seller configuring anything.
+            'knowledgeReady' => \App\Services\Knowledge\Embedder::platformConfigured(),
             'knowledge' => $subscription->knowledgeSources->map(fn ($s) => [
                 'id' => $s->id,
                 'title' => $s->title,

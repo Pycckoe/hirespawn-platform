@@ -24,7 +24,7 @@ class KnowledgeRetriever
             return [];
         }
 
-        $embedder = Embedder::forAgent($subscription->agent);
+        $embedder = Embedder::platform();
         if (! $embedder) {
             return [];
         }

@@ -2,18 +2,14 @@
 
 namespace App\Services\Knowledge;
 
-use App\Models\Agent;
 use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Turns text into embedding vectors via the OpenAI embeddings API, using
- * the agent owner's stored OpenAI key (the same per-seller credential the
- * LLM gateway uses). Embeddings are billed to the owner's account, which
- * keeps the cost model consistent with agent runs.
- *
- * Anthropic has no embeddings endpoint, so even Anthropic-powered agents
- * need the owner to add an OpenAI key for the knowledge base to work.
+ * Turns text into embedding vectors via the OpenAI embeddings API using the
+ * PLATFORM's own key (config services.embeddings.key). Embeddings power the
+ * knowledge base, which is our cost/responsibility — buyers enrich any agent
+ * with knowledge and sellers never have to configure a key for it.
  */
 class Embedder
 {
@@ -23,19 +19,27 @@ class Embedder
     ) {}
 
     /**
-     * Build an embedder for an agent from its owner's OpenAI credential,
-     * or null when no key is configured (caller degrades gracefully).
+     * Build the platform embedder, or null when no platform key is
+     * configured (caller degrades gracefully / the UI shows it's
+     * temporarily unavailable — an admin/ops concern, not the seller's).
      */
-    public static function forAgent(Agent $agent): ?self
+    public static function platform(): ?self
     {
-        $credential = $agent->seller?->llmCredentialFor('openai');
-        if (! $credential) {
+        $key = config('services.embeddings.key');
+        if (! $key) {
             return null;
         }
 
-        $model = (string) SiteSetting::lookup('embedding_model', 'text-embedding-3-small');
+        // Model is admin-tunable via SiteSetting, falling back to config.
+        $model = (string) SiteSetting::lookup('embedding_model', (string) config('services.embeddings.model', 'text-embedding-3-small'));
 
-        return new self($credential->decryptedKey(), $model ?: 'text-embedding-3-small');
+        return new self($key, $model ?: 'text-embedding-3-small');
+    }
+
+    /** True when the platform has an embeddings key configured. */
+    public static function platformConfigured(): bool
+    {
+        return ! empty(config('services.embeddings.key'));
     }
 
     public function model(): string

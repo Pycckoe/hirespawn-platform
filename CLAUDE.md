@@ -60,7 +60,15 @@ Run `npm run build` (assets are committed-by-deploy, not by us — but build to
 catch JSX errors). Back-end-only changes need no build.
 
 ## Knowledge base (RAG)
-Per-subscription `knowledge_sources` → chunked → embedded (OpenAI on the agent
-owner's key) → `knowledge_chunks` (embedding stored as JSON). `KnowledgeRetriever`
-ranks by cosine similarity in PHP. Requires the owner to have an OpenAI key
-even for non-OpenAI agents (Anthropic/Google have no embeddings here).
+Per-subscription `knowledge_sources` → chunked → embedded → `knowledge_chunks`
+(embedding stored as JSON). `KnowledgeRetriever` ranks by cosine similarity in
+PHP. Buyers can add knowledge to ANY rented agent (not vendor-gated).
+Embeddings run on the **platform's own key** (`config('services.embeddings.key')`
+← `EMBEDDINGS_API_KEY`, falls back to `OPENAI_API_KEY`) — it's our cost, sellers
+configure nothing. `Embedder::platform()` / `Embedder::platformConfigured()`.
+
+## MCP servers
+Buyers connect remote (HTTP) MCP servers per subscription (`mcp_connections`);
+their tools merge into the agent's catalogue at run time (`McpToolset` +
+`McpClient`, namespaced `mcp_<conn>_<tool>`). Admin-curated catalog of popular
+servers in `mcp_servers` (`/admin` → MCP servers) prefills the buyer's form.

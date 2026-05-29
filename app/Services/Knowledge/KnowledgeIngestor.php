@@ -34,9 +34,9 @@ class KnowledgeIngestor
                 throw new RuntimeException('No readable text found in this source.');
             }
 
-            $embedder = Embedder::forAgent($source->subscription->agent);
+            $embedder = Embedder::platform();
             if (! $embedder) {
-                throw new RuntimeException("The agent owner has no OpenAI API key configured, which is required to index knowledge. Ask them to add one under /vendor → LLM keys.");
+                throw new RuntimeException('Knowledge indexing is temporarily unavailable. Please try again later.');
             }
 
             $chunks = $this->chunker->chunk($text);
