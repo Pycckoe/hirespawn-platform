@@ -61,32 +61,40 @@ class AgentSeeder extends Seeder
             ['id' => 'sec-watch',   'name' => 'AI SecOps',         'role' => 'Security',        'rank' => 'O-5', 'vendor' => 'PullRequest', 'power' => 26, 'per_unit' => 'alert',       'rating' => 4.9,  'deployed' => 712,  'langs' => ['ANY'],                       'category' => 'eng',      'integrations' => ['github', 'datadog', 'slack'],    'spec' => 'CVE + SAST'],
         ];
 
+        // IMPORTANT: Laravel Cloud runs db:seed on EVERY deploy. Agents are
+        // fully editable by admins/sellers now (owner, LLM model, prompt,
+        // pricing, status, …), so we must NOT clobber an existing row — that
+        // would, e.g., reset a reassigned seller_id back to the curator and
+        // break the agent's API-key resolution. Only insert agents whose
+        // slug is missing (bootstrap a fresh DB); leave existing ones alone.
         foreach ($agents as $row) {
-            Agent::updateOrCreate(
-                ['slug' => $row['id']],
-                [
-                    'seller_id' => $seller->id,
-                    'category_id' => $categoryByKey[$row['category']] ?? null,
-                    'name' => $row['name'],
-                    'role' => $row['role'],
-                    'rank' => $row['rank'],
-                    'vendor' => $row['vendor'],
-                    'tagline' => $row['spec'],
-                    'description' => "{$row['name']} is a curated marketplace agent specializing in {$row['role']}. Spec: {$row['spec']}.",
-                    'status' => 'approved',
-                    'pricing_model' => 'usage_based',
-                    'power_cost' => $row['power'],
-                    'per_unit' => $row['per_unit'],
-                    'currency' => 'EUR',
-                    'rating_avg' => $row['rating'],
-                    'subscribers_count' => $row['deployed'],
-                    'languages' => $row['langs'],
-                    'integrations' => $row['integrations'],
-                    'spec' => $row['spec'],
-                    'sla_uptime_pct' => 99.5,
-                    'published_at' => now(),
-                ],
-            );
+            if (Agent::query()->where('slug', $row['id'])->exists()) {
+                continue;
+            }
+
+            Agent::create([
+                'slug' => $row['id'],
+                'seller_id' => $seller->id,
+                'category_id' => $categoryByKey[$row['category']] ?? null,
+                'name' => $row['name'],
+                'role' => $row['role'],
+                'rank' => $row['rank'],
+                'vendor' => $row['vendor'],
+                'tagline' => $row['spec'],
+                'description' => "{$row['name']} is a curated marketplace agent specializing in {$row['role']}. Spec: {$row['spec']}.",
+                'status' => 'approved',
+                'pricing_model' => 'usage_based',
+                'power_cost' => $row['power'],
+                'per_unit' => $row['per_unit'],
+                'currency' => 'EUR',
+                'rating_avg' => $row['rating'],
+                'subscribers_count' => $row['deployed'],
+                'languages' => $row['langs'],
+                'integrations' => $row['integrations'],
+                'spec' => $row['spec'],
+                'sla_uptime_pct' => 99.5,
+                'published_at' => now(),
+            ]);
         }
     }
 }
