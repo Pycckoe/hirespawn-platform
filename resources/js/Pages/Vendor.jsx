@@ -809,9 +809,16 @@ sla:
 
   const CredentialsTab = ({ credentials, providers }) => {
     const [showAdd, setShowAdd] = useState(credentials.length === 0);
+    const [verifyingId, setVerifyingId] = useState(null);
+    const verifyError = usePage().props.errors?.credential;
     return (
       <div>
         <Section title="LLM API keys" sub="Add one key per provider — the key powers every agent you publish that uses that provider's models. We encrypt with Laravel Crypt and never display the full key.">
+          {verifyError && (
+            <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,80,80,0.1)', border: `1px solid ${palette.red}`, color: palette.red, fontSize: 12 }}>
+              {verifyError}
+            </div>
+          )}
           {showAdd && providers.length > 0 && (
             <AddCredentialForm providers={providers} onClose={() => setShowAdd(false)} />
           )}
@@ -841,10 +848,15 @@ sla:
                     {c.verifiedAt ? `✓ verified ${c.verifiedAt}` : 'not verified'}
                   </span>
                   <button
-                    onClick={() => router.post(route('vendor.credentials.verify', c.id), {}, { preserveScroll: true })}
-                    style={{ padding: '7px 12px', borderRadius: 8, background: 'transparent', color: palette.accent, border: `1px solid ${palette.accent}`, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer' }}
+                    disabled={verifyingId === c.id}
+                    onClick={() => router.post(route('vendor.credentials.verify', c.id), {}, {
+                      preserveScroll: true,
+                      onStart: () => setVerifyingId(c.id),
+                      onFinish: () => setVerifyingId(null),
+                    })}
+                    style={{ padding: '7px 12px', borderRadius: 8, background: 'transparent', color: palette.accent, border: `1px solid ${palette.accent}`, fontSize: 11, fontFamily: 'inherit', cursor: verifyingId === c.id ? 'wait' : 'pointer', opacity: verifyingId === c.id ? 0.6 : 1 }}
                   >
-                    Verify
+                    {verifyingId === c.id ? 'Verifying…' : 'Verify'}
                   </button>
                   <button
                     onClick={() => {

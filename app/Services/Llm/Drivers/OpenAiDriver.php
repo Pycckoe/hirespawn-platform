@@ -17,6 +17,21 @@ class OpenAiDriver implements LlmDriver
 {
     private const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
+    /**
+     * Chat-completions endpoint. Subclasses (e.g. GoogleDriver) override
+     * this to point at an OpenAI-compatible endpoint.
+     */
+    protected function endpoint(): string
+    {
+        return self::ENDPOINT;
+    }
+
+    /** Provider name used in error messages. */
+    protected function label(): string
+    {
+        return 'OpenAI';
+    }
+
     public function complete(LlmRequest $request): LlmResponse
     {
         $startedAt = microtime(true);
@@ -44,14 +59,14 @@ class OpenAiDriver implements LlmDriver
                 'Content-Type' => 'application/json',
             ])
                 ->timeout(120)
-                ->post(self::ENDPOINT, $payload);
+                ->post($this->endpoint(), $payload);
 
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
             if (! $resp->ok()) {
                 $error = $resp->json('error.message') ?? "HTTP {$resp->status()}";
 
-                return LlmResponse::error("OpenAI: {$error}", $latencyMs);
+                return LlmResponse::error("{$this->label()}: {$error}", $latencyMs);
             }
 
             $json = $resp->json();
@@ -97,7 +112,7 @@ class OpenAiDriver implements LlmDriver
         } catch (Throwable $e) {
             $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
-            return LlmResponse::error('OpenAI: '.$e->getMessage(), $latencyMs);
+            return LlmResponse::error($this->label().': '.$e->getMessage(), $latencyMs);
         }
     }
 

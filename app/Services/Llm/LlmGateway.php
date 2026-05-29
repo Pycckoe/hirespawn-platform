@@ -279,7 +279,7 @@ class LlmGateway
         return $skills
             ->map(fn ($s) => match ($provider) {
                 'anthropic' => $s->toAnthropicTool(),
-                'openai' => $s->toOpenAiTool(),
+                'openai', 'google' => $s->toOpenAiTool(),
                 default => null,
             })
             ->filter()
@@ -292,6 +292,7 @@ class LlmGateway
         return match ($provider) {
             'anthropic' => new AnthropicDriver(),
             'openai' => new OpenAiDriver(),
+            'google' => new \App\Services\Llm\Drivers\GoogleDriver(),
             default => new class implements LlmDriver
             {
                 public function complete(LlmRequest $request): LlmResponse
