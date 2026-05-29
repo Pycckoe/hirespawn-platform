@@ -97,12 +97,18 @@ class OauthAppsSeeder extends Seeder
         ];
 
         // IMPORTANT: Laravel Cloud runs db:seed on every deploy. We must
-        // NOT clobber admin-entered credentials / active state on re-seed,
-        // otherwise the OAuth app gets reset and /oauth/{provider}/connect
-        // 404s after each deploy. So:
+        // NOT clobber admin-entered values on re-seed, otherwise the OAuth
+        // app gets reset and /oauth/{provider}/connect 404s after each
+        // deploy. So:
         //   - new row  → insert catalog defaults + inactive + blank creds
-        //   - existing → refresh ONLY the catalog metadata (urls, scopes,
-        //     label, icon), leaving client_id / secret / is_active alone.
+        //   - existing → refresh ONLY the immutable catalog metadata (urls,
+        //     label, icon), leaving client_id / secret / is_active AND
+        //     default_scopes alone.
+        //
+        // default_scopes is admin-owned: e.g. an admin may add `groups:read`
+        // to Slack to enable the private-channel picker. Clobbering it on the
+        // next deploy would silently drop that, so we never overwrite it on
+        // existing rows.
         foreach ($rows as $row) {
             $existing = OauthApp::query()->where('provider', $row['provider'])->first();
 
@@ -113,7 +119,6 @@ class OauthAppsSeeder extends Seeder
                     'authorize_url' => $row['authorize_url'],
                     'token_url' => $row['token_url'],
                     'api_base_url' => $row['api_base_url'],
-                    'default_scopes' => $row['default_scopes'],
                     'sort_order' => $row['sort_order'],
                 ])->save();
 

@@ -34,23 +34,30 @@ class SlackClient
             return ['ok' => false, 'channels' => [], 'error' => 'token_expired'];
         }
 
+        // Decide which channel types to request based on the scopes the
+        // buyer's token actually has. private_channel requires `groups:read`;
+        // if the app/token doesn't have it, asking for it makes Slack reject
+        // the WHOLE call with missing_scope (so the buyer would see zero
+        // channels, even public ones). channels:read → public is the baseline;
+        // once an admin adds groups:read and the buyer reconnects, private
+        // channels light up automatically with no further code change.
+        $scopes = $token->scopes ?? [];
+        $types = ['public_channel'];
+        if (in_array('groups:read', $scopes, true)) {
+            $types[] = 'private_channel';
+        }
+        $types = implode(',', $types);
+
         try {
             $channels = [];
             $cursor = null;
             $error = null;
 
             do {
-                // Only request public_channel: private_channel requires the
-                // `groups:read` scope, which the default Slack app config does
-                // NOT include (we ask for channels:read). Requesting it anyway
-                // makes Slack reject the WHOLE call with missing_scope, so the
-                // buyer sees zero channels even for public ones. Public is the
-                // common case for posting summaries; private support can be
-                // added later alongside the groups:read scope.
                 $resp = Http::withToken($access)
                     ->timeout(20)
                     ->get('https://slack.com/api/conversations.list', array_filter([
-                        'types' => 'public_channel',
+                        'types' => $types,
                         'exclude_archived' => 'true',
                         'limit' => 200,
                         'cursor' => $cursor,
@@ -65,7 +72,10 @@ class SlackClient
                 }
 
                 foreach ($json['channels'] ?? [] as $c) {
-                    $channels[] = ['id' => $c['id'], 'name' => '#'.$c['name']];
+                    $channels[] = [
+                        'id' => $c['id'],
+                        'name' => '#'.$c['name'].(($c['is_private'] ?? false) ? ' (private)' : ''),
+                    ];
                 }
 
                 $cursor = $json['response_metadata']['next_cursor'] ?? null;
