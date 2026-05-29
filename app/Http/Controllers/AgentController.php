@@ -139,14 +139,21 @@ class AgentController extends Controller
             'recentRuns' => $recentRuns,
             // settingDefs ship to UI so we can show buyers what they
             // need to configure before hiring (and after, deep-link
-            // to the configure page).
-            'settingDefs' => $agent->settingDefs->map(fn ($d) => [
-                'key' => $d->key,
-                'label' => $d->label,
-                'type' => $d->type,
-                'isRequired' => (bool) $d->is_required,
-                'description' => $d->description,
-            ])->values(),
+            // to the configure page). `value` is the buyer's saved value
+            // for THIS subscription (null when not yet configured) so the
+            // checklist can show "✓ set" instead of a perpetual "required".
+            'settingDefs' => $agent->settingDefs->map(function ($d) use ($subscription) {
+                $settings = (array) ($subscription?->settings ?? []);
+
+                return [
+                    'key' => $d->key,
+                    'label' => $d->label,
+                    'type' => $d->type,
+                    'isRequired' => (bool) $d->is_required,
+                    'description' => $d->description,
+                    'value' => $settings[$d->key] ?? null,
+                ];
+            })->values(),
             'skills' => $agent->skills->map(fn ($s) => [
                 'name' => $s->name,
                 'label' => $s->label,

@@ -296,7 +296,12 @@ const AgentDetail = (() => {
   const SetupRequirements = ({ oauthChecklist = [], settingDefs = [], subscription = null, isAuthenticated = false }) => {
     if (oauthChecklist.length === 0 && settingDefs.length === 0) return null;
     const needsOauth = oauthChecklist.filter(o => !o.connected || o.expired);
-    const allReady = needsOauth.length === 0;
+    const isSet = (d) => d.value !== null && d.value !== undefined && d.value !== '';
+    // Only count variables as "pending" once the buyer has a subscription —
+    // on the public view there's nothing to configure yet.
+    const pendingVars = subscription ? settingDefs.filter(d => d.isRequired && !isSet(d)) : [];
+    const pendingCount = needsOauth.length + pendingVars.length;
+    const allReady = pendingCount === 0;
 
     return (
       <div style={{ padding: '0 40px 28px' }}>
@@ -310,7 +315,7 @@ const AgentDetail = (() => {
             </div>
             {isAuthenticated && (
               <span style={{ padding: '4px 10px', borderRadius: 4, background: allReady ? palette.accentDim : 'rgba(255,184,77,0.12)', color: allReady ? palette.accent : palette.amber, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
-                {allReady ? '✓ ready' : `${needsOauth.length} pending`}
+                {allReady ? '✓ ready' : `${pendingCount} pending`}
               </span>
             )}
           </div>
@@ -348,20 +353,31 @@ const AgentDetail = (() => {
             <div>
               <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Variables you'll configure</div>
               <div style={{ display: 'grid', gap: 6 }}>
-                {settingDefs.map(d => (
-                  <div key={d.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 12px', background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 6 }}>
-                    <div>
-                      <span style={{ fontSize: 13, color: palette.text, fontWeight: 500 }}>{d.label}</span>
-                      {d.isRequired && <span style={{ marginLeft: 8, fontSize: 10, color: palette.red, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>}
-                      {d.description && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 2 }}>{d.description}</div>}
+                {settingDefs.map(d => {
+                  const set = isSet(d);
+                  return (
+                    <div key={d.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 12px', background: 'var(--p-inset-soft)', border: `1px solid ${set ? palette.accentDim : palette.border}`, borderRadius: 6 }}>
+                      <div>
+                        <span style={{ fontSize: 13, color: palette.text, fontWeight: 500 }}>{d.label}</span>
+                        {/* Once configured show the saved value; before that show
+                            "required" only when there's a subscription to fill. */}
+                        {set ? (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>✓ {String(d.value)}</span>
+                        ) : d.isRequired && subscription ? (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: palette.red, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>
+                        ) : d.isRequired ? (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: palette.textMute, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>
+                        ) : null}
+                        {d.description && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 2 }}>{d.description}</div>}
+                      </div>
+                      <code style={{ color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>{d.type}</code>
                     </div>
-                    <code style={{ color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>{d.type}</code>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {subscription && (
-                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'inline-block', marginTop: 12, padding: '8px 14px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
-                  Configure now →
+                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'inline-block', marginTop: 12, padding: '8px 14px', borderRadius: 8, background: pendingVars.length > 0 ? palette.accent : 'transparent', color: pendingVars.length > 0 ? palette.onAccent : palette.textDim, border: pendingVars.length > 0 ? 0 : `1px solid ${palette.border}`, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                  {pendingVars.length > 0 ? 'Configure now →' : 'Edit configuration →'}
                 </Link>
               )}
             </div>
