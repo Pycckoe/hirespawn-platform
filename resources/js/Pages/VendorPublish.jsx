@@ -1,5 +1,5 @@
 import '@/setup';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 
@@ -14,11 +14,12 @@ const VendorPublish = (() => {
     const {
       categories = [], ranks = [], defaults = {}, mode = 'create', agent = null,
       llmModels = [], credentialsByProvider = {}, economics = { eurCentsPerPower: 0.9, sellerSharePct: 70 },
-      knownLanguages = [], knownIntegrationTags = [],
+      knownLanguages = [], knownIntegrationTags = [], templates = [],
     } = usePage().props;
     const isEdit = mode === 'edit' && agent;
+    const [appliedTemplate, setAppliedTemplate] = useState(null);
 
-    const { data, setData, post, patch, processing, errors } = useForm({
+    const { data, setData, post, patch, processing, errors, transform } = useForm({
       name: agent?.name ?? '',
       vendor: agent?.vendor ?? defaults.vendor ?? '',
       category: agent?.category ?? categories[0]?.slug ?? '',
@@ -27,6 +28,8 @@ const VendorPublish = (() => {
       tagline: agent?.tagline ?? '',
       description: agent?.description ?? '',
       systemPrompt: agent?.systemPrompt ?? defaults.systemPrompt ?? '',
+      acceptsKnowledge: agent?.acceptsKnowledge ?? defaults.acceptsKnowledge ?? false,
+      knowledgeInstructions: agent?.knowledgeInstructions ?? defaults.knowledgeInstructions ?? '',
       llmModelId: agent?.llmModelId ?? llmModels[0]?.id ?? null,
       estInputTokens: agent?.estInputTokens ?? defaults.estInputTokens ?? 800,
       estOutputTokens: agent?.estOutputTokens ?? defaults.estOutputTokens ?? 400,
@@ -65,6 +68,31 @@ const VendorPublish = (() => {
     }]);
     const updateSkill = (idx, patch) => setData('skills', data.skills.map((s, i) => i === idx ? { ...s, ...patch } : s));
     const removeSkill = (idx) => setData('skills', data.skills.filter((_, i) => i !== idx));
+
+    // The skill sub-form uses camelCase keys; the backend validates/persists
+    // snake_case. Map them at submit so webhook URL / schema / provider /
+    // timeout actually save (and so template-prefilled skills round-trip).
+    transform((d) => ({
+      ...d,
+      skills: (d.skills || []).map(s => ({
+        name: s.name,
+        label: s.label,
+        description: s.description,
+        transport: s.transport,
+        webhook_url: s.webhookUrl ?? null,
+        required_oauth_provider: s.requiredOauthProvider ?? null,
+        parameters_schema: s.parametersSchema ?? null,
+        timeout_seconds: s.timeoutSeconds ?? 30,
+      })),
+    }));
+
+    // Prefill the whole form from an admin-defined template (create mode).
+    const applyTemplate = (tpl) => {
+      const p = tpl?.prefill || {};
+      Object.entries(p).forEach(([k, v]) => { if (v !== null && v !== undefined) setData(k, v); });
+      setAppliedTemplate(tpl?.slug ?? null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const submit = (e) => {
       e.preventDefault();
@@ -156,6 +184,28 @@ const VendorPublish = (() => {
                 }
               </p>
 
+              {!isEdit && templates.length > 0 && (
+                <div style={{ marginBottom: 36 }}>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Start from a template · optional</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+                    {templates.map(t => {
+                      const on = appliedTemplate === t.slug;
+                      return (
+                        <button type="button" key={t.slug} onClick={() => applyTemplate(t)} style={{ textAlign: 'left', padding: 16, borderRadius: 12, background: on ? palette.accentDim : 'var(--p-inset-soft)', border: `1px solid ${on ? palette.accent : palette.border}`, cursor: 'pointer', color: palette.text, fontFamily: 'inherit' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: 18 }}>{t.icon || '◇'}</span>
+                            <span style={{ fontSize: 14, fontWeight: 600 }}>{t.name}</span>
+                            {on && <span style={{ marginLeft: 'auto', fontSize: 10, color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>✓ applied</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: palette.textDim, lineHeight: 1.4 }}>{t.summary}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 11, color: palette.textMute, marginTop: 10 }}>Picking a template fills the form below — tweak anything before publishing.</div>
+                </div>
+              )}
+
               <form onSubmit={submit}>
                 <Section title="Identity" sub="The name buyers see in the roster and on agent cards.">
                   <Field label="Agent name" value={data.name} onChange={v => setData('name', v)} error={errors.name} placeholder="AI Brand Stylist" autoFocus maxLength={80} hint={`URL · /agent/${slug}`} />
@@ -198,6 +248,21 @@ const VendorPublish = (() => {
                     <NumberField label="Est. input tokens / run" value={data.estInputTokens} onChange={v => setData('estInputTokens', v)} error={errors.estInputTokens} min={0} max={1000000} />
                     <NumberField label="Est. output tokens / run" value={data.estOutputTokens} onChange={v => setData('estOutputTokens', v)} error={errors.estOutputTokens} min={0} max={1000000} />
                     <NumberField label="Max output tokens (cap)" value={data.maxOutputTokens || ''} onChange={v => setData('maxOutputTokens', v ? Number(v) : null)} error={errors.maxOutputTokens} min={1} max={200000} placeholder="auto" />
+                  </div>
+
+                  <div style={{ marginTop: 18, padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}` }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!data.acceptsKnowledge} onChange={e => setData('acceptsKnowledge', e.target.checked)} style={{ width: 18, height: 18, accentColor: palette.accent, cursor: 'pointer' }} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>Buyer knowledge base (RAG)</span>
+                    </label>
+                    <div style={{ fontSize: 12, color: palette.textDim, marginTop: 6, lineHeight: 1.5 }}>
+                      Lets buyers upload docs / paste text; relevant chunks are retrieved and added to the prompt at run time. Requires an OpenAI key on your account (used for embeddings).
+                    </div>
+                    {data.acceptsKnowledge && (
+                      <div style={{ marginTop: 12 }}>
+                        <TextareaField label="Knowledge instructions" value={data.knowledgeInstructions} onChange={v => setData('knowledgeInstructions', v)} error={errors.knowledgeInstructions} placeholder="Answer only from the knowledge base; if it's not there, say you don't know." maxLength={2000} rows={3} />
+                      </div>
+                    )}
                   </div>
                 </Section>
 

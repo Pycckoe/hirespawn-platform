@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\AgentCategory;
 use App\Models\AgentSettingDef;
 use App\Models\AgentSkill;
+use App\Models\AgentTemplate;
 use App\Models\LlmModel;
 use App\Models\OauthApp;
 use App\Support\Rates;
@@ -39,6 +40,8 @@ class VendorPublishController extends Controller
                 'estInputTokens' => 800,
                 'estOutputTokens' => 400,
                 'maxOutputTokens' => null,
+                'acceptsKnowledge' => false,
+                'knowledgeInstructions' => '',
             ],
         ));
     }
@@ -62,6 +65,8 @@ class VendorPublishController extends Controller
             'spec' => $validated['tagline'],
             'description' => $validated['description'],
             'system_prompt' => $validated['systemPrompt'] ?? null,
+            'accepts_knowledge' => (bool) ($validated['acceptsKnowledge'] ?? false),
+            'knowledge_instructions' => $validated['knowledgeInstructions'] ?? null,
             // New listings enter the admin review queue. Auto-approval is
             // gone — an admin has to click Approve before the agent is
             // visible in the catalog.
@@ -125,6 +130,8 @@ class VendorPublishController extends Controller
             'spec' => $validated['tagline'],
             'description' => $validated['description'],
             'system_prompt' => $validated['systemPrompt'] ?? null,
+            'accepts_knowledge' => (bool) ($validated['acceptsKnowledge'] ?? false),
+            'knowledge_instructions' => $validated['knowledgeInstructions'] ?? null,
             'power_cost' => $validated['powerCost'],
             'per_unit' => $validated['perUnit'],
             'est_input_tokens' => $validated['estInputTokens'] ?? 0,
@@ -216,6 +223,7 @@ class VendorPublishController extends Controller
             'knownIntegrationTags' => $knownIntegrationTags,
             'maxSkillsPerAgent' => Rates::maxSkillsPerAgent(),
             'mode' => $mode,
+            'templates' => $mode === 'create' ? $this->templatesForPicker() : [],
             'llmModels' => $models,
             'credentialsByProvider' => $credentialsByProvider,
             'oauthProviders' => $oauthProviders,
@@ -234,6 +242,8 @@ class VendorPublishController extends Controller
                 'tagline' => $agent->tagline,
                 'description' => $agent->description,
                 'systemPrompt' => $agent->system_prompt ?? '',
+                'acceptsKnowledge' => (bool) $agent->accepts_knowledge,
+                'knowledgeInstructions' => $agent->knowledge_instructions ?? '',
                 'powerCost' => (int) $agent->power_cost,
                 'perUnit' => $agent->per_unit,
                 'llmModelId' => $agent->llm_model_id,
@@ -268,6 +278,79 @@ class VendorPublishController extends Controller
         ];
     }
 
+    /**
+     * Active templates mapped to the publish form's field shape so the JS
+     * can prefill the form in one click. Skills use the form's camelCase
+     * keys; setting defs use its snake_case keys (see the React useForm).
+     */
+    private function templatesForPicker(): array
+    {
+        return AgentTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function (AgentTemplate $t) {
+                $modelId = $t->suggested_model_slug
+                    ? optional(LlmModel::query()->where('slug', $t->suggested_model_slug)->where('is_active', true)->first())->id
+                    : null;
+
+                return [
+                    'slug' => $t->slug,
+                    'name' => $t->name,
+                    'icon' => $t->icon,
+                    'summary' => $t->summary,
+                    'prefill' => [
+                        'name' => $t->agent_name ?: $t->name,
+                        'category' => $t->category_slug,
+                        'role' => $t->role,
+                        'rank' => $t->rank,
+                        'tagline' => $t->tagline,
+                        'description' => $t->description,
+                        'systemPrompt' => $t->system_prompt ?? '',
+                        'perUnit' => $t->per_unit,
+                        'powerCost' => (int) $t->power_cost,
+                        'estInputTokens' => (int) $t->est_input_tokens,
+                        'estOutputTokens' => (int) $t->est_output_tokens,
+                        'llmModelId' => $modelId,
+                        'languages' => $t->languages ?: [],
+                        'integrations' => $t->integrations ?: [],
+                        'acceptsKnowledge' => (bool) $t->accepts_knowledge,
+                        'knowledgeInstructions' => $t->knowledge_instructions ?? '',
+                        'skills' => collect($t->skills ?: [])->map(fn ($s) => [
+                            'name' => $s['name'] ?? '',
+                            'label' => $s['label'] ?? '',
+                            'description' => $s['description'] ?? '',
+                            'transport' => $s['transport'] ?? 'webhook',
+                            'webhookUrl' => $s['webhook_url'] ?? ($s['webhookUrl'] ?? ''),
+                            'requiredOauthProvider' => $s['required_oauth_provider'] ?? ($s['requiredOauthProvider'] ?? ''),
+                            'parametersSchema' => $this->schemaToString($s['parameters_schema'] ?? ($s['parametersSchema'] ?? '')),
+                            'timeoutSeconds' => (int) ($s['timeout_seconds'] ?? ($s['timeoutSeconds'] ?? 30)),
+                        ])->values()->all(),
+                        'settingDefs' => collect($t->setting_defs ?: [])->map(fn ($d) => [
+                            'key' => $d['key'] ?? '',
+                            'label' => $d['label'] ?? '',
+                            'type' => $d['type'] ?? 'text',
+                            'default_value' => $d['default_value'] ?? '',
+                            'options' => $d['options'] ?? [],
+                            'is_required' => (bool) ($d['is_required'] ?? false),
+                            'description' => $d['description'] ?? '',
+                        ])->values()->all(),
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function schemaToString(mixed $schema): string
+    {
+        if (is_array($schema)) {
+            return (string) json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        }
+
+        return (string) $schema;
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
@@ -279,6 +362,8 @@ class VendorPublishController extends Controller
             'tagline' => ['required', 'string', 'max:120'],
             'description' => ['required', 'string', 'max:4000'],
             'systemPrompt' => ['nullable', 'string', 'max:8000'],
+            'acceptsKnowledge' => ['nullable', 'boolean'],
+            'knowledgeInstructions' => ['nullable', 'string', 'max:2000'],
             'powerCost' => ['required', 'integer', 'min:1', 'max:10000'],
             'perUnit' => ['required', 'string', 'max:60'],
             'llmModelId' => ['nullable', 'integer', Rule::exists('llm_models', 'id')->where('is_active', true)],

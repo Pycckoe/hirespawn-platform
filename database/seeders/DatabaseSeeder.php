@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             TranslationsSeeder::class,
             DemoUserSeeder::class,
             DemoAgentSeeder::class,
+            AgentTemplateSeeder::class,
         ]);
     }
 }
