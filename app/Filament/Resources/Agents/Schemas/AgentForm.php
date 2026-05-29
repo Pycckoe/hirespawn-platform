@@ -16,7 +16,11 @@ class AgentForm
         return $schema
             ->components([
                 Select::make('seller_id')
-                    ->relationship('seller', 'name')
+                    ->label('Seller (owner)')
+                    ->relationship('seller', 'email')
+                    ->searchable()
+                    ->preload()
+                    ->helperText("The agent runs on THIS user's LLM API key (set under /vendor → LLM keys). Reassign to yourself to use your own key.")
                     ->required(),
                 Select::make('category_id')
                     ->relationship('category', 'name'),
