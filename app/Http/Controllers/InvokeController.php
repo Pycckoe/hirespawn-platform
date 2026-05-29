@@ -7,6 +7,7 @@ use App\Models\Subscription;
 use App\Models\UsageEvent;
 use App\Services\Llm\LlmGateway;
 use App\Support\Rates;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +22,12 @@ class InvokeController extends Controller
      * system_prompt is sent first, then the buyer's input as the user
      * message. Real provider tokens + cost are recorded on the
      * UsageEvent so the dashboards reflect actual ⚡ + € flow.
+     *
+     * Responds with JSON (the chat panel posts via axios and appends the
+     * turn in place, no page reload) or an Inertia redirect for a plain
+     * form post.
      */
-    public function store(Request $request, Agent $agent, LlmGateway $gateway): RedirectResponse
+    public function store(Request $request, Agent $agent, LlmGateway $gateway): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'input' => ['required', 'string', 'max:8000'],
@@ -37,21 +42,21 @@ class InvokeController extends Controller
             ->first();
 
         if (! $subscription) {
-            return back()->with('status', "You need to deploy {$agent->name} before running a task.");
+            return $this->fail($request, "You need to deploy {$agent->name} before running a task.");
         }
 
         $profile = $user->buyerProfile()->firstOrCreate([], []);
         $cost = (int) $agent->power_cost;
 
         if ($profile->power_balance < $cost) {
-            return back()->with('status', "Not enough Power. {$cost}⚡ required, you have {$profile->power_balance}⚡. Top up to run.");
+            return $this->fail($request, "Not enough Power. {$cost}⚡ required, you have {$profile->power_balance}⚡. Top up to run.");
         }
 
         // Refuse early if the agent isn't fully wired — the LlmGateway
         // would error the same way but this gives a clearer message and
         // avoids charging the buyer Power for a guaranteed failure.
         if (! $agent->llm_model_id) {
-            return back()->with('status', "{$agent->name} is not yet wired to an LLM model. The seller must finish setup.");
+            return $this->fail($request, "{$agent->name} is not yet wired to an LLM model. The seller must finish setup.");
         }
 
         // Pass the subscription so the gateway can route tool calls
@@ -71,7 +76,7 @@ class InvokeController extends Controller
         if (! $response->ok) {
             // Provider failure: log the event for billing transparency
             // but DO NOT charge the buyer Power (no successful run).
-            UsageEvent::create([
+            $event = UsageEvent::create([
                 'subscription_id' => $subscription->id,
                 'event_type' => 'run',
                 'units_consumed' => 0,
@@ -94,13 +99,20 @@ class InvokeController extends Controller
                 ],
             ]);
 
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'turn' => $this->turn($event, $response, $validated['input'], false),
+                    'powerBalance' => (int) $profile->power_balance,
+                ]);
+            }
+
             return back()->with('status', "✗ {$agent->name} failed: {$response->errorMessage}");
         }
 
-        DB::transaction(function () use ($profile, $subscription, $agent, $cost, $response, $requestId, $costCents, $validated) {
+        $event = DB::transaction(function () use ($profile, $subscription, $agent, $cost, $response, $requestId, $costCents, $validated) {
             $profile->decrement('power_balance', $cost);
 
-            UsageEvent::create([
+            return UsageEvent::create([
                 'subscription_id' => $subscription->id,
                 'event_type' => 'run',
                 'units_consumed' => 1,
@@ -129,6 +141,47 @@ class InvokeController extends Controller
             ]);
         });
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'turn' => $this->turn($event, $response, $validated['input'], true),
+                'powerBalance' => (int) $profile->fresh()->power_balance,
+            ]);
+        }
+
         return back()->with('status', "✓ {$agent->name} ran your task. Burned {$cost}⚡ ({$response->inputTokens}+{$response->outputTokens} tok, {$response->latencyMs}ms).");
+    }
+
+    /**
+     * Shape a UsageEvent + response into the turn the chat panel renders
+     * (mirrors AgentController@show's recentRuns mapping).
+     */
+    private function turn(UsageEvent $event, $response, string $input, bool $ok): array
+    {
+        return [
+            'id' => $event->id,
+            'input' => $input,
+            'output' => $ok ? $response->text : '',
+            'error' => $ok ? null : $response->errorMessage,
+            'ok' => $ok,
+            'cost' => (int) $event->power_consumed,
+            'inputTokens' => (int) $response->inputTokens,
+            'outputTokens' => (int) $response->outputTokens,
+            'latencyMs' => (int) $response->latencyMs,
+            'toolCalls' => $response->toolCallLog,
+            'at' => 'just now',
+        ];
+    }
+
+    /**
+     * Pre-flight failure (no sub / no power / not wired). JSON for the chat
+     * panel, redirect-back for a plain form post.
+     */
+    private function fail(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->wantsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return back()->with('status', $message);
     }
 }

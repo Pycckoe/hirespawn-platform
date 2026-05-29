@@ -394,33 +394,52 @@ const AgentDetail = (() => {
   // so the new turn appears in the history without a full page swap.
   const RunTaskPanel = ({ agent, recentRuns = [] }) => {
     const rates = useRates();
-    const { data, setData, post, processing, errors, reset } = useForm({ input: '' });
+    const [input, setInput] = useState('');
+    const [runs, setRuns] = useState(recentRuns);
+    const [pending, setPending] = useState(null); // { input } while the agent works
+    const [error, setError] = useState(null);
+    const [balance, setBalance] = useState(null);
     const historyRef = useRef(null);
 
-    // Scroll the conversation to the latest turn whenever the runs list
-    // grows (after a submit's reload, or on first mount).
+    const sending = pending !== null;
+
+    // Scroll to the latest turn whenever the conversation grows or the
+    // agent starts/finishes working.
     useEffect(() => {
       if (historyRef.current) {
         historyRef.current.scrollTop = historyRef.current.scrollHeight;
       }
-    }, [recentRuns.length]);
+    }, [runs.length, pending]);
 
-    const submit = (e) => {
-      e.preventDefault();
-      post(route('agent.run', agent.id), {
-        preserveScroll: true,
-        // Refresh only the recentRuns prop on success so the new turn
-        // shows up instantly without re-rendering the whole page.
-        onSuccess: () => {
-          reset('input');
-          router.reload({ only: ['recentRuns', 'powerBalance'] });
-        },
-      });
+    const submit = async (e) => {
+      e?.preventDefault();
+      const text = input.trim();
+      if (!text || sending) return;
+
+      setError(null);
+      setPending({ input: text });
+      setInput('');
+
+      try {
+        const { data } = await window.axios.post(route('agent.run', agent.id), { input: text }, {
+          headers: { Accept: 'application/json' },
+        });
+        setRuns(prev => [...prev, data.turn]);
+        if (typeof data.powerBalance === 'number') setBalance(data.powerBalance);
+      } catch (err) {
+        const msg = err?.response?.data?.message
+          || err?.response?.data?.errors?.input?.[0]
+          || 'Something went wrong — please try again.';
+        // Surface the failure as an assistant error bubble in the thread.
+        setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: msg, ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+      } finally {
+        setPending(null);
+      }
     };
 
     const onEnterKey = (e) => {
       // Cmd/Ctrl + Enter to submit — typical chat shortcut.
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && data.input.trim() && !processing) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim() && !sending) {
         e.preventDefault();
         submit(e);
       }
@@ -445,14 +464,14 @@ const AgentDetail = (() => {
             ref={historyRef}
             style={{ maxHeight: 480, overflowY: 'auto', padding: '20px 24px', background: 'var(--p-inset-soft)' }}
           >
-            {recentRuns.length === 0 ? (
+            {runs.length === 0 && !pending ? (
               <div style={{ padding: '24px 0', textAlign: 'center', color: palette.textDim }}>
                 <div style={{ fontSize: 24, marginBottom: 6 }}>▸</div>
                 <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No runs yet</div>
                 <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>Type a task below — answers land here.</div>
               </div>
             ) : (
-              recentRuns.map(run => (
+              runs.map(run => (
                 <div key={run.id} style={{ marginBottom: 22 }}>
                   {/* User turn */}
                   <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
@@ -485,26 +504,50 @@ const AgentDetail = (() => {
                 </div>
               ))
             )}
+
+            {/* In-flight turn: show the user's message + an animated
+                "thinking" bubble while the agent works (no page reload). */}
+            {pending && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, flexShrink: 0 }}>YOU</div>
+                  <div style={{ flex: 1, padding: '10px 14px', background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{pending.input}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>AI</div>
+                  <div style={{ flex: 1, padding: '12px 14px', background: 'rgba(180,242,91,0.04)', borderRadius: 10, border: `1px solid ${palette.accentDim}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{agent.name} is thinking</span>
+                    <span style={{ display: 'inline-flex', gap: 3 }}>
+                      {[0, 1, 2].map(i => (
+                        <span key={i} style={{ width: 5, height: 5, borderRadius: 99, background: palette.accent, display: 'inline-block', animation: 'hsTypingDot 1s infinite', animationDelay: `${i * 0.15}s` }} />
+                      ))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Input */}
           <form onSubmit={submit} style={{ padding: '16px 24px 20px', borderTop: `1px solid ${palette.border}` }}>
+            <style>{`@keyframes hsTypingDot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }`}</style>
             <textarea
-              value={data.input}
-              onChange={(e) => setData('input', e.target.value)}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={onEnterKey}
               placeholder={`Ask ${agent.name} to do something. E.g. "${agent.spec || 'process a task'}"`}
               rows={3}
               maxLength={8000}
-              style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${errors.input ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
+              style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
             />
-            {errors.input && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{errors.input}</div>}
+            {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
               <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
-                {data.input.length} / 8000 · <span style={{ opacity: 0.7 }}>⌘+Enter to send</span>
+                {input.length} / 8000 · <span style={{ opacity: 0.7 }}>⌘+Enter to send</span>
+                {balance !== null && <span> · balance {balance}⚡</span>}
               </div>
-              <button type="submit" disabled={processing || !data.input.trim()} style={{ padding: '12px 24px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: processing || !data.input.trim() ? 'not-allowed' : 'pointer', opacity: processing || !data.input.trim() ? 0.5 : 1 }}>
-                {processing ? 'Running…' : `Send · ${agent.power}⚡`}
+              <button type="submit" disabled={sending || !input.trim()} style={{ padding: '12px 24px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', opacity: sending || !input.trim() ? 0.5 : 1 }}>
+                {sending ? 'Running…' : `Send · ${agent.power}⚡`}
               </button>
             </div>
           </form>
