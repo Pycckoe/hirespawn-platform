@@ -2,8 +2,7 @@
 
 namespace App\Services\Llm\Drivers;
 
-use App\Models\AgentSkill;
-use App\Services\Llm\Contracts\LlmDriver;
+use App\Services\Llm\Contracts\StreamingLlmDriver;
 use App\Services\Llm\LlmRequest;
 use App\Services\Llm\LlmResponse;
 use Illuminate\Support\Facades\Http;
@@ -17,11 +16,84 @@ use Throwable;
  *
  * Spec: https://docs.anthropic.com/en/docs/build-with-claude/tool-use
  */
-class AnthropicDriver implements LlmDriver
+class AnthropicDriver implements StreamingLlmDriver
 {
     private const ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
     private const VERSION = '2023-06-01';
+
+    /**
+     * Stream a tool-less completion. Calls $onDelta with each text chunk as
+     * Anthropic sends content_block_delta events, and returns the full
+     * LlmResponse (text + usage) once the stream ends.
+     */
+    public function stream(LlmRequest $request, callable $onDelta): LlmResponse
+    {
+        $startedAt = microtime(true);
+
+        $payload = [
+            'model' => $request->model->api_id,
+            'max_tokens' => $request->maxOutputTokens,
+            'stream' => true,
+            'messages' => $this->mapMessages($request->messages),
+        ];
+        if ($request->systemPrompt) {
+            $payload['system'] = $request->systemPrompt;
+        }
+
+        try {
+            $resp = Http::withHeaders([
+                'x-api-key' => $request->apiKey,
+                'anthropic-version' => self::VERSION,
+                'content-type' => 'application/json',
+            ])
+                ->withOptions(['stream' => true])
+                ->timeout(180)
+                ->post(self::ENDPOINT, $payload);
+
+            if (! $resp->successful()) {
+                $error = $resp->json('error.message') ?? "HTTP {$resp->status()}";
+
+                return LlmResponse::error("Anthropic: {$error}", (int) round((microtime(true) - $startedAt) * 1000));
+            }
+
+            $text = '';
+            $input = 0;
+            $output = 0;
+
+            SseReader::read($resp->toPsrResponse()->getBody(), function (string $payloadLine) use (&$text, &$input, &$output, $onDelta) {
+                $json = json_decode($payloadLine, true);
+                if (! is_array($json)) {
+                    return;
+                }
+                $type = $json['type'] ?? null;
+                if ($type === 'message_start') {
+                    $input = (int) ($json['message']['usage']['input_tokens'] ?? 0);
+                } elseif ($type === 'content_block_delta' && ($json['delta']['type'] ?? null) === 'text_delta') {
+                    $chunk = (string) ($json['delta']['text'] ?? '');
+                    if ($chunk !== '') {
+                        $text .= $chunk;
+                        $onDelta($chunk);
+                    }
+                } elseif ($type === 'message_delta') {
+                    $output = (int) ($json['usage']['output_tokens'] ?? $output);
+                }
+            });
+
+            $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+            return new LlmResponse(
+                text: $text,
+                inputTokens: $input,
+                outputTokens: $output,
+                providerCostCents: $request->model->costCentsFor($input, $output),
+                latencyMs: $latencyMs,
+                ok: true,
+            );
+        } catch (Throwable $e) {
+            return LlmResponse::error('Anthropic: '.$e->getMessage(), (int) round((microtime(true) - $startedAt) * 1000));
+        }
+    }
 
     public function complete(LlmRequest $request): LlmResponse
     {

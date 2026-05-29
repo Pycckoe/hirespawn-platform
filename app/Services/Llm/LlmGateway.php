@@ -230,6 +230,69 @@ class LlmGateway
     }
 
     /**
+     * Streaming, tool-less variant of run() for the chat "typing" effect.
+     * Resolves the same model / key / rendered prompt (+ RAG knowledge) but
+     * makes a single streamed call, pushing text deltas through $onDelta.
+     * Falls back to a normal run() when the provider driver can't stream.
+     * The caller must only use this for agents WITHOUT tools.
+     */
+    public function runStream(Agent $agent, string $userPrompt, ?Subscription $subscription, callable $onDelta): LlmResponse
+    {
+        $model = $agent->llmModel;
+        if (! $model) {
+            return LlmResponse::error("Agent '{$agent->slug}' has no LLM model assigned.");
+        }
+        if (! $model->is_active) {
+            return LlmResponse::error("Model {$model->name} is no longer active. Seller must pick another model.");
+        }
+
+        $seller = $agent->seller;
+        $credential = $seller?->llmCredentialFor($model->provider);
+        if (! $credential) {
+            return LlmResponse::error("Seller has no API key configured for {$model->provider}.");
+        }
+
+        $driver = $this->driverFor($model->provider);
+        if (! $driver instanceof \App\Services\Llm\Contracts\StreamingLlmDriver) {
+            // Provider can't stream — do a normal one-shot run and emit the
+            // whole answer as a single delta so the caller's UX still works.
+            $resp = $this->run($agent, $userPrompt, $subscription);
+            if ($resp->ok && $resp->text !== '') {
+                $onDelta($resp->text);
+            }
+
+            return $resp;
+        }
+
+        $fallbackMaxOutput = Rates::llmDefaultMaxOutputTokens();
+        $maxOutput = $agent->max_output_tokens
+            ?: ($agent->est_output_tokens > 0 ? $agent->est_output_tokens * 2 : $model->max_output_tokens)
+            ?: $fallbackMaxOutput;
+        $maxOutput = min($maxOutput, $model->max_output_tokens ?: $maxOutput);
+
+        $systemPrompt = $this->renderSystemPrompt($agent, $subscription);
+        if ($subscription && $subscription->knowledgeChunks()->exists()) {
+            $systemPrompt = $this->appendKnowledge($systemPrompt, $agent, $subscription, $userPrompt);
+        }
+
+        $request = new LlmRequest(
+            model: $model,
+            apiKey: $credential->decryptedKey(),
+            systemPrompt: $systemPrompt,
+            messages: [['role' => 'user', 'content' => $userPrompt]],
+            maxOutputTokens: $maxOutput,
+            tools: [],
+        );
+
+        $resp = $driver->stream($request, $onDelta);
+        if ($resp->ok && $credential) {
+            $credential->forceFill(['last_used_at' => now()])->save();
+        }
+
+        return $resp;
+    }
+
+    /**
      * Same as run() but for the publish-form preview — one-shot, no
      * subscription context, no tools. Lets the seller verify their key
      * before listing the agent.

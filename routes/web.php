@@ -111,6 +111,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'store'])->name('subscription.store');
     Route::delete('/agent/{agent:slug}/subscribe', [SubscriptionController::class, 'destroy'])->name('subscription.destroy');
     Route::post('/agent/{agent:slug}/run', [InvokeController::class, 'store'])->name('agent.run');
+    Route::post('/agent/{agent:slug}/run/stream', [InvokeController::class, 'stream'])->name('agent.run.stream');
 });
 
 Route::middleware('auth')->group(function () {

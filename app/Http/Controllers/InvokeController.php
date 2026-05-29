@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvokeController extends Controller
 {
@@ -183,5 +184,147 @@ class InvokeController extends Controller
         }
 
         return back()->with('status', $message);
+    }
+
+    /**
+     * Streaming variant for the chat "typing" effect. Returns an SSE stream
+     * that emits {type:delta,text} as the model produces tokens, then a
+     * {type:done,turn,powerBalance} frame after the run is recorded. Agents
+     * WITH tools (skills or MCP) can't stream token-by-token, so they run
+     * normally and the full answer is emitted as one delta. Pre-flight
+     * failures return a JSON 422 (before the stream starts) so the frontend
+     * can fall back to the non-stream endpoint.
+     */
+    public function stream(Request $request, Agent $agent, LlmGateway $gateway): StreamedResponse|JsonResponse
+    {
+        $validated = $request->validate(['input' => ['required', 'string', 'max:8000']]);
+        $user = $request->user();
+
+        $subscription = Subscription::query()
+            ->where('buyer_id', $user->id)
+            ->where('agent_id', $agent->id)
+            ->whereIn('status', ['active', 'paused'])
+            ->first();
+        if (! $subscription) {
+            return response()->json(['message' => "You need to deploy {$agent->name} before running a task."], 422);
+        }
+
+        $profile = $user->buyerProfile()->firstOrCreate([], []);
+        $cost = (int) $agent->power_cost;
+        if ($profile->power_balance < $cost) {
+            return response()->json(['message' => "Not enough Power. {$cost}⚡ required, you have {$profile->power_balance}⚡."], 422);
+        }
+        if (! $agent->llm_model_id) {
+            return response()->json(['message' => "{$agent->name} is not yet wired to an LLM model."], 422);
+        }
+
+        $input = $validated['input'];
+        $costCents = (int) round($cost * Rates::eurCentsPerPower());
+        // Tools (vendor skills or buyer MCP) need the full multi-turn loop —
+        // can't stream those token-by-token.
+        $hasTools = $agent->skills()->exists()
+            || $subscription->mcpConnections()->where('is_active', true)->exists();
+
+        return response()->stream(function () use ($gateway, $agent, $subscription, $profile, $cost, $costCents, $input, $hasTools) {
+            $emit = function (array $data) {
+                echo 'data: '.json_encode($data)."\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            try {
+                $fresh = $agent->fresh(['llmModel', 'seller', 'skills', 'settingDefs']);
+
+                if ($hasTools) {
+                    $response = $gateway->run($fresh, $input, $subscription);
+                    if ($response->ok && $response->text !== '') {
+                        $emit(['type' => 'delta', 'text' => $response->text]);
+                    }
+                } else {
+                    $response = $gateway->runStream($fresh, $input, $subscription, function (string $delta) use ($emit) {
+                        $emit(['type' => 'delta', 'text' => $delta]);
+                    });
+                }
+
+                $event = $this->recordRun($subscription, $agent, $profile, $cost, $costCents, $input, $response);
+
+                if (! $response->ok) {
+                    $emit(['type' => 'error', 'message' => $response->errorMessage ?: 'Run failed.', 'turn' => $this->turn($event, $response, $input, false)]);
+                } else {
+                    $emit(['type' => 'done', 'turn' => $this->turn($event, $response, $input, true), 'powerBalance' => (int) $profile->fresh()->power_balance]);
+                }
+            } catch (\Throwable $e) {
+                $emit(['type' => 'error', 'message' => 'Run failed: '.$e->getMessage()]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no', // ask nginx not to buffer the stream
+        ]);
+    }
+
+    /**
+     * Persist a run as a UsageEvent and debit Power on success. Mirrors the
+     * billing logic in store() so the stream + non-stream paths agree.
+     */
+    private function recordRun(Subscription $subscription, Agent $agent, $profile, int $cost, int $costCents, string $input, $response): UsageEvent
+    {
+        $requestId = 'run_'.Str::random(12);
+
+        if (! $response->ok) {
+            return UsageEvent::create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'run',
+                'units_consumed' => 0,
+                'unit_type' => $agent->per_unit,
+                'power_consumed' => 0,
+                'request_id' => $requestId,
+                'agent_response_status' => 502,
+                'latency_ms' => $response->latencyMs,
+                'cost_cents' => 0,
+                'input_tokens' => $response->inputTokens,
+                'output_tokens' => $response->outputTokens,
+                'provider_cost_cents' => $response->providerCostCents,
+                'recorded_at' => now(),
+                'metadata' => [
+                    'input' => $input,
+                    'input_preview' => Str::limit($input, 200),
+                    'error' => $response->errorMessage,
+                    'agent_slug' => $agent->slug,
+                    'tool_calls' => $response->toolCallLog,
+                ],
+            ]);
+        }
+
+        return DB::transaction(function () use ($profile, $subscription, $agent, $cost, $response, $requestId, $costCents, $input) {
+            $profile->decrement('power_balance', $cost);
+
+            return UsageEvent::create([
+                'subscription_id' => $subscription->id,
+                'event_type' => 'run',
+                'units_consumed' => 1,
+                'unit_type' => $agent->per_unit,
+                'power_consumed' => $cost,
+                'request_id' => $requestId,
+                'agent_response_status' => 200,
+                'latency_ms' => $response->latencyMs,
+                'cost_cents' => $costCents,
+                'input_tokens' => $response->inputTokens,
+                'output_tokens' => $response->outputTokens,
+                'provider_cost_cents' => $response->providerCostCents,
+                'recorded_at' => now(),
+                'metadata' => [
+                    'input' => $input,
+                    'output' => $response->text,
+                    'input_preview' => Str::limit($input, 200),
+                    'output_preview' => Str::limit($response->text, 200),
+                    'agent_slug' => $agent->slug,
+                    'model' => $agent->llmModel?->slug,
+                    'tool_calls' => $response->toolCallLog,
+                ],
+            ]);
+        });
     }
 }

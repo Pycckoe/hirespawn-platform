@@ -394,22 +394,58 @@ const AgentDetail = (() => {
   // so the new turn appears in the history without a full page swap.
   const RunTaskPanel = ({ agent, recentRuns = [] }) => {
     const rates = useRates();
-    const [input, setInput] = useState('');
+    const draftKey = `hs.chatDraft.${agent.slug || agent.id}`;
+    const [input, setInput] = useState(() => {
+      try { return window.localStorage.getItem(draftKey) || ''; } catch { return ''; }
+    });
     const [runs, setRuns] = useState(recentRuns);
-    const [pending, setPending] = useState(null); // { input } while the agent works
+    const [pending, setPending] = useState(null);    // { input } while the agent works
+    const [streamText, setStreamText] = useState(''); // live tokens for the in-flight turn
     const [error, setError] = useState(null);
     const [balance, setBalance] = useState(null);
+    const [atBottom, setAtBottom] = useState(true);   // is the thread scrolled to the latest?
     const historyRef = useRef(null);
 
     const sending = pending !== null;
 
-    // Scroll to the latest turn whenever the conversation grows or the
-    // agent starts/finishes working.
+    // Persist the draft so a refresh / accidental nav doesn't lose typing.
     useEffect(() => {
-      if (historyRef.current) {
-        historyRef.current.scrollTop = historyRef.current.scrollHeight;
+      try { input ? window.localStorage.setItem(draftKey, input) : window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    }, [input, draftKey]);
+
+    const scrollToBottom = () => {
+      if (historyRef.current) historyRef.current.scrollTop = historyRef.current.scrollHeight;
+    };
+
+    // Auto-stick to the bottom as content grows — but only if the user
+    // hasn't scrolled up to read earlier turns.
+    useEffect(() => {
+      if (atBottom) scrollToBottom();
+    }, [runs.length, pending, streamText, atBottom]);
+
+    const onScroll = () => {
+      const el = historyRef.current;
+      if (!el) return;
+      setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60);
+    };
+
+    // CSRF token for fetch() (axios sends it automatically; fetch doesn't).
+    const xsrf = () => {
+      const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    };
+
+    // Non-stream fallback: used when streaming isn't available / fails.
+    const submitJson = async (text) => {
+      try {
+        const { data } = await window.axios.post(route('agent.run', agent.id), { input: text }, { headers: { Accept: 'application/json' } });
+        setRuns(prev => [...prev, data.turn]);
+        if (typeof data.powerBalance === 'number') setBalance(data.powerBalance);
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.response?.data?.errors?.input?.[0] || 'Something went wrong — please try again.';
+        setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: msg, ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
       }
-    }, [runs.length, pending]);
+    };
 
     const submit = async (e) => {
       e?.preventDefault();
@@ -418,22 +454,66 @@ const AgentDetail = (() => {
 
       setError(null);
       setPending({ input: text });
+      setStreamText('');
       setInput('');
+      setAtBottom(true);
 
+      // Try the streaming endpoint (SSE). On any hiccup — non-OK response,
+      // wrong content-type, parse/network error — fall back to the plain
+      // JSON endpoint so the chat always works.
       try {
-        const { data } = await window.axios.post(route('agent.run', agent.id), { input: text }, {
-          headers: { Accept: 'application/json' },
+        const resp = await fetch(route('agent.run.stream', agent.id), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', 'X-XSRF-TOKEN': xsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ input: text }),
+          credentials: 'same-origin',
         });
-        setRuns(prev => [...prev, data.turn]);
-        if (typeof data.powerBalance === 'number') setBalance(data.powerBalance);
-      } catch (err) {
-        const msg = err?.response?.data?.message
-          || err?.response?.data?.errors?.input?.[0]
-          || 'Something went wrong — please try again.';
-        // Surface the failure as an assistant error bubble in the thread.
-        setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: msg, ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+
+        const ctype = resp.headers.get('Content-Type') || '';
+        if (!resp.ok || !resp.body || !ctype.includes('text/event-stream')) {
+          // 422 (guard) or no streaming → JSON path.
+          if (resp.status === 422) {
+            const body = await resp.json().catch(() => ({}));
+            setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: body.message || 'Cannot run.', ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+          } else {
+            await submitJson(text);
+          }
+          return;
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let done = false;
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) break;
+          buf += decoder.decode(value, { stream: true });
+          let sep;
+          while ((sep = buf.indexOf('\n\n')) !== -1) {
+            const frame = buf.slice(0, sep);
+            buf = buf.slice(sep + 2);
+            const line = frame.split('\n').find(l => l.startsWith('data:'));
+            if (!line) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+            if (evt.type === 'delta') {
+              setStreamText(prev => prev + (evt.text || ''));
+            } else if (evt.type === 'done') {
+              setRuns(prev => [...prev, evt.turn]);
+              if (typeof evt.powerBalance === 'number') setBalance(evt.powerBalance);
+              done = true;
+            } else if (evt.type === 'error') {
+              setRuns(prev => [...prev, evt.turn || { id: `err-${Date.now()}`, input: text, output: '', error: evt.message || 'Run failed.', ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+              done = true;
+            }
+          }
+        }
+      } catch {
+        await submitJson(text);
       } finally {
         setPending(null);
+        setStreamText('');
       }
     };
 
@@ -460,8 +540,10 @@ const AgentDetail = (() => {
           </div>
 
           {/* Conversation history */}
+          <div style={{ position: 'relative' }}>
           <div
             ref={historyRef}
+            onScroll={onScroll}
             style={{ maxHeight: 480, overflowY: 'auto', padding: '20px 24px', background: 'var(--p-inset-soft)' }}
           >
             {runs.length === 0 && !pending ? (
@@ -515,17 +597,29 @@ const AgentDetail = (() => {
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>AI</div>
-                  <div style={{ flex: 1, padding: '12px 14px', background: 'rgba(180,242,91,0.04)', borderRadius: 10, border: `1px solid ${palette.accentDim}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{agent.name} is thinking</span>
-                    <span style={{ display: 'inline-flex', gap: 3 }}>
-                      {[0, 1, 2].map(i => (
-                        <span key={i} style={{ width: 5, height: 5, borderRadius: 99, background: palette.accent, display: 'inline-block', animation: 'hsTypingDot 1s infinite', animationDelay: `${i * 0.15}s` }} />
-                      ))}
-                    </span>
+                  <div style={{ flex: 1, padding: '12px 14px', background: 'rgba(180,242,91,0.04)', borderRadius: 10, border: `1px solid ${palette.accentDim}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    {streamText
+                      ? <>{streamText}<span style={{ display: 'inline-block', width: 7, height: 14, background: palette.accent, marginLeft: 2, verticalAlign: 'text-bottom', animation: 'hsTypingDot 1s infinite' }} /></>
+                      : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{agent.name} is thinking</span>
+                          <span style={{ display: 'inline-flex', gap: 3 }}>
+                            {[0, 1, 2].map(i => (
+                              <span key={i} style={{ width: 5, height: 5, borderRadius: 99, background: palette.accent, display: 'inline-block', animation: 'hsTypingDot 1s infinite', animationDelay: `${i * 0.15}s` }} />
+                            ))}
+                          </span>
+                        </span>
+                      )}
                   </div>
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Jump-to-latest — shown when the user scrolled up. */}
+          {!atBottom && (
+            <button type="button" onClick={() => { scrollToBottom(); setAtBottom(true); }} style={{ position: 'absolute', right: 18, bottom: 14, padding: '7px 12px', borderRadius: 20, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>↓ Latest</button>
+          )}
           </div>
 
           {/* Input */}

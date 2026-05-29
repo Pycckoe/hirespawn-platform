@@ -2,7 +2,7 @@
 
 namespace App\Services\Llm\Drivers;
 
-use App\Services\Llm\Contracts\LlmDriver;
+use App\Services\Llm\Contracts\StreamingLlmDriver;
 use App\Services\Llm\LlmRequest;
 use App\Services\Llm\LlmResponse;
 use Illuminate\Support\Facades\Http;
@@ -13,7 +13,7 @@ use Throwable;
  * + native function tool-use. Spec:
  * https://platform.openai.com/docs/guides/function-calling
  */
-class OpenAiDriver implements LlmDriver
+class OpenAiDriver implements StreamingLlmDriver
 {
     private const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
@@ -30,6 +30,83 @@ class OpenAiDriver implements LlmDriver
     protected function label(): string
     {
         return 'OpenAI';
+    }
+
+    /**
+     * Stream a tool-less completion via chat/completions stream=true.
+     * Emits each delta.content chunk through $onDelta and returns the full
+     * LlmResponse once [DONE] arrives. include_usage gives us token counts
+     * in the final chunk.
+     */
+    public function stream(LlmRequest $request, callable $onDelta): LlmResponse
+    {
+        $startedAt = microtime(true);
+
+        $messages = [];
+        if ($request->systemPrompt) {
+            $messages[] = ['role' => 'system', 'content' => $request->systemPrompt];
+        }
+        foreach ($request->messages as $m) {
+            $messages[] = $this->mapMessage($m);
+        }
+
+        $payload = [
+            'model' => $request->model->api_id,
+            'messages' => $messages,
+            'max_completion_tokens' => $request->maxOutputTokens,
+            'stream' => true,
+            'stream_options' => ['include_usage' => true],
+        ];
+
+        try {
+            $resp = Http::withHeaders([
+                'Authorization' => 'Bearer '.$request->apiKey,
+                'Content-Type' => 'application/json',
+            ])
+                ->withOptions(['stream' => true])
+                ->timeout(180)
+                ->post($this->endpoint(), $payload);
+
+            if (! $resp->successful()) {
+                $error = $resp->json('error.message') ?? "HTTP {$resp->status()}";
+
+                return LlmResponse::error("{$this->label()}: {$error}", (int) round((microtime(true) - $startedAt) * 1000));
+            }
+
+            $text = '';
+            $input = 0;
+            $output = 0;
+
+            SseReader::read($resp->toPsrResponse()->getBody(), function (string $payloadLine) use (&$text, &$input, &$output, $onDelta) {
+                $json = json_decode($payloadLine, true);
+                if (! is_array($json)) {
+                    return;
+                }
+                $chunk = (string) ($json['choices'][0]['delta']['content'] ?? '');
+                if ($chunk !== '') {
+                    $text .= $chunk;
+                    $onDelta($chunk);
+                }
+                // The final chunk (stream_options.include_usage) carries totals.
+                if (isset($json['usage'])) {
+                    $input = (int) ($json['usage']['prompt_tokens'] ?? $input);
+                    $output = (int) ($json['usage']['completion_tokens'] ?? $output);
+                }
+            });
+
+            $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+            return new LlmResponse(
+                text: $text,
+                inputTokens: $input,
+                outputTokens: $output,
+                providerCostCents: $request->model->costCentsFor($input, $output),
+                latencyMs: $latencyMs,
+                ok: true,
+            );
+        } catch (Throwable $e) {
+            return LlmResponse::error($this->label().': '.$e->getMessage(), (int) round((microtime(true) - $startedAt) * 1000));
+        }
     }
 
     public function complete(LlmRequest $request): LlmResponse
