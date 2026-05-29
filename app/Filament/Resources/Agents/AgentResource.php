@@ -5,6 +5,9 @@ namespace App\Filament\Resources\Agents;
 use App\Filament\Resources\Agents\Pages\CreateAgent;
 use App\Filament\Resources\Agents\Pages\EditAgent;
 use App\Filament\Resources\Agents\Pages\ListAgents;
+use App\Filament\Resources\Agents\RelationManagers\PricingTiersRelationManager;
+use App\Filament\Resources\Agents\RelationManagers\SkillsRelationManager;
+use App\Filament\Resources\Agents\RelationManagers\VariablesRelationManager;
 use App\Filament\Resources\Agents\Schemas\AgentForm;
 use App\Filament\Resources\Agents\Tables\AgentsTable;
 use App\Models\Agent;
@@ -39,7 +42,9 @@ class AgentResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            VariablesRelationManager::class,
+            SkillsRelationManager::class,
+            PricingTiersRelationManager::class,
         ];
     }
 
