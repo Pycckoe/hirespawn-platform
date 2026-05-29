@@ -4,6 +4,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\InvokeController;
 use App\Http\Controllers\KnowledgeController;
+use App\Http\Controllers\McpConnectionController;
 use App\Http\Controllers\OauthController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PageController;
@@ -97,6 +98,11 @@ Route::middleware(['auth'])->group(function () {
     // Knowledge base (RAG) — buyer uploads/pastes docs the agent retrieves from.
     Route::post('/console/subscriptions/{subscription}/knowledge', [KnowledgeController::class, 'store'])->name('subscriptions.knowledge.store');
     Route::delete('/console/subscriptions/{subscription}/knowledge/{source}', [KnowledgeController::class, 'destroy'])->name('subscriptions.knowledge.destroy');
+    // MCP servers — buyer connects remote MCP servers; their tools are
+    // exposed to the agent at run time.
+    Route::post('/console/subscriptions/{subscription}/mcp', [McpConnectionController::class, 'store'])->name('subscriptions.mcp.store');
+    Route::post('/console/subscriptions/{subscription}/mcp/{connection}/test', [McpConnectionController::class, 'test'])->name('subscriptions.mcp.test');
+    Route::delete('/console/subscriptions/{subscription}/mcp/{connection}', [McpConnectionController::class, 'destroy'])->name('subscriptions.mcp.destroy');
     // Buyer-side dispute creation — files a SupportTicket(kind=dispute)
     // against an active subscription the buyer owns.
     Route::post('/console/disputes', [SupportController::class, 'storeDispute'])->name('disputes.store');

@@ -51,6 +51,11 @@ class Subscription extends Model
         return $this->hasMany(KnowledgeChunk::class);
     }
 
+    public function mcpConnections(): HasMany
+    {
+        return $this->hasMany(McpConnection::class)->latest();
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);

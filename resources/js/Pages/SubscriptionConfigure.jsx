@@ -11,7 +11,7 @@ const SubscriptionConfigure = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
   const Page = () => {
-    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [] } = usePage().props;
+    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [], mcpConnections = [] } = usePage().props;
 
     const initial = Object.fromEntries(
       defs.map(d => [d.key, values[d.key] ?? d.defaultValue ?? (d.type === 'boolean' ? false : '')])
@@ -34,6 +34,8 @@ const SubscriptionConfigure = (() => {
 
     const nothingToConfigure = defs.length === 0 && connections.length === 0 && !acceptsKnowledge;
     const hasFormFields = connections.length > 0 || defs.length > 0;
+    // MCP is available to every deployment — it enriches any agent with the
+    // buyer's own tools, independent of what the vendor declared.
 
     return (
       <>
@@ -59,14 +61,14 @@ const SubscriptionConfigure = (() => {
                 Connect the services this agent needs + pick where it acts. Variable values feed the agent's system prompt on every run.
               </p>
 
-              {nothingToConfigure ? (
-                <Glass style={{ padding: 32, textAlign: 'center' }}>
+              {nothingToConfigure && (
+                <Glass style={{ padding: 24, textAlign: 'center', marginBottom: 18 }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>◌</div>
-                  <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No setup needed</div>
-                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 16 }}>This agent runs without integrations or variables — just chat with it.</div>
-                  <Link href={`/agent/${subscription.agentSlug}`} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Open agent →</Link>
+                  <div style={{ fontSize: 14, color: palette.text, marginBottom: 4 }}>No vendor setup needed</div>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>This agent runs without integrations or variables — just chat with it, or enrich it with MCP tools below.</div>
                 </Glass>
-              ) : (
+              )}
+              {(
                 <>
                 {hasFormFields && (
                 <form onSubmit={submit}>
@@ -120,6 +122,8 @@ const SubscriptionConfigure = (() => {
                 {acceptsKnowledge && (
                   <KnowledgeSection palette={palette} subscriptionId={subscription.id} ready={knowledgeReady} items={knowledge} />
                 )}
+
+                <McpSection palette={palette} subscriptionId={subscription.id} items={mcpConnections} />
                 </>
               )}
             </div>
@@ -394,6 +398,96 @@ const SubscriptionConfigure = (() => {
               </button>
             </div>
           </form>
+        </Glass>
+      </div>
+    );
+  };
+
+  // MCP servers: the buyer connects remote MCP servers; their tools are
+  // exposed to the agent at run time. Available to every deployment.
+  const McpSection = ({ palette, subscriptionId, items = [] }) => {
+    const [showAdd, setShowAdd] = useState(items.length === 0);
+    const [testingId, setTestingId] = useState(null);
+    const { data, setData, post, processing, errors, reset } = useForm({ label: '', url: '', auth_type: 'none', token: '' });
+
+    const submitAdd = (e) => {
+      e.preventDefault();
+      post(route('subscriptions.mcp.store', subscriptionId), {
+        preserveScroll: true,
+        onSuccess: () => { reset(); setShowAdd(false); },
+      });
+    };
+
+    const test = (id) => router.post(route('subscriptions.mcp.test', [subscriptionId, id]), {}, {
+      preserveScroll: true, onStart: () => setTestingId(id), onFinish: () => setTestingId(null),
+    });
+    const remove = (id) => {
+      if (!window.confirm('Disconnect this MCP server?')) return;
+      router.delete(route('subscriptions.mcp.destroy', [subscriptionId, id]), { preserveScroll: true });
+    };
+
+    const statusColor = (s) => s === 'ok' ? palette.accent : s === 'failed' ? palette.red : palette.amber;
+    const statusBg = (s) => s === 'ok' ? palette.accentDim : s === 'failed' ? 'rgba(255,80,80,0.12)' : 'rgba(255,184,77,0.12)';
+    const inputStyle = { width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' };
+
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>MCP servers · extra tools for the agent</div>
+        <Glass style={{ padding: 24 }}>
+          <div style={{ fontSize: 12, color: palette.textMute, marginBottom: 16, lineHeight: 1.5 }}>
+            Connect remote MCP servers (Model Context Protocol) to give this agent extra tools — your own data, services, and actions. The agent can call them during a run. Only HTTP/remote MCP servers are supported.
+          </div>
+
+          {items.length > 0 && (
+            <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+              {items.map(c => (
+                <div key={c.id} style={{ padding: '12px 14px', background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'center' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: palette.text, fontWeight: 600 }}>{c.label}</div>
+                      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.url}{c.status === 'ok' && ` · ${c.toolCount} tools`}{c.status === 'failed' && c.statusMessage && ` · ${c.statusMessage}`}
+                      </div>
+                    </div>
+                    <span style={{ padding: '3px 8px', borderRadius: 4, background: statusBg(c.status), color: statusColor(c.status), fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>{c.status}</span>
+                    <button type="button" disabled={testingId === c.id} onClick={() => test(c.id)} style={{ padding: '6px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${palette.accent}`, color: palette.accent, fontSize: 12, cursor: testingId === c.id ? 'wait' : 'pointer', fontFamily: 'inherit' }}>{testingId === c.id ? 'Testing…' : 'Test'}</button>
+                    <button type="button" onClick={() => remove(c.id)} style={{ padding: '6px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.textDim, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Remove</button>
+                  </div>
+                  {c.status === 'ok' && (c.tools || []).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                      {c.tools.map(t => <span key={t.name} title={t.description || ''} style={{ padding: '2px 7px', background: 'var(--p-chip)', color: palette.textDim, fontSize: 10, fontFamily: 'Geist Mono, monospace', borderRadius: 4 }}>{t.name}</span>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showAdd ? (
+            <form onSubmit={submitAdd} style={{ borderTop: items.length > 0 ? `1px solid ${palette.border}` : 0, paddingTop: items.length > 0 ? 16 : 0 }}>
+              <input type="text" placeholder="Label (e.g. My Notion MCP)" value={data.label} onChange={e => setData('label', e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+              {errors.label && <div style={{ fontSize: 11, color: palette.red, marginBottom: 8, fontFamily: 'Geist Mono, monospace' }}>{errors.label}</div>}
+              <input type="url" placeholder="https://your-mcp-server.example.com/mcp" value={data.url} onChange={e => setData('url', e.target.value)} style={{ ...inputStyle, marginBottom: 10, fontFamily: 'Geist Mono, monospace' }} />
+              {errors.url && <div style={{ fontSize: 11, color: palette.red, marginBottom: 8, fontFamily: 'Geist Mono, monospace' }}>{errors.url}</div>}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                <select value={data.auth_type} onChange={e => setData('auth_type', e.target.value)} style={{ ...inputStyle, flex: '0 0 160px' }}>
+                  <option value="none">No auth</option>
+                  <option value="bearer">Bearer token</option>
+                </select>
+                {data.auth_type === 'bearer' && (
+                  <input type="password" placeholder="Token" value={data.token} onChange={e => setData('token', e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                {items.length > 0 && <button type="button" onClick={() => { reset(); setShowAdd(false); }} style={{ padding: '9px 16px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.textDim, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>}
+                <button type="submit" disabled={processing} style={{ padding: '9px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: processing ? 'wait' : 'pointer', opacity: processing ? 0.5 : 1 }}>{processing ? 'Connecting…' : 'Connect & test'}</button>
+              </div>
+            </form>
+          ) : (
+            <div style={{ textAlign: 'right' }}>
+              <button type="button" onClick={() => setShowAdd(true)} style={{ padding: '9px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>+ Add MCP server</button>
+            </div>
+          )}
         </Glass>
       </div>
     );

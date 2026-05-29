@@ -26,7 +26,7 @@ class SubscriptionSettingsController extends Controller
     public function show(Request $request, Subscription $subscription): Response
     {
         $this->authorize($request, $subscription);
-        $subscription->load(['agent.settingDefs', 'agent.skills', 'knowledgeSources']);
+        $subscription->load(['agent.settingDefs', 'agent.skills', 'knowledgeSources', 'mcpConnections']);
         $user = $request->user();
 
         $defs = $subscription->agent->settingDefs->map(fn (AgentSettingDef $d) => [
@@ -93,6 +93,21 @@ class SubscriptionSettingsController extends Controller
                 'chunkCount' => $s->chunk_count,
                 'bytes' => $s->bytes,
                 'createdAt' => $s->created_at?->format('M d, Y H:i'),
+            ])->values()->all(),
+            'mcpConnections' => $subscription->mcpConnections->map(fn ($c) => [
+                'id' => $c->id,
+                'label' => $c->label,
+                'url' => $c->url,
+                'authType' => $c->auth_type,
+                'isActive' => (bool) $c->is_active,
+                'status' => $c->status,
+                'statusMessage' => $c->status_message,
+                'toolCount' => $c->tool_count,
+                'tools' => collect($c->tools_cache ?? [])->map(fn ($t) => [
+                    'name' => $t['name'] ?? '',
+                    'description' => $t['description'] ?? '',
+                ])->values()->all(),
+                'checkedAt' => $c->checked_at?->format('M d, Y H:i'),
             ])->values()->all(),
         ]);
     }

@@ -25,6 +25,8 @@ class LlmGateway
     public function __construct(
         private readonly ToolExecutor $executor,
         private readonly \App\Services\Knowledge\KnowledgeRetriever $retriever,
+        private readonly \App\Services\Mcp\McpToolset $mcpToolset,
+        private readonly \App\Services\Mcp\McpClient $mcpClient,
     ) {
     }
 
@@ -64,6 +66,17 @@ class LlmGateway
         $skills = $agent->skills;
         $tools = $this->toolsFor($model->provider, $skills);
         $skillsByName = $skills->keyBy('name');
+
+        // Merge in tools from the buyer's connected MCP servers (if any).
+        // Best-effort: a broken MCP server contributes nothing and never
+        // breaks the run. mcpDispatch maps a namespaced tool name back to
+        // its connection + original tool name for execution below.
+        $mcpDispatch = [];
+        if ($subscription) {
+            $mcp = $this->mcpToolset->build($subscription, $model->provider);
+            $tools = array_merge($tools, $mcp['tools']);
+            $mcpDispatch = $mcp['dispatch'];
+        }
 
         // Substitute {{key}} placeholders in system_prompt with values
         // the buyer picked at /console/subscriptions/{sub}/configure.
@@ -142,6 +155,26 @@ class LlmGateway
             }
 
             foreach ($resp->toolCalls as $call) {
+                // MCP tool? Route to the buyer's connected server.
+                if (isset($mcpDispatch[$call['name']])) {
+                    $target = $mcpDispatch[$call['name']];
+                    $mcpResult = $this->mcpClient->callTool($target['connection'], $target['tool'], $call['arguments']);
+                    $messages[] = [
+                        'role' => 'tool_result',
+                        'tool_use_id' => $call['id'],
+                        'content' => json_encode($mcpResult['ok'] ? $mcpResult['content'] : ['error' => $mcpResult['error'] ?? 'MCP tool failed']),
+                        'is_error' => ! $mcpResult['ok'],
+                    ];
+                    $toolCallLog[] = [
+                        'name' => $call['name'],
+                        'arguments' => $call['arguments'],
+                        'result' => $mcpResult['ok'] ? ['mcp' => $target['tool']] : ['error' => $mcpResult['error'] ?? 'mcp_failed'],
+                        'success' => $mcpResult['ok'],
+                        'iteration' => $iter,
+                    ];
+                    continue;
+                }
+
                 $skill = $skillsByName->get($call['name']);
                 if (! $skill || ! $subscription) {
                     $messages[] = [
