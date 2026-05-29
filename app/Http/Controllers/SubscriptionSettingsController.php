@@ -26,7 +26,7 @@ class SubscriptionSettingsController extends Controller
     public function show(Request $request, Subscription $subscription): Response
     {
         $this->authorize($request, $subscription);
-        $subscription->load(['agent.settingDefs', 'agent.skills']);
+        $subscription->load(['agent.settingDefs', 'agent.skills', 'knowledgeSources']);
         $user = $request->user();
 
         $defs = $subscription->agent->settingDefs->map(fn (AgentSettingDef $d) => [
@@ -80,6 +80,20 @@ class SubscriptionSettingsController extends Controller
             'connections' => $connections,
             'values' => $settings,
             'routing' => $settings['routing'] ?? [],
+            'acceptsKnowledge' => (bool) $subscription->agent?->accepts_knowledge,
+            // Embeddings require the agent owner to have an OpenAI key.
+            'knowledgeReady' => (bool) $subscription->agent?->seller?->llmCredentialFor('openai'),
+            'knowledge' => $subscription->knowledgeSources->map(fn ($s) => [
+                'id' => $s->id,
+                'title' => $s->title,
+                'sourceType' => $s->source_type,
+                'filename' => $s->original_filename,
+                'status' => $s->status,
+                'error' => $s->error,
+                'chunkCount' => $s->chunk_count,
+                'bytes' => $s->bytes,
+                'createdAt' => $s->created_at?->format('M d, Y H:i'),
+            ])->values()->all(),
         ]);
     }
 

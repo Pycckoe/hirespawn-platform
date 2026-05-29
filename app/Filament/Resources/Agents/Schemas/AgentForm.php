@@ -107,6 +107,15 @@ class AgentForm
                         TextInput::make('max_output_tokens')
                             ->numeric()
                             ->helperText('Hard cap on output tokens per run (blank = model default).'),
+                        Toggle::make('accepts_knowledge')
+                            ->label('Buyer knowledge base (RAG)')
+                            ->helperText('Lets buyers upload docs/text; relevant chunks are retrieved and added to the prompt at run time. Requires the agent owner to have an OpenAI key (used for embeddings).')
+                            ->live(),
+                        Textarea::make('knowledge_instructions')
+                            ->rows(3)
+                            ->columnSpanFull()
+                            ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => (bool) $get('accepts_knowledge'))
+                            ->helperText('How the agent should use the retrieved knowledge, e.g. "Answer only from the knowledge base; if missing, say you don\'t know."'),
                     ])
                     ->columns(2),
 

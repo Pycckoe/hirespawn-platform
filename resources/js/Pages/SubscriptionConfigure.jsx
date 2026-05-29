@@ -1,6 +1,6 @@
 import '@/setup';
 import { useEffect, useState } from 'react';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 
 // Buyer-side configure page: lists every variable the vendor declared
@@ -11,7 +11,7 @@ const SubscriptionConfigure = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
   const Page = () => {
-    const { subscription, defs = [], values = {}, connections = [], routing = {} } = usePage().props;
+    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [] } = usePage().props;
 
     const initial = Object.fromEntries(
       defs.map(d => [d.key, values[d.key] ?? d.defaultValue ?? (d.type === 'boolean' ? false : '')])
@@ -32,7 +32,8 @@ const SubscriptionConfigure = (() => {
       [provider]: { ...(data.routing[provider] || {}), [field]: v },
     });
 
-    const nothingToConfigure = defs.length === 0 && connections.length === 0;
+    const nothingToConfigure = defs.length === 0 && connections.length === 0 && !acceptsKnowledge;
+    const hasFormFields = connections.length > 0 || defs.length > 0;
 
     return (
       <>
@@ -66,6 +67,8 @@ const SubscriptionConfigure = (() => {
                   <Link href={`/agent/${subscription.agentSlug}`} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Open agent →</Link>
                 </Glass>
               ) : (
+                <>
+                {hasFormFields && (
                 <form onSubmit={submit}>
                   {/* Connections — services the agent's skills require */}
                   {connections.length > 0 && (
@@ -112,6 +115,12 @@ const SubscriptionConfigure = (() => {
                     </button>
                   </div>
                 </form>
+                )}
+
+                {acceptsKnowledge && (
+                  <KnowledgeSection palette={palette} subscriptionId={subscription.id} ready={knowledgeReady} items={knowledge} />
+                )}
+                </>
               )}
             </div>
           </div>
@@ -295,6 +304,97 @@ const SubscriptionConfigure = (() => {
         {render()}
         {def.description && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 4 }}>{def.description}</div>}
         {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+      </div>
+    );
+  };
+
+  // Knowledge base (RAG): buyer uploads files / pastes text the agent can
+  // retrieve from at run time. Add + delete go through dedicated endpoints
+  // (separate from the main configure form), ingested synchronously so the
+  // status badge is accurate after the page reloads.
+  const KnowledgeSection = ({ palette, subscriptionId, ready, items = [] }) => {
+    const [mode, setMode] = useState('text');
+    const { data, setData, post, processing, errors, reset } = useForm({ kind: 'text', title: '', content: '', file: null });
+
+    const pickMode = (m) => { setMode(m); setData('kind', m); };
+
+    const submitAdd = (e) => {
+      e.preventDefault();
+      post(route('subscriptions.knowledge.store', subscriptionId), {
+        forceFormData: true,
+        preserveScroll: true,
+        onSuccess: () => { reset(); setData('kind', mode); },
+      });
+    };
+
+    const remove = (id) => {
+      if (!window.confirm('Remove this from the knowledge base?')) return;
+      router.delete(route('subscriptions.knowledge.destroy', [subscriptionId, id]), { preserveScroll: true });
+    };
+
+    const statusColor = (s) => s === 'ready' ? palette.accent : s === 'failed' ? palette.red : palette.amber;
+    const statusBg = (s) => s === 'ready' ? palette.accentDim : s === 'failed' ? 'rgba(255,80,80,0.12)' : 'rgba(255,184,77,0.12)';
+
+    const inputStyle = { width: '100%', padding: '10px 12px', background: 'var(--p-inset)', border: `1px solid ${palette.border}`, borderRadius: 8, color: palette.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' };
+    const tabStyle = (on) => ({ padding: '6px 12px', borderRadius: 6, border: `1px solid ${on ? palette.accentDim : palette.border}`, background: on ? palette.accentDim : 'transparent', color: on ? palette.accent : palette.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
+
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Knowledge base · what the agent knows about you</div>
+        <Glass style={{ padding: 24 }}>
+          {!ready && (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(255,184,77,0.08)', border: `1px solid ${palette.amber}`, fontSize: 12, color: palette.amber, marginBottom: 16 }}>
+              Indexing is disabled: the agent owner hasn't added an OpenAI key (used to embed your documents). They can add one under /vendor → LLM keys.
+            </div>
+          )}
+
+          {items.length === 0 ? (
+            <div style={{ fontSize: 12, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 18 }}>No knowledge added yet. Upload docs or paste text below — the agent will pull the relevant parts into its answers.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+              {items.map(row => (
+                <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '10px 12px', background: 'var(--p-inset-soft)', border: `1px solid ${palette.border}`, borderRadius: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: palette.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</div>
+                    <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>
+                      {row.sourceType === 'file' ? (row.filename || 'file') : 'text'}
+                      {row.status === 'ready' && ` · ${row.chunkCount} chunks`}
+                      {row.status === 'failed' && row.error && ` · ${row.error}`}
+                    </div>
+                  </div>
+                  <span style={{ padding: '3px 8px', borderRadius: 4, background: statusBg(row.status), color: statusColor(row.status), fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>{row.status}</span>
+                  <button type="button" onClick={() => remove(row.id)} style={{ padding: '6px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.textDim, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={submitAdd} style={{ borderTop: `1px solid ${palette.border}`, paddingTop: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <button type="button" onClick={() => pickMode('text')} style={tabStyle(mode === 'text')}>Paste text</button>
+              <button type="button" onClick={() => pickMode('file')} style={tabStyle(mode === 'file')}>Upload file</button>
+            </div>
+            <input type="text" placeholder="Title (e.g. Refund policy, Product FAQ)" value={data.title} onChange={e => setData('title', e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+            {errors.title && <div style={{ fontSize: 11, color: palette.red, marginBottom: 8, fontFamily: 'Geist Mono, monospace' }}>{errors.title}</div>}
+            {mode === 'text' ? (
+              <>
+                <textarea rows={5} placeholder="Paste the knowledge text here…" value={data.content} onChange={e => setData('content', e.target.value)} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }} />
+                {errors.content && <div style={{ fontSize: 11, color: palette.red, marginTop: 6, fontFamily: 'Geist Mono, monospace' }}>{errors.content}</div>}
+              </>
+            ) : (
+              <>
+                <input type="file" accept=".txt,.md,.markdown,.csv,.json,.pdf" onChange={e => setData('file', e.target.files?.[0] ?? null)} style={{ ...inputStyle, padding: 8 }} />
+                <div style={{ fontSize: 11, color: palette.textMute, marginTop: 6 }}>txt, md, csv, json, pdf · up to 5 MB. (PDF needs the server parser enabled.)</div>
+                {errors.file && <div style={{ fontSize: 11, color: palette.red, marginTop: 6, fontFamily: 'Geist Mono, monospace' }}>{errors.file}</div>}
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <button type="submit" disabled={processing || !ready} style={{ padding: '9px 18px', borderRadius: 8, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: (processing || !ready) ? 'not-allowed' : 'pointer', opacity: (processing || !ready) ? 0.5 : 1 }}>
+                {processing ? 'Indexing…' : 'Add to knowledge'}
+              </button>
+            </div>
+          </form>
+        </Glass>
       </div>
     );
   };

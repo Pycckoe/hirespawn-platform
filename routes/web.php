@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\InvokeController;
+use App\Http\Controllers\KnowledgeController;
 use App\Http\Controllers\OauthController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\PageController;
@@ -92,6 +93,9 @@ Route::middleware(['auth'])->group(function () {
     // into system_prompt at runtime via {{key}}.
     Route::get('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'show'])->name('subscriptions.configure');
     Route::patch('/console/subscriptions/{subscription}/configure', [SubscriptionSettingsController::class, 'update'])->name('subscriptions.configure.update');
+    // Knowledge base (RAG) — buyer uploads/pastes docs the agent retrieves from.
+    Route::post('/console/subscriptions/{subscription}/knowledge', [KnowledgeController::class, 'store'])->name('subscriptions.knowledge.store');
+    Route::delete('/console/subscriptions/{subscription}/knowledge/{source}', [KnowledgeController::class, 'destroy'])->name('subscriptions.knowledge.destroy');
     // Buyer-side dispute creation — files a SupportTicket(kind=dispute)
     // against an active subscription the buyer owns.
     Route::post('/console/disputes', [SupportController::class, 'storeDispute'])->name('disputes.store');

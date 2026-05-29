@@ -41,6 +41,16 @@ class Subscription extends Model
         return $this->hasMany(UsageEvent::class);
     }
 
+    public function knowledgeSources(): HasMany
+    {
+        return $this->hasMany(KnowledgeSource::class)->latest();
+    }
+
+    public function knowledgeChunks(): HasMany
+    {
+        return $this->hasMany(KnowledgeChunk::class);
+    }
+
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);

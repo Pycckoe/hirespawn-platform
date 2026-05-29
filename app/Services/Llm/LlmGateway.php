@@ -22,8 +22,10 @@ use App\Support\Rates;
  */
 class LlmGateway
 {
-    public function __construct(private readonly ToolExecutor $executor)
-    {
+    public function __construct(
+        private readonly ToolExecutor $executor,
+        private readonly \App\Services\Knowledge\KnowledgeRetriever $retriever,
+    ) {
     }
 
     /**
@@ -68,6 +70,13 @@ class LlmGateway
         // Unfilled / unknown keys keep their literal {{...}} so the LLM
         // can flag the gap instead of silently dropping context.
         $systemPrompt = $this->renderSystemPrompt($agent, $subscription);
+
+        // RAG: if the vendor enabled a knowledge base for this agent, pull
+        // the chunks most relevant to the user's prompt and append them so
+        // the model can ground its answer in the buyer's own docs.
+        if ($subscription && $agent->accepts_knowledge) {
+            $systemPrompt = $this->appendKnowledge($systemPrompt, $agent, $subscription, $userPrompt);
+        }
 
         $messages = [['role' => 'user', 'content' => $userPrompt]];
 
@@ -240,6 +249,29 @@ class LlmGateway
             },
             $prompt
         );
+    }
+
+    /**
+     * Retrieve the knowledge chunks most relevant to the prompt and append
+     * them (plus the vendor's usage instructions) to the system prompt.
+     * No-op when nothing is indexed or embeddings are unavailable.
+     */
+    private function appendKnowledge(?string $systemPrompt, \App\Models\Agent $agent, \App\Models\Subscription $subscription, string $userPrompt): ?string
+    {
+        $topK = (int) \App\Models\SiteSetting::lookup('knowledge_top_k', '5');
+        $snippets = $this->retriever->retrieve($subscription, $userPrompt, $topK > 0 ? $topK : 5);
+        if ($snippets === []) {
+            return $systemPrompt;
+        }
+
+        $block = "\n\n# Knowledge base\n";
+        $instructions = trim((string) $agent->knowledge_instructions);
+        $block .= ($instructions !== '' ? $instructions : 'Use the following project knowledge to answer. If the answer is not contained here, say so rather than guessing.')."\n\n";
+        foreach ($snippets as $i => $snippet) {
+            $block .= '['.($i + 1).'] '.trim($snippet['content'])."\n\n";
+        }
+
+        return ($systemPrompt ?? '').$block;
     }
 
     private function toolsFor(string $provider, $skills): array

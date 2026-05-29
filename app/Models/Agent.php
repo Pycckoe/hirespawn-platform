@@ -15,6 +15,7 @@ class Agent extends Model
         'languages' => 'array',
         'integrations' => 'array',
         'is_featured' => 'boolean',
+        'accepts_knowledge' => 'boolean',
         'rating_avg' => 'float',
         'sla_uptime_pct' => 'float',
         'featured_until' => 'datetime',
