@@ -60,6 +60,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/vendor/agents', [VendorPublishController::class, 'store'])->name('vendor.publish.store');
     Route::get('/vendor/agents/{agent:slug}/edit', [VendorPublishController::class, 'edit'])->name('vendor.publish.edit');
     Route::patch('/vendor/agents/{agent:slug}', [VendorPublishController::class, 'update'])->name('vendor.publish.update');
+    Route::post('/vendor/agents/{agent:slug}/save-as-template', [VendorPublishController::class, 'saveAsTemplate'])->name('vendor.publish.save-template');
     Route::post('/vendor/payout-methods', [VendorPayoutController::class, 'storeMethod'])->name('vendor.payout.methods.store');
     Route::post('/vendor/payout-methods/{method}/default', [VendorPayoutController::class, 'defaultMethod'])->name('vendor.payout.methods.default');
     Route::delete('/vendor/payout-methods/{method}', [VendorPayoutController::class, 'destroyMethod'])->name('vendor.payout.methods.destroy');

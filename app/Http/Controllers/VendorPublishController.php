@@ -155,6 +155,81 @@ class VendorPublishController extends Controller
             ->with('status', "Saved changes to {$agent->name}.");
     }
 
+    /**
+     * Snapshot an existing agent (its prompt, model, pricing, variables,
+     * skills, knowledge config) into a private template the seller can
+     * reuse when publishing future agents. Owned by the seller (not
+     * global) until an admin promotes it.
+     */
+    public function saveAsTemplate(Request $request, Agent $agent): RedirectResponse
+    {
+        $this->authorizeAgent($request, $agent);
+        $user = $request->user();
+        $agent->load(['category', 'llmModel', 'allSkills', 'settingDefs']);
+
+        AgentTemplate::create([
+            'created_by_id' => $user->id,
+            'slug' => $this->uniqueTemplateSlug($agent->slug.'-template'),
+            'name' => $agent->name.' (template)',
+            'icon' => $agent->category?->icon ?? '◇',
+            'summary' => $agent->tagline ?: "Based on {$agent->name}.",
+            'category_slug' => $agent->category?->slug,
+            'agent_name' => $agent->name,
+            'role' => $agent->role,
+            'rank' => $agent->rank,
+            'tagline' => $agent->tagline,
+            'description' => $agent->description,
+            'system_prompt' => $agent->system_prompt,
+            'per_unit' => $agent->per_unit,
+            'power_cost' => (int) $agent->power_cost,
+            'est_input_tokens' => (int) $agent->est_input_tokens,
+            'est_output_tokens' => (int) $agent->est_output_tokens,
+            'suggested_model_slug' => $agent->llmModel?->slug,
+            'languages' => $agent->languages ?: [],
+            'integrations' => $agent->integrations ?: [],
+            'accepts_knowledge' => (bool) $agent->accepts_knowledge,
+            'knowledge_instructions' => $agent->knowledge_instructions,
+            'skills' => $agent->allSkills->map(fn (AgentSkill $s) => [
+                'name' => $s->name,
+                'label' => $s->label,
+                'description' => $s->description,
+                'transport' => $s->transport,
+                'webhook_url' => $s->webhook_url,
+                'required_oauth_provider' => $s->required_oauth_provider,
+                'parameters_schema' => $s->parameters_schema,
+                'timeout_seconds' => (int) $s->timeout_seconds,
+            ])->values()->all(),
+            'setting_defs' => $agent->settingDefs->map(fn (AgentSettingDef $d) => [
+                'key' => $d->key,
+                'label' => $d->label,
+                'type' => $d->type,
+                'default_value' => $d->default_value,
+                'options' => $d->options ?: [],
+                'is_required' => (bool) $d->is_required,
+                'description' => $d->description,
+            ])->values()->all(),
+            'is_active' => true,
+            'sort_order' => 100,
+        ]);
+
+        audit('agent_template.create', $agent, ['from_agent' => $agent->slug]);
+
+        return back()->with('status', "Saved \"{$agent->name}\" as a reusable template. Pick it next time you publish.");
+    }
+
+    private function uniqueTemplateSlug(string $base): string
+    {
+        $base = Str::slug($base) ?: 'template';
+        $candidate = $base;
+        $i = 2;
+        while (AgentTemplate::where('slug', $candidate)->exists()) {
+            $candidate = "{$base}-{$i}";
+            $i++;
+        }
+
+        return $candidate;
+    }
+
     private function formProps(string $mode, Request $request, ?Agent $agent = null, array $defaults = []): array
     {
         $user = $request->user();
@@ -223,7 +298,7 @@ class VendorPublishController extends Controller
             'knownIntegrationTags' => $knownIntegrationTags,
             'maxSkillsPerAgent' => Rates::maxSkillsPerAgent(),
             'mode' => $mode,
-            'templates' => $mode === 'create' ? $this->templatesForPicker() : [],
+            'templates' => $mode === 'create' ? $this->templatesForPicker($user) : [],
             'llmModels' => $models,
             'credentialsByProvider' => $credentialsByProvider,
             'oauthProviders' => $oauthProviders,
@@ -283,10 +358,18 @@ class VendorPublishController extends Controller
      * can prefill the form in one click. Skills use the form's camelCase
      * keys; setting defs use its snake_case keys (see the React useForm).
      */
-    private function templatesForPicker(): array
+    private function templatesForPicker(?\App\Models\User $user): array
     {
         return AgentTemplate::query()
-            ->where('is_active', true)
+            // Global active templates (admin-curated) + this seller's own
+            // saved templates (any state), so a seller can reuse their
+            // configs without polluting everyone's gallery.
+            ->where(function ($q) use ($user) {
+                $q->where(fn ($g) => $g->whereNull('created_by_id')->where('is_active', true));
+                if ($user) {
+                    $q->orWhere('created_by_id', $user->id);
+                }
+            })
             ->orderBy('sort_order')
             ->get()
             ->map(function (AgentTemplate $t) {

@@ -270,6 +270,14 @@ const SellerDash = (() => {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ padding: '3px 8px', background: stBg, color: stColor, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>● {l.status}</span>
               <Link href={route('vendor.publish.edit', l.id)} title="Edit listing" style={{ background: 'none', border: 0, color: palette.textMute, fontSize: 14, cursor: 'pointer', textDecoration: 'none' }}>✎</Link>
+              <button
+                title="Save as reusable template"
+                onClick={() => {
+                  if (!confirm(`Save "${l.name}" as a reusable template? You'll be able to pick it when publishing a new agent.`)) return;
+                  router.post(route('vendor.publish.save-template', l.id), {}, { preserveScroll: true });
+                }}
+                style={{ background: 'none', border: 0, color: palette.textMute, fontSize: 14, cursor: 'pointer' }}
+              >⧉</button>
             </span>
           </div>
         );
