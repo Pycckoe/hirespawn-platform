@@ -164,6 +164,26 @@ class ConsoleController extends Controller
             ->orderBy('sort_order')
             ->get()
             ->map(function (OauthApp $app) use ($user) {
+                // GitHub uses an installation, not an OAuth token — surface
+                // the install row as "connected" so this panel matches the
+                // actual integration state (mirrors SettingsController).
+                if ($app->provider === 'github') {
+                    $install = $user?->githubInstallation;
+                    $repoCount = is_array($install?->repos) ? count($install->repos) : 0;
+
+                    return [
+                        'provider' => 'github',
+                        'label' => $app->label,
+                        'icon' => $app->icon,
+                        'scopes' => $app->default_scopes ?? [],
+                        'connected' => $install !== null,
+                        'accountLabel' => $install?->account_login.($repoCount ? " · {$repoCount} repos" : ''),
+                        'connectedAt' => $install?->created_at?->format('M d, Y'),
+                        'expiresAt' => null,
+                        'expired' => false,
+                    ];
+                }
+
                 $token = $user?->oauthTokenFor($app->provider);
 
                 return [

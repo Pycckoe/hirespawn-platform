@@ -21,6 +21,14 @@ class RunRecorder
     public function record(Subscription $subscription, Agent $agent, BuyerProfile $profile, int $cost, string $input, LlmResponse $response, string $source = 'chat'): UsageEvent
     {
         $requestId = 'run_'.Str::random(12);
+
+        // Tarif built-in connector calls (GitHub/Slack tools etc.) per call,
+        // on top of the agent's flat per-run cost. Admin-configurable via
+        // connector_call_power_cost site setting (default 1⚡).
+        $perCall = (int) \App\Models\SiteSetting::lookup('connector_call_power_cost', '1');
+        $connectorCalls = collect($response->toolCallLog ?? [])->filter(fn ($c) => ! empty($c['connector_call']))->count();
+        $connectorPower = $connectorCalls * max(0, $perCall);
+        $cost += $connectorPower;
         $costCents = (int) round($cost * Rates::eurCentsPerPower());
 
         if (! $response->ok) {
@@ -75,6 +83,8 @@ class RunRecorder
                     'model' => $agent->llmModel?->slug,
                     'source' => $source,
                     'tool_calls' => $response->toolCallLog,
+                    'connector_calls' => $connectorCalls,
+                    'connector_power' => $connectorPower,
                 ],
             ]);
         });

@@ -41,6 +41,7 @@ class AdminCmsSeeder extends Seeder
             ['key' => 'llm_max_iterations',  'group' => 'agents','label' => 'LLM tool-use max iterations',       'type' => 'text',     'value' => '8',                                                                       'sort' => 4],
             ['key' => 'llm_default_max_output_tokens','group' => 'agents','label' => 'LLM default max output tokens', 'type' => 'text','value' => '4096',                                                                    'sort' => 5],
             ['key' => 'max_skills_per_agent','group' => 'agents','label' => 'Max skills per agent',              'type' => 'text',     'value' => '24',                                                                      'sort' => 6],
+            ['key' => 'connector_call_power_cost','group' => 'agents','label' => 'Power per connector tool call (GitHub/Slack/…)', 'type' => 'text','value' => '1',                                  'sort' => 7],
 
             // Brand assets — admin uploads PNG / SVG via Filament. Defaults
             // point at the bundled /logo.svg and /favicon.ico so the site

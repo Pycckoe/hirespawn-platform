@@ -27,6 +27,7 @@ class LlmGateway
         private readonly \App\Services\Knowledge\KnowledgeRetriever $retriever,
         private readonly \App\Services\Mcp\McpToolset $mcpToolset,
         private readonly \App\Services\Mcp\McpClient $mcpClient,
+        private readonly \App\Services\Connectors\BuiltInToolset $builtInToolset,
     ) {
     }
 
@@ -72,10 +73,19 @@ class LlmGateway
         // breaks the run. mcpDispatch maps a namespaced tool name back to
         // its connection + original tool name for execution below.
         $mcpDispatch = [];
+        $builtInDispatch = [];
         if ($subscription) {
             $mcp = $this->mcpToolset->build($subscription, $model->provider);
             $tools = array_merge($tools, $mcp['tools']);
             $mcpDispatch = $mcp['dispatch'];
+
+            // Built-in connector tools (GitHub, Slack, …) auto-appear when
+            // the buyer has the matching service connected. Charged per call
+            // from the admin-managed connector_call_power_cost site setting
+            // so multi-service pipelines tarif correctly.
+            $builtIn = $this->builtInToolset->build($subscription, $model->provider);
+            $tools = array_merge($tools, $builtIn['tools']);
+            $builtInDispatch = $builtIn['dispatch'];
         }
 
         // Substitute {{key}} placeholders in system_prompt with values
@@ -160,6 +170,30 @@ class LlmGateway
             }
 
             foreach ($resp->toolCalls as $call) {
+                // Built-in connector tool (GitHub, Slack, …)? Execute and
+                // charge the per-call Power overhead. The buyer pays for
+                // multi-service pipelines proportionally.
+                if (isset($builtInDispatch[$call['name']])) {
+                    $target = $builtInDispatch[$call['name']];
+                    $result = $this->builtInToolset->execute($target, (array) ($call['arguments'] ?? []), $subscription);
+                    $ok = ! isset($result['error']);
+                    $messages[] = [
+                        'role' => 'tool_result',
+                        'tool_use_id' => $call['id'],
+                        'content' => json_encode($result),
+                        'is_error' => ! $ok,
+                    ];
+                    $toolCallLog[] = [
+                        'name' => $call['name'],
+                        'arguments' => $call['arguments'],
+                        'result' => $ok ? ['provider' => $target['provider'], 'tool' => $target['tool']] : ['error' => $result['error']],
+                        'success' => $ok,
+                        'iteration' => $iter,
+                        'connector_call' => true,
+                    ];
+                    continue;
+                }
+
                 // MCP tool? Route to the buyer's connected server.
                 if (isset($mcpDispatch[$call['name']])) {
                     $target = $mcpDispatch[$call['name']];
