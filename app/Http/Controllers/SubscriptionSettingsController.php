@@ -48,6 +48,15 @@ class SubscriptionSettingsController extends Controller
             ->unique()
             ->values();
 
+        // Slack routing (channel for @-mentions / outbound summaries) is
+        // available to ANY rented agent — not just those the vendor wired
+        // skills for. Surface it on every configure page when the platform
+        // has Slack OAuth configured + active.
+        $slackActive = OauthApp::query()->where('provider', 'slack')->where('is_active', true)->exists();
+        if ($slackActive && ! $providers->contains('slack')) {
+            $providers = $providers->push('slack')->values();
+        }
+
         $apps = OauthApp::query()->whereIn('provider', $providers)->get()->keyBy('provider');
 
         $connections = $providers->map(function (string $provider) use ($apps, $user) {
