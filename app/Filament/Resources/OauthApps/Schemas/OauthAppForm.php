@@ -37,19 +37,31 @@ class OauthAppForm
                             ->required()
                             ->maxLength(200)
                             ->columnSpanFull(),
-                        TextInput::make('client_secret')
+                        // Both secret fields bind DIRECTLY to the encrypted_*
+                        // column with per-field encrypt+blank handling: no
+                        // virtual field, no page-level mutator (those proved
+                        // unreliable on prod). Empty input on edit → skip the
+                        // attribute on save → existing secret preserved.
+                        TextInput::make('encrypted_client_secret')
+                            ->label('Client secret')
                             ->password()
                             ->revealable()
                             ->helperText('Leave blank to keep the existing secret. Type a new value to rotate.')
                             ->maxLength(400)
-                            ->columnSpanFull(),
-                        TextInput::make('signing_secret')
+                            ->columnSpanFull()
+                            ->formatStateUsing(fn () => '')
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->dehydrateStateUsing(fn ($state) => \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $state))),
+                        TextInput::make('encrypted_signing_secret')
+                            ->label('Signing secret (Slack inbound events)')
                             ->password()
                             ->revealable()
-                            ->label('Signing secret (Slack inbound events)')
                             ->helperText('Slack → Basic Information → Signing Secret. Verifies inbound bot mentions at /integrations/slack/events. Leave blank to keep the existing one.')
                             ->maxLength(400)
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->formatStateUsing(fn () => '')
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->dehydrateStateUsing(fn ($state) => \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $state))),
                         TextInput::make('authorize_url')
                             ->required()
                             ->url()
