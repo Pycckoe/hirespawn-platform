@@ -95,7 +95,7 @@ class OauthAppsSeeder extends Seeder
                 'authorize_url' => 'https://auth.atlassian.com/authorize',
                 'token_url' => 'https://auth.atlassian.com/oauth/token',
                 'api_base_url' => 'https://api.atlassian.com',
-                'default_scopes' => ['read:jira-work', 'write:jira-work'],
+                'default_scopes' => ['read:jira-work', 'write:jira-work', 'read:jira-user', 'offline_access'],
                 'sort_order' => 70,
             ],
         ];

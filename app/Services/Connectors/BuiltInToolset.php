@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Services\Github\GithubAppAuth;
 use App\Services\Github\GithubClient;
 use App\Services\Oauth\GoogleClient;
+use App\Services\Oauth\JiraClient;
 use App\Services\Oauth\SlackClient;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -26,6 +27,7 @@ class BuiltInToolset
     public function __construct(
         private readonly SlackClient $slack,
         private readonly GoogleClient $google,
+        private readonly JiraClient $jira,
     ) {}
 
     /**
@@ -64,6 +66,14 @@ class BuiltInToolset
             }
         }
 
+        // Jira built-ins (when buyer has a Jira Cloud site connected).
+        if ($buyer->oauthTokenFor('jira')) {
+            foreach ($this->jiraToolSpecs() as $spec) {
+                $dispatch[$spec['name']] = ['provider' => 'jira', 'tool' => $spec['name']];
+                $tools[] = $this->shape($provider, $spec['name'], $spec['description'], $spec['parameters']);
+            }
+        }
+
         return ['tools' => array_values(array_filter($tools)), 'dispatch' => $dispatch];
     }
 
@@ -80,6 +90,7 @@ class BuiltInToolset
                 'github' => $this->executeGithub($buyer, $target['tool'], $arguments, $subscription),
                 'slack' => $this->executeSlack($buyer, $target['tool'], $arguments, $subscription),
                 'google' => $this->executeGoogle($buyer, $target['tool'], $arguments),
+                'jira' => $this->executeJira($buyer, $target['tool'], $arguments),
                 default => ['error' => 'Unknown connector provider: '.$target['provider']],
             };
         } catch (Throwable $e) {
@@ -276,6 +287,58 @@ class BuiltInToolset
             'google_calendar_list_events' => $this->google->calendarListEvents($buyer, (int) ($args['limit'] ?? 10)),
             'google_drive_search' => $this->google->driveSearch($buyer, (string) ($args['query'] ?? ''), (int) ($args['limit'] ?? 10)),
             default => ['error' => "Unknown google tool: {$tool}"],
+        };
+    }
+
+    // ── Jira ────────────────────────────────────────────────────────
+
+    private function jiraToolSpecs(): array
+    {
+        return [
+            ['name' => 'jira_search_issues', 'description' => "Search Jira issues with JQL. Examples: 'project = PROJ AND status = Open', 'assignee = currentUser() AND resolution = Unresolved', 'updated >= -7d ORDER BY updated DESC'. Returns key, summary, status, assignee, priority.", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'jql' => ['type' => 'string', 'description' => 'A JQL query string.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results (default 10, max 50).'],
+                ],
+                'required' => ['jql'],
+            ]],
+            ['name' => 'jira_get_issue', 'description' => 'Fetch a single Jira issue (summary, description, status, assignee, etc.) by its key (e.g. "PROJ-123").', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'key' => ['type' => 'string', 'description' => 'Issue key like "PROJ-123".'],
+                ],
+                'required' => ['key'],
+            ]],
+            ['name' => 'jira_create_issue', 'description' => 'Create a new Jira issue. Confirm intent before calling — this is a write action.', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'project_key' => ['type' => 'string', 'description' => 'Project key, e.g. "PROJ".'],
+                    'summary' => ['type' => 'string'],
+                    'description' => ['type' => 'string', 'description' => 'Plain text description (optional).'],
+                    'issue_type' => ['type' => 'string', 'description' => 'Issue type name (default "Task").'],
+                ],
+                'required' => ['project_key', 'summary'],
+            ]],
+            ['name' => 'jira_add_comment', 'description' => 'Add a comment to an existing Jira issue.', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'key' => ['type' => 'string', 'description' => 'Issue key like "PROJ-123".'],
+                    'body' => ['type' => 'string', 'description' => 'Plain-text comment.'],
+                ],
+                'required' => ['key', 'body'],
+            ]],
+        ];
+    }
+
+    private function executeJira($buyer, string $tool, array $args): array
+    {
+        return match ($tool) {
+            'jira_search_issues' => $this->jira->search($buyer, (string) ($args['jql'] ?? ''), (int) ($args['limit'] ?? 10)),
+            'jira_get_issue' => $this->jira->getIssue($buyer, (string) ($args['key'] ?? '')),
+            'jira_create_issue' => $this->jira->createIssue($buyer, (string) ($args['project_key'] ?? ''), (string) ($args['summary'] ?? ''), $args['description'] ?? null, (string) ($args['issue_type'] ?? 'Task')),
+            'jira_add_comment' => $this->jira->addComment($buyer, (string) ($args['key'] ?? ''), (string) ($args['body'] ?? '')),
+            default => ['error' => "Unknown jira tool: {$tool}"],
         };
     }
 

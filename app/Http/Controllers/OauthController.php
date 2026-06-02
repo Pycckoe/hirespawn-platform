@@ -79,6 +79,15 @@ class OauthController extends Controller
             $params['include_granted_scopes'] = 'true';
         }
 
+        // Atlassian (Jira): the audience param tells the auth server which
+        // resource API the token is for; without it the access_token can't
+        // talk to api.atlassian.com. prompt=consent makes sure we get a
+        // fresh refresh_token when scopes change.
+        if ($provider === 'jira') {
+            $params['audience'] = 'api.atlassian.com';
+            $params['prompt'] = 'consent';
+        }
+
         $url = $app->authorize_url.(str_contains($app->authorize_url, '?') ? '&' : '?').http_build_query($params);
 
         return redirect()->away($url);
@@ -182,6 +191,29 @@ class OauthController extends Controller
         // talking without a fresh @mention). Null for other providers.
         $token->bot_user_id = $json['bot_user_id'] ?? null;
         $token->save();
+
+        // Atlassian: after the token exchange we need to discover the
+        // buyer's cloudid (site id) — every Jira API call uses it in the
+        // URL path. Store it on the token row so JiraClient can pick it up.
+        if ($provider === 'jira') {
+            try {
+                $resources = Http::withToken($access)
+                    ->timeout(15)
+                    ->get('https://api.atlassian.com/oauth/token/accessible-resources')
+                    ->json();
+                $site = is_array($resources) ? ($resources[0] ?? null) : null;
+                if (is_array($site) && ! empty($site['id'])) {
+                    $token->account_id = $site['id']; // cloudid
+                    $name = $site['name'] ?? null;
+                    $url = $site['url'] ?? null;
+                    $token->account_label = $name && $url ? "{$name} · {$url}" : ($name ?? $url ?? $site['id']);
+                    $token->save();
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal: connection still works, just no cloudid yet.
+                // Buyer will see a clear error when an agent tries to call.
+            }
+        }
 
         audit('oauth.connect', $token, [
             'provider' => $provider,

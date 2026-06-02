@@ -444,6 +444,14 @@ class LlmGateway
             $lines[] = '  Available tools: google_gmail_search, google_gmail_get, google_gmail_send, google_calendar_list_events, google_drive_search.';
         }
 
+        // Jira: site name + URL (from accessible-resources lookup at connect).
+        $jiraToken = $buyer->oauthTokenFor('jira');
+        if ($jiraToken) {
+            $site = $jiraToken->account_label ?: 'connected Jira site';
+            $lines[] = '- Jira site: '.$site;
+            $lines[] = '  Available tools: jira_search_issues (JQL), jira_get_issue, jira_create_issue, jira_add_comment.';
+        }
+
         if ($lines === []) {
             return $systemPrompt;
         }
