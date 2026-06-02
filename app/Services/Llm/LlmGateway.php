@@ -105,6 +105,12 @@ class LlmGateway
         if ($subscription && $subscription->knowledgeChunks()->exists()) {
             $systemPrompt = $this->appendKnowledge($systemPrompt, $agent, $subscription, $userPrompt);
         }
+        if ($subscription) {
+            // Tell the model up-front which third-party services the buyer
+            // has wired to this agent (GitHub repos, Slack workspace/channel,
+            // …) so it can answer "what do you see?" without a tool call.
+            $systemPrompt = $this->appendConnectionsContext($systemPrompt, $subscription);
+        }
 
         $messages = [['role' => 'user', 'content' => $userPrompt]];
 
@@ -308,6 +314,9 @@ class LlmGateway
         if ($subscription && $subscription->knowledgeChunks()->exists()) {
             $systemPrompt = $this->appendKnowledge($systemPrompt, $agent, $subscription, $userPrompt);
         }
+        if ($subscription) {
+            $systemPrompt = $this->appendConnectionsContext($systemPrompt, $subscription);
+        }
 
         $request = new LlmRequest(
             model: $model,
@@ -391,6 +400,48 @@ class LlmGateway
      * them (plus the vendor's usage instructions) to the system prompt.
      * No-op when nothing is indexed or embeddings are unavailable.
      */
+    /**
+     * Summarise the third-party services the buyer has wired to this
+     * subscription so the LLM can orient itself without an introspection
+     * tool call. The list mirrors what BuiltInToolset exposes — when a
+     * service is connected it's shown here AND the matching tools are
+     * appended to the catalogue, so the model knows it can act on them.
+     */
+    private function appendConnectionsContext(?string $systemPrompt, \App\Models\Subscription $subscription): ?string
+    {
+        $buyer = $subscription->buyer;
+        if (! $buyer) {
+            return $systemPrompt;
+        }
+
+        $lines = [];
+
+        // GitHub: only the routed repos are accessible (enforced in the
+        // toolset). Listing them here saves the model from guessing.
+        $repos = collect((array) ($subscription->settings['routing']['github']['repos'] ?? []))->filter()->values();
+        if ($buyer->githubInstallation && $repos->isNotEmpty() && \App\Services\Github\GithubAppAuth::fromConfig()) {
+            $lines[] = '- GitHub repos accessible to you: '.$repos->implode(', ');
+            $lines[] = '  Available tools: gh_get_issue, gh_get_pull_request, gh_search_issues, gh_get_file, gh_post_comment.';
+        }
+
+        // Slack: workspace + channel routed for this subscription.
+        $slackToken = $buyer->oauthTokenFor('slack');
+        if ($slackToken) {
+            $workspace = $slackToken->account_label ?: 'connected workspace';
+            $channel = $subscription->settings['routing']['slack']['channel'] ?? null;
+            $lines[] = '- Slack workspace: '.$workspace.($channel ? " (routed channel: {$channel})" : '');
+            $lines[] = '  Available tool: slack_post_message — post to any public channel by name (e.g. "#sales") or ID.';
+        }
+
+        if ($lines === []) {
+            return $systemPrompt;
+        }
+
+        $block = "\n\n# Connected services\nThe buyer wired the following services to this agent — use the matching tools when relevant. Don't ask the buyer to repeat them.\n\n".implode("\n", $lines);
+
+        return ($systemPrompt ?? '').$block;
+    }
+
     private function appendKnowledge(?string $systemPrompt, \App\Models\Agent $agent, \App\Models\Subscription $subscription, string $userPrompt): ?string
     {
         $topK = (int) \App\Models\SiteSetting::lookup('knowledge_top_k', '5');
