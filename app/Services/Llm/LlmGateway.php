@@ -433,6 +433,17 @@ class LlmGateway
             $lines[] = '  Available tool: slack_post_message — post to any public channel by name (e.g. "#sales") or ID.';
         }
 
+        // Google: account email (from id_token) — and the tool surface the
+        // buyer's scopes actually grant. We list all five even though some
+        // ride on read-only scopes by default; calls without the right
+        // scope just fail with a clear error.
+        $googleToken = $buyer->oauthTokenFor('google');
+        if ($googleToken) {
+            $email = $googleToken->account_label ?: 'connected Google account';
+            $lines[] = '- Google account: '.$email;
+            $lines[] = '  Available tools: google_gmail_search, google_gmail_get, google_gmail_send, google_calendar_list_events, google_drive_search.';
+        }
+
         if ($lines === []) {
             return $systemPrompt;
         }

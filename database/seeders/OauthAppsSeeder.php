@@ -48,8 +48,12 @@ class OauthAppsSeeder extends Seeder
                 'token_url' => 'https://oauth2.googleapis.com/token',
                 'api_base_url' => 'https://www.googleapis.com',
                 'default_scopes' => [
-                    'https://www.googleapis.com/auth/userinfo.email',
+                    'openid',
+                    'email',
+                    'https://www.googleapis.com/auth/gmail.readonly',
                     'https://www.googleapis.com/auth/gmail.send',
+                    'https://www.googleapis.com/auth/calendar.readonly',
+                    'https://www.googleapis.com/auth/calendar.events',
                     'https://www.googleapis.com/auth/drive.readonly',
                 ],
                 'sort_order' => 30,

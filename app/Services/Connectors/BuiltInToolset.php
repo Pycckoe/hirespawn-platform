@@ -5,6 +5,7 @@ namespace App\Services\Connectors;
 use App\Models\Subscription;
 use App\Services\Github\GithubAppAuth;
 use App\Services\Github\GithubClient;
+use App\Services\Oauth\GoogleClient;
 use App\Services\Oauth\SlackClient;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -24,6 +25,7 @@ class BuiltInToolset
 {
     public function __construct(
         private readonly SlackClient $slack,
+        private readonly GoogleClient $google,
     ) {}
 
     /**
@@ -54,6 +56,14 @@ class BuiltInToolset
             }
         }
 
+        // Google built-ins (when buyer has a Google account connected).
+        if ($buyer->oauthTokenFor('google')) {
+            foreach ($this->googleToolSpecs() as $spec) {
+                $dispatch[$spec['name']] = ['provider' => 'google', 'tool' => $spec['name']];
+                $tools[] = $this->shape($provider, $spec['name'], $spec['description'], $spec['parameters']);
+            }
+        }
+
         return ['tools' => array_values(array_filter($tools)), 'dispatch' => $dispatch];
     }
 
@@ -69,6 +79,7 @@ class BuiltInToolset
             return match ($target['provider']) {
                 'github' => $this->executeGithub($buyer, $target['tool'], $arguments, $subscription),
                 'slack' => $this->executeSlack($buyer, $target['tool'], $arguments, $subscription),
+                'google' => $this->executeGoogle($buyer, $target['tool'], $arguments),
                 default => ['error' => 'Unknown connector provider: '.$target['provider']],
             };
         } catch (Throwable $e) {
@@ -208,6 +219,64 @@ class BuiltInToolset
         $result = $this->slack->postMessage($buyer, $channel, $text, $args['thread_ts'] ?? null);
 
         return $result['ok'] ? ['ok' => true, 'channel' => $channel] : ['error' => $result['error'] ?? 'slack_failed'];
+    }
+
+    // ── Google ──────────────────────────────────────────────────────
+
+    private function googleToolSpecs(): array
+    {
+        return [
+            ['name' => 'google_gmail_search', 'description' => "Search the buyer's Gmail inbox using Gmail's query syntax (e.g. 'from:alice@x.com is:unread', 'subject:invoice newer_than:7d'). Returns a short list of matches.", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Gmail search query.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results (default 10, max 25).'],
+                ],
+                'required' => ['query'],
+            ]],
+            ['name' => 'google_gmail_get', 'description' => "Get a single Gmail message's headers + body by its id (returned by google_gmail_search).", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'description' => 'Gmail message id.'],
+                ],
+                'required' => ['id'],
+            ]],
+            ['name' => 'google_gmail_send', 'description' => "Send a plain-text email from the buyer's connected Gmail account. Use sparingly — confirm intent first.", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'to' => ['type' => 'string', 'description' => 'Recipient email address.'],
+                    'subject' => ['type' => 'string'],
+                    'body' => ['type' => 'string', 'description' => 'Plain-text body.'],
+                ],
+                'required' => ['to', 'subject', 'body'],
+            ]],
+            ['name' => 'google_calendar_list_events', 'description' => "List upcoming events on the buyer's primary Google Calendar (ordered by start time).", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'limit' => ['type' => 'integer', 'description' => 'Max events (default 10, max 25).'],
+                ],
+            ]],
+            ['name' => 'google_drive_search', 'description' => "Search files in the buyer's Google Drive (read-only). Use Drive query syntax, e.g. \"name contains 'budget'\" or \"mimeType='application/pdf'\".", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Drive query.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results (default 10, max 25).'],
+                ],
+                'required' => ['query'],
+            ]],
+        ];
+    }
+
+    private function executeGoogle($buyer, string $tool, array $args): array
+    {
+        return match ($tool) {
+            'google_gmail_search' => $this->google->gmailSearch($buyer, (string) ($args['query'] ?? ''), (int) ($args['limit'] ?? 10)),
+            'google_gmail_get' => $this->google->gmailGet($buyer, (string) ($args['id'] ?? '')),
+            'google_gmail_send' => $this->google->gmailSend($buyer, (string) ($args['to'] ?? ''), (string) ($args['subject'] ?? ''), (string) ($args['body'] ?? '')),
+            'google_calendar_list_events' => $this->google->calendarListEvents($buyer, (int) ($args['limit'] ?? 10)),
+            'google_drive_search' => $this->google->driveSearch($buyer, (string) ($args['query'] ?? ''), (int) ($args['limit'] ?? 10)),
+            default => ['error' => "Unknown google tool: {$tool}"],
+        };
     }
 
     // ── Provider tool-shape ─────────────────────────────────────────

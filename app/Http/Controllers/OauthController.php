@@ -69,6 +69,16 @@ class OauthController extends Controller
             'state' => $state,
         ];
 
+        // Google: ask for a refresh_token AND force the consent screen.
+        // Without access_type=offline Google doesn't issue a refresh_token;
+        // without prompt=consent it only issues one on the very first auth
+        // (so existing connections from earlier scope sets never refresh).
+        if ($provider === 'google') {
+            $params['access_type'] = 'offline';
+            $params['prompt'] = 'consent';
+            $params['include_granted_scopes'] = 'true';
+        }
+
         $url = $app->authorize_url.(str_contains($app->authorize_url, '?') ? '&' : '?').http_build_query($params);
 
         return redirect()->away($url);
@@ -142,15 +152,28 @@ class OauthController extends Controller
         }
         $token->scopes = array_values($scopes);
         $token->expires_at = $expiresIn > 0 ? Carbon::now()->addSeconds($expiresIn) : null;
+        // Google returns user identity in a signed id_token JWT. Decode the
+        // payload (no signature check needed — got it over TLS from Google's
+        // token endpoint) so we can show the email as the account label.
+        $idInfo = null;
+        if ($provider === 'google' && ! empty($json['id_token']) && is_string($json['id_token'])) {
+            $parts = explode('.', $json['id_token']);
+            if (count($parts) === 3) {
+                $idInfo = json_decode((string) base64_decode(strtr($parts[1], '-_', '+/'), true), true);
+            }
+        }
+
         // Friendly label — prefer a human name (team / email / login)
         // over a raw user id. Slack v2 nests the workspace under `team`.
-        $token->account_label = $json['team']['name']
+        $token->account_label = $idInfo['email']
+            ?? $json['team']['name']
             ?? $json['user']['email']
             ?? $json['user']['login']
             ?? $json['authed_user']['id']
             ?? $json['account_id']
             ?? null;
-        $token->account_id = $json['team']['id']
+        $token->account_id = $idInfo['sub']
+            ?? $json['team']['id']
             ?? $json['authed_user']['id']
             ?? $json['user']['id']
             ?? null;
