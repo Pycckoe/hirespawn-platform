@@ -22,25 +22,32 @@ class DemoUserSeeder extends Seeder
         $email = 'admin@hirespawn.com';
         $password = 'ChangeMe!2026';
 
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            [
+        // IMPORTANT: Laravel Cloud runs db:seed on every deploy. Do NOT
+        // clobber editable fields on existing rows (password, power balance,
+        // total_spent, profile metadata) — they get changed in production.
+        // Pattern: insert with seed defaults if missing; otherwise skip.
+        $user = User::query()->where('email', $email)->first();
+        if (! $user) {
+            $user = User::create([
+                'email' => $email,
                 'name' => 'Hirespawn Admin',
                 'password' => Hash::make($password),
                 'email_verified_at' => now(),
                 'is_admin' => true,
-            ],
-        );
+            ]);
+            $this->command?->info("Demo buyer seeded: {$email} / {$password}");
+            $this->command?->warn('Change this password immediately after first sign-in.');
+        }
 
-        BuyerProfile::updateOrCreate(
-            ['user_id' => $user->id],
-            [
+        if (! BuyerProfile::query()->where('user_id', $user->id)->exists()) {
+            BuyerProfile::create([
+                'user_id' => $user->id,
                 'company_name' => 'Hirespawn HQ',
                 'country' => 'DE',
                 'power_balance' => 150000,
                 'total_spent_cents' => 0,
-            ],
-        );
+            ]);
+        }
 
         // Subscribe the demo account to a couple of agents so the
         // Console isn't empty on first sign-in.
