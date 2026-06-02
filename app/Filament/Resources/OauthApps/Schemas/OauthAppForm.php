@@ -42,6 +42,11 @@ class OauthAppForm
                             ->helperText('GitHub App → General → App ID. Leave blank for non-GitHub rows.')
                             ->maxLength(40)
                             ->columnSpanFull(),
+                        TextInput::make('github_app_slug')
+                            ->label('GitHub App URL slug (GitHub only)')
+                            ->helperText('The part after "/apps/" in your App\'s public URL — e.g. for https://github.com/apps/hirespawn-dev paste "hirespawn-dev". NOT the Client ID. Used to build the install link.')
+                            ->maxLength(80)
+                            ->columnSpanFull(),
                         // Both secret fields bind DIRECTLY to the encrypted_*
                         // column with per-field encrypt+blank handling: no
                         // virtual field, no page-level mutator (those proved

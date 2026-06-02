@@ -33,6 +33,12 @@ class GithubEventController extends Controller
         $appIdSet = $columnsPresent && ! empty($app?->github_app_id);
         $keySet = $columnsPresent && ! empty($app?->encrypted_github_private_key);
         $secretSet = ! empty($app?->encrypted_signing_secret);
+        $slug = $app?->github_app_slug;
+        if (! $slug) {
+            $maybe = (string) ($app?->client_id ?? '');
+            $slug = (! str_starts_with($maybe, 'Iv23') && $maybe !== '') ? $maybe : null;
+        }
+        $slugSet = (bool) $slug;
 
         return response()->json([
             'endpoint' => 'github events',
@@ -40,12 +46,14 @@ class GithubEventController extends Controller
             'oauth_app_row_present' => $app !== null,
             'github_columns_present' => $columnsPresent,
             'app_id_configured' => $appIdSet,
+            'app_slug_configured' => $slugSet,
             'private_key_configured' => $keySet,
             'webhook_secret_configured' => $secretSet,
-            'ready' => $appIdSet && $keySet && $secretSet,
+            'ready' => $appIdSet && $keySet && $secretSet && $slugSet,
             'next_step' => match (true) {
                 ! $columnsPresent => 'Run migrations.',
                 ! $appIdSet || ! $keySet => 'Fill App ID + Private Key in /admin/oauth-apps → GitHub.',
+                ! $slugSet => 'Paste the App URL slug (e.g. "hirespawn-dev") in /admin/oauth-apps → GitHub → GitHub App URL slug.',
                 ! $secretSet => 'Paste the webhook secret in /admin/oauth-apps → GitHub (Signing secret field).',
                 default => 'Ready. Set webhook URL + secret in the GitHub App and subscribe to events (pull_request, issues, issue_comment).',
             },

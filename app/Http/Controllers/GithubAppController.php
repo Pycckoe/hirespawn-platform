@@ -76,13 +76,20 @@ class GithubAppController extends Controller
         abort_unless($user, 401);
 
         $request->session()->put('github_return', $request->query('return', '/console'));
-        // The slug must match the App's URL slug; admin sets it via the
-        // GitHub App settings on github.com. Until we have a UI for it,
-        // read from oauth_apps row's `client_id` field — same place admins
-        // pasted the OAuth client_id for other providers.
-        $slug = \App\Models\OauthApp::query()->where('provider', 'github')->value('client_id');
+
+        // Build the install URL from the App's URL slug — distinct from
+        // the OAuth Client ID. Prefer the dedicated github_app_slug column;
+        // fall back to client_id only when it looks like a slug (no
+        // "Iv23…"-style App Client ID) so old setups still work.
+        $row = \App\Models\OauthApp::query()->where('provider', 'github')->first();
+        $slug = $row?->github_app_slug;
         if (! $slug) {
-            return back()->with('status', 'GitHub App slug not configured (paste it as Client ID in /admin/oauth-apps → GitHub).');
+            $maybe = (string) ($row?->client_id ?? '');
+            $slug = (! str_starts_with($maybe, 'Iv23') && $maybe !== '') ? $maybe : null;
+        }
+
+        if (! $slug) {
+            return back()->with('status', 'GitHub App URL slug not configured. Open /admin/oauth-apps → GitHub and paste the slug (e.g. "hirespawn-dev") in the "GitHub App URL slug" field.');
         }
 
         return redirect()->away("https://github.com/apps/{$slug}/installations/new");
