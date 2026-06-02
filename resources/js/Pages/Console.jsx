@@ -475,7 +475,7 @@ const Dashboard = (() => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, padding: 20 }}>
           {integrations.map(i => (
-            <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected ? palette.accentDim : palette.border}` }}>
+            <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected ? palette.accentDim : palette.border}`, minWidth: 0, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{i.icon || i.provider.slice(0,1).toUpperCase()}</div>
                 <div style={{ flex: 1 }}>
@@ -487,7 +487,7 @@ const Dashboard = (() => {
               </div>
 
               {i.scopes && i.scopes.length > 0 && (
-                <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 12, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 12, lineHeight: 1.5, overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}>
                   Scopes: {i.scopes.join(', ')}
                 </div>
               )}

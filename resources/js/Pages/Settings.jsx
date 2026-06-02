@@ -349,7 +349,7 @@ const Settings = (() => {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
             {integrations.map(i => (
-              <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected && !i.expired ? palette.accentDim : palette.border}` }}>
+              <div key={i.provider} style={{ padding: 16, borderRadius: 10, background: 'var(--p-inset-soft)', border: `1px solid ${i.connected && !i.expired ? palette.accentDim : palette.border}`, minWidth: 0, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                   <div style={{ width: 34, height: 34, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{i.icon || i.provider.slice(0,1).toUpperCase()}</div>
                   <div style={{ flex: 1 }}>
@@ -360,7 +360,7 @@ const Settings = (() => {
                   {i.connected && i.expired && <span style={{ padding: '2px 7px', background: 'rgba(255,184,77,0.12)', color: '#f3b34a', fontFamily: 'Geist Mono, monospace', fontSize: 9, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', borderRadius: 4 }}>expired</span>}
                 </div>
                 {i.scopes?.length > 0 && (
-                  <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 10, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 11, color: palette.textMute, fontFamily: 'Geist Mono, monospace', marginBottom: 10, lineHeight: 1.5, overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}>
                     Scopes: {i.scopes.join(', ')}
                   </div>
                 )}
