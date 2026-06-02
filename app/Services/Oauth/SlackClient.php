@@ -129,6 +129,45 @@ class SlackClient
     }
 
     /**
+     * Has OUR bot already posted in this thread? Lets us answer follow-up
+     * messages in the same thread without requiring another @mention.
+     * Compares each reply's `user` against the buyer's stored bot_user_id.
+     */
+    public function threadHasBot(User $user, string $channelId, string $threadTs): bool
+    {
+        $token = $user->oauthTokenFor('slack');
+        $botId = $token?->bot_user_id;
+        if (! $botId) {
+            return false;
+        }
+        $access = $token?->freshAccessToken();
+        if (! $access) {
+            return false;
+        }
+
+        try {
+            $resp = Http::withToken($access)->timeout(15)->get('https://slack.com/api/conversations.replies', [
+                'channel' => $channelId,
+                'ts' => $threadTs,
+                'limit' => 50,
+            ]);
+            $json = $resp->json();
+            if (! ($json['ok'] ?? false)) {
+                return false;
+            }
+            foreach ($json['messages'] ?? [] as $msg) {
+                if (($msg['user'] ?? null) === $botId) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * Resolve a channel ID to its "#name" via conversations.info. Null on
      * failure. Used to match an inbound event's channel (an ID) against the
      * "#name" stored in a subscription's routing config.

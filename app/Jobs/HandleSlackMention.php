@@ -33,6 +33,10 @@ class HandleSlackMention
         public string $channelId,
         public string $text,
         public ?string $threadTs = null,
+        /** True when the event was a @mention or a DM — both are unambiguously
+         *  addressed to the bot. False for plain channel messages in a thread,
+         *  where we first confirm the bot has been part of that thread. */
+        public bool $isDirect = true,
     ) {}
 
     public function handle(LlmGateway $gateway, SlackClient $slack, RunRecorder $recorder): void
@@ -57,10 +61,24 @@ class HandleSlackMention
             return;
         }
 
-        // 2. Resolve the channel ID → "#name" and match a subscription.
+        // 2. Thread continuation? Only respond if the bot has already posted
+        //    in this thread (otherwise we'd reply to random follow-ups in
+        //    every channel message we receive). DMs / @-mentions skip the
+        //    check — they are unambiguously addressed to the bot.
+        if (! $this->isDirect) {
+            if (! $this->threadTs || ! $slack->threadHasBot($buyer, $this->channelId, $this->threadTs)) {
+                Log::info('[slack] thread message, bot not in thread — ignoring', ['channel' => $this->channelId, 'thread' => $this->threadTs]);
+
+                return;
+            }
+        }
+
+        // 3. Resolve the channel ID → "#name" and match a subscription. DMs
+        //    have no channel name; matchSubscription falls back to the
+        //    buyer's only Slack-routed agent.
         $channelName = $slack->channelName($buyer, $this->channelId);
         $subscription = $this->matchSubscription($buyer, $channelName);
-        Log::info('[slack] routing', ['buyer' => $buyer->id, 'channelName' => $channelName, 'subscription' => $subscription?->id]);
+        Log::info('[slack] routing', ['buyer' => $buyer->id, 'channelName' => $channelName, 'subscription' => $subscription?->id, 'direct' => $this->isDirect]);
         if (! $subscription) {
             $slack->postMessage($buyer, $this->channelId, "No agent is wired to this channel yet. Pick this channel in the agent's configuration on Hirespawn, then mention me again.", $this->threadTs);
 

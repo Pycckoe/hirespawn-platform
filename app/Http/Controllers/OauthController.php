@@ -147,6 +147,10 @@ class OauthController extends Controller
             ?? $json['authed_user']['id']
             ?? $json['user']['id']
             ?? null;
+        // Slack-specific: our bot's U-id in this workspace, used to detect
+        // whether the bot has participated in a thread (so it can keep
+        // talking without a fresh @mention). Null for other providers.
+        $token->bot_user_id = $json['bot_user_id'] ?? null;
         $token->save();
 
         audit('oauth.connect', $token, [

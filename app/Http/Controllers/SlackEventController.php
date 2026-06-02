@@ -72,22 +72,39 @@ class SlackEventController extends Controller
 
         if ($type === 'event_callback') {
             $event = $payload['event'] ?? [];
-            Log::info('[slack] event_callback', ['event_type' => $event['type'] ?? null, 'bot' => ! empty($event['bot_id'])]);
+            $evtType = $event['type'] ?? null;
+            Log::info('[slack] event_callback', ['event_type' => $evtType, 'channel_type' => $event['channel_type'] ?? null, 'bot' => ! empty($event['bot_id']), 'thread_ts' => $event['thread_ts'] ?? null]);
 
-            // Only react to humans @-mentioning the bot. Ignore the bot's own
-            // posts / bot messages to avoid loops.
-            if (($event['type'] ?? null) === 'app_mention' && empty($event['bot_id'])) {
-                // Dedup: Slack retries on timeout (X-Slack-Retry-Num). Cache::add
-                // is atomic, so only the first delivery of an event_id proceeds.
-                $eventId = $payload['event_id'] ?? md5(json_encode($event));
-                if (Cache::add("slack_evt:{$eventId}", 1, now()->addMinutes(10))) {
-                    // After-response so we ack Slack within 3s, then run the
-                    // LLM + reply in the same process (no queue worker needed).
+            // Ignore the bot's own posts / other bots' messages — prevents
+            // reply loops when our chat.postMessage triggers a message event.
+            if (! empty($event['bot_id']) || ! empty($event['bot_profile'])) {
+                return response('', 200);
+            }
+
+            // Decide whether we should respond.
+            //  - app_mention      → always (someone tagged the bot).
+            //  - message in DM    → always (1:1 chat with the bot).
+            //  - message in thread→ only if the bot has already participated
+            //                       (we check from the job to keep the ack fast).
+            $isMention = $evtType === 'app_mention';
+            $isDm = $evtType === 'message' && ($event['channel_type'] ?? null) === 'im';
+            $isThreadReply = $evtType === 'message'
+                && ! empty($event['thread_ts'])
+                && ($event['thread_ts'] !== ($event['ts'] ?? null))
+                && empty($event['subtype']); // skip joins/edits/etc.
+
+            if ($isMention || $isDm || $isThreadReply) {
+                // Dedup by message ts: when a user @-mentions the bot, Slack
+                // delivers BOTH `app_mention` and `message.channels` with the
+                // same ts. First-wins keeps us from replying twice.
+                $key = ($event['channel'] ?? '').':'.($event['ts'] ?? '');
+                if ($key !== ':' && Cache::add("slack_msg:{$key}", 1, now()->addMinutes(10))) {
                     HandleSlackMention::dispatchAfterResponse(
                         teamId: $payload['team_id'] ?? ($event['team'] ?? ''),
                         channelId: $event['channel'] ?? '',
                         text: $event['text'] ?? '',
                         threadTs: $event['thread_ts'] ?? ($event['ts'] ?? null),
+                        isDirect: $isDm || $isMention, // skip thread-participation check
                     );
                 }
             }
