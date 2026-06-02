@@ -23,6 +23,29 @@ use Illuminate\Support\Facades\Log;
  */
 class SlackEventController extends Controller
 {
+    /**
+     * Tiny self-check available on GET. Hitting the URL in a browser tells
+     * you whether the column/migration is live and whether the signing
+     * secret has been pasted yet, without Slack being involved.
+     */
+    public function status(): JsonResponse
+    {
+        $app = OauthApp::query()->where('provider', 'slack')->first();
+        $hasColumn = $app !== null && \Illuminate\Support\Facades\Schema::hasColumn('oauth_apps', 'encrypted_signing_secret');
+        $signingSet = $hasColumn && ! empty($app?->encrypted_signing_secret);
+
+        return response()->json([
+            'endpoint' => 'slack events',
+            'method_expected' => 'POST',
+            'oauth_app_row_present' => $app !== null,
+            'signing_secret_column_present' => $hasColumn,
+            'signing_secret_configured' => $signingSet,
+            'next_step' => $signingSet
+                ? 'Ready. Paste the URL into Slack → Event Subscriptions and Save.'
+                : 'Paste the Slack app Signing Secret in /admin/oauth-apps → Slack, then verify in Slack.',
+        ]);
+    }
+
     public function __invoke(Request $request): Response|JsonResponse
     {
         $app = OauthApp::query()->where('provider', 'slack')->first();

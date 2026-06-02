@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Route;
 
 // Inbound Slack Events API (bot @-mentions). Public + CSRF-exempt (see
 // bootstrap/app.php); the request is authenticated by Slack's signature.
+// GET returns a self-check JSON so admins can verify reachability without
+// involving Slack.
+Route::get('/integrations/slack/events', [\App\Http\Controllers\SlackEventController::class, 'status']);
 Route::post('/integrations/slack/events', \App\Http\Controllers\SlackEventController::class)->name('slack.events');
 
 // === Public marketplace pages ===
