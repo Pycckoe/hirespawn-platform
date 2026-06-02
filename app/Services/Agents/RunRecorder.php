@@ -57,7 +57,7 @@ class RunRecorder
             ]);
         }
 
-        return DB::transaction(function () use ($profile, $subscription, $agent, $cost, $costCents, $input, $response, $requestId, $source) {
+        return DB::transaction(function () use ($profile, $subscription, $agent, $cost, $costCents, $input, $response, $requestId, $source, $connectorCalls, $connectorPower) {
             $profile->decrement('power_balance', $cost);
 
             return UsageEvent::create([
