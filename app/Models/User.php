@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,16 +15,44 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /**
+     * Only is_admin users can sign into the Filament admin panel.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return (bool) $this->is_admin;
+    }
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
+            'notification_prefs' => 'array',
+        ];
+    }
+
+    /**
+     * The notification toggles we expose on /settings → Notifications.
+     * Keys are stable; admin can add new events here + UI picks them up
+     * automatically.
+     */
+    public static function notificationDefaults(): array
+    {
+        return [
+            'low_power' => true,
+            'agent_failed' => true,
+            'payout_sent' => true,
+            'dispute_update' => true,
+            'invoice_issued' => true,
+            'weekly_digest' => false,
+            'product_updates' => false,
         ];
     }
 
@@ -54,5 +84,49 @@ class User extends Authenticatable
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class, 'buyer_id');
+    }
+
+    public function apiKeys(): HasMany
+    {
+        return $this->hasMany(ApiKey::class);
+    }
+
+    public function workspaceMembers(): HasMany
+    {
+        return $this->hasMany(WorkspaceMember::class, 'owner_id');
+    }
+
+    public function payoutMethods(): HasMany
+    {
+        return $this->hasMany(PayoutMethod::class);
+    }
+
+    public function githubInstallation(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(GithubInstallation::class);
+    }
+
+    public function llmCredentials(): HasMany
+    {
+        return $this->hasMany(SellerLlmCredential::class, 'seller_id');
+    }
+
+    public function oauthTokens(): HasMany
+    {
+        return $this->hasMany(UserOauthToken::class);
+    }
+
+    public function oauthTokenFor(string $provider): ?UserOauthToken
+    {
+        return $this->oauthTokens()->where('provider', $provider)->first();
+    }
+
+    /**
+     * Find the seller's API key for a given provider (openai, anthropic…).
+     * Returns null if no key has been added yet.
+     */
+    public function llmCredentialFor(string $provider): ?SellerLlmCredential
+    {
+        return $this->llmCredentials()->where('provider', $provider)->first();
     }
 }

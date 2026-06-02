@@ -2,8 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\BuyerProfile;
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -17,16 +15,15 @@ class DatabaseSeeder extends Seeder
             AgentCategorySeeder::class,
             AgentSeeder::class,
             PowerPackSeeder::class,
+            LlmModelsSeeder::class,
+            OauthAppsSeeder::class,
+            AdminCmsSeeder::class,
+            CmsMenusSeeder::class,
+            TranslationsSeeder::class,
+            DemoUserSeeder::class,
+            DemoAgentSeeder::class,
+            AgentTemplateSeeder::class,
+            McpServerSeeder::class,
         ]);
-
-        $test = User::factory()->create([
-            'name' => 'Test Buyer',
-            'email' => 'test@example.com',
-        ]);
-
-        BuyerProfile::firstOrCreate(
-            ['user_id' => $test->id],
-            ['country' => 'LV', 'power_balance' => 25000],
-        );
     }
 }

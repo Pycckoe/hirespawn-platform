@@ -1,8 +1,10 @@
 import '@/setup';
+import { useEffect, useRef, useState } from 'react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
+    useCountUp, useLiveFeed, useTheme, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 // =====================================================================
@@ -11,7 +13,72 @@ import {
 // =====================================================================
 
 const AgentDetail = (() => {
-  const { palette, Glass, Pill, Mesh, Nav, SectionLabel, Reveal, Footer } = DirA;
+  const { palette, Glass, Pill, Mesh, Nav, Logo, SectionLabel, Reveal, Footer, ThemeToggle } = DirA;
+
+  // ---- Buyer top bar (signed-in only) ----
+  // Mirrors the Console / Catalog topbars so /agent/{slug} feels like
+  // part of the buyer surface, not the marketing site.
+  const BuyerTopBar = ({ user, isAdmin, workspaceName, powerBalance, agentName }) => {
+    const initials = (user?.name || 'U').split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 32px', borderBottom: `1px solid ${palette.border}`, background: 'var(--p-topbar-bg)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
+          <Link href="/roster" style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>/ roster</Link>
+          {agentName && <>
+            <span style={{ color: palette.textMute }}>/</span>
+            <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, letterSpacing: 1, textTransform: 'uppercase' }}>{agentName}</span>
+          </>}
+          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, padding: '4px 9px', background: 'var(--p-chip)', border: `1px solid ${palette.border}`, borderRadius: 6, marginLeft: 8 }}>{workspaceName}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text }}>
+            <span style={{ color: palette.accent }}>⚡</span>{(powerBalance || 0).toLocaleString()}
+          </span>
+          <ThemeToggle size={32} />
+          {isAdmin && <a href="/admin" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.amber}`, color: palette.amber, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Admin →</a>}
+          <Link href="/console" style={{ padding: '8px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 12, fontFamily: 'inherit', textDecoration: 'none' }}>Console →</Link>
+          <Link href="/settings?tab=billing" style={{ padding: '8px 14px', borderRadius: 8, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>Buy Power +</Link>
+          <BuyerMenu user={user} initials={initials} />
+        </div>
+      </div>
+    );
+  };
+
+  const BuyerMenu = ({ user, initials }) => {
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+      if (!open) return;
+      const close = () => setOpen(false);
+      window.addEventListener('click', close);
+      return () => window.removeEventListener('click', close);
+    }, [open]);
+    return (
+      <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={() => setOpen(v => !v)}
+          aria-label="Account menu"
+          style={{ width: 32, height: 32, borderRadius: 99, background: 'linear-gradient(135deg, #b4f25b, #7dd3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, color: palette.onAccent, border: 0, cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+        {open && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 220, background: 'var(--p-glass-strong, rgba(15,17,23,0.95))', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)', border: `1px solid ${palette.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: '0 12px 36px rgba(0,0,0,0.45)', zIndex: 30 }}>
+            <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${palette.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{user?.name || 'You'}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 2 }}>{user?.email || ''}</div>
+            </div>
+            <Link href="/profile" style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}>Profile</Link>
+            <Link href="/settings" style={{ display: 'block', padding: '8px 12px', fontSize: 13, color: palette.text, textDecoration: 'none', borderRadius: 6 }}>Settings</Link>
+            <div style={{ height: 1, background: palette.border, margin: '4px 6px' }} />
+            <button onClick={() => router.post('/logout')} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 0, background: 'transparent', color: palette.red, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 6 }}>
+              Sign out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Sample tasks per agent role tone — show what the agent actually does
   const SAMPLE_TASKS = {
@@ -69,9 +136,6 @@ const AgentDetail = (() => {
     design:   ['Brand-tuned variants', 'Locale adaptation', 'Layout exploration', 'Asset packs (Figma)', 'Email + ad creatives'],
   };
 
-  // Use ROSTER_EXT from Catalog (full 18 agents) so detail pages exist for every catalog entry
-  const ALL = (window.Catalog && window.Catalog.ROSTER_EXT) ? window.Catalog.ROSTER_EXT : AGENTS;
-
   const NotFound = () => (
     <div style={{ padding: '120px 40px', textAlign: 'center' }}>
       <Pill dot color={palette.red} style={{ marginBottom: 14 }}>404</Pill>
@@ -81,13 +145,40 @@ const AgentDetail = (() => {
   );
 
   // Header — hero of the agent
-  const AgentHeader = ({ agent }) => (
+  const AgentHeader = ({ agent, isSubscribed = false, isAuthenticated = false, subscription = null }) => {
+    const rates = useRates();
+    // useForm gives us processing + onError so the buyer sees the
+    // button transition to "Hiring…" + a visible error if the server
+    // rejects (e.g. session expired, validation). The previous
+    // router.post(...) call had no visible feedback at all — clicks
+    // looked like nothing happened.
+    const hire = useForm({});
+    const cancel = useForm({});
+    const [hireError, setHireError] = useState(null);
+
+    const onHire = () => {
+      setHireError(null);
+      hire.post(`/agent/${agent.id}/subscribe`, {
+        preserveScroll: true,
+        onError: (errors) => {
+          const msg = Object.values(errors || {})[0] || 'Could not hire — please try again.';
+          setHireError(String(msg));
+        },
+      });
+    };
+
+    const onCancel = () => {
+      if (!confirm(`Cancel ${agent.name} subscription? You'll lose access to its tools.`)) return;
+      cancel.delete(`/agent/${agent.id}/subscribe`, { preserveScroll: true });
+    };
+
+    return (
     <div style={{ padding: '40px 40px 28px' }}>
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-        <a href="#/" style={{ color: palette.textMute, textDecoration: 'none' }}>hirespawn</a>
+        <Link href="/" style={{ color: palette.textMute, textDecoration: 'none' }}>hirespawn</Link>
         <span>/</span>
-        <a href="#/roster" style={{ color: palette.textMute, textDecoration: 'none' }}>roster</a>
+        <Link href="/roster" style={{ color: palette.textMute, textDecoration: 'none' }}>roster</Link>
         <span>/</span>
         <span style={{ color: palette.text }}>{agent.role.toLowerCase()}</span>
         <span>/</span>
@@ -130,32 +221,434 @@ const AgentDetail = (() => {
             <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim, marginLeft: 4 }}>per {agent.perUnit}</span>
           </div>
           <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginTop: 6 }}>
-            ≈ €{(agent.power * 0.009).toFixed(3)} per task at Pro rate
+            ≈ €{(agent.power * rates.eurPerPower).toFixed(3)} per task
           </div>
 
           <div style={{ marginTop: 22, padding: 14, background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, padding: '4px 0' }}>
-              <span>100 tasks</span><span style={{ color: palette.text }}>{(agent.power * 100).toLocaleString()}⚡ · €{(agent.power * 100 * 0.009).toFixed(0)}</span>
+              <span>100 tasks</span><span style={{ color: palette.text }}>{(agent.power * 100).toLocaleString()}⚡ · €{(agent.power * 100 * rates.eurPerPower).toFixed(0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textDim, padding: '4px 0' }}>
-              <span>1,000 tasks</span><span style={{ color: palette.text }}>{(agent.power * 1000).toLocaleString()}⚡ · €{(agent.power * 1000 * 0.009).toFixed(0)}</span>
+              <span>1,000 tasks</span><span style={{ color: palette.text }}>{(agent.power * 1000).toLocaleString()}⚡ · €{(agent.power * 1000 * rates.eurPerPower).toFixed(0)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent, padding: '4px 0', borderTop: `1px dashed ${palette.border}`, marginTop: 4, paddingTop: 8 }}>
-              <span>10,000 tasks</span><span>{(agent.power * 10000).toLocaleString()}⚡ · €{(agent.power * 10000 * 0.009).toFixed(0)}</span>
+              <span>10,000 tasks</span><span>{(agent.power * 10000).toLocaleString()}⚡ · €{(agent.power * 10000 * rates.eurPerPower).toFixed(0)}</span>
             </div>
           </div>
 
-          <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
-            Deploy {agent.name} →
-          </button>
-          <button style={{ width: '100%', padding: '12px', borderRadius: 10, marginTop: 8, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}>
-            Try in sandbox
-          </button>
-          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textAlign: 'center', marginTop: 10 }}>Self-installs in &lt; 90s · scoped key</div>
+          {isAuthenticated && isSubscribed ? (
+            <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: palette.accentDim, color: palette.accent, fontFamily: 'Geist Mono, monospace', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center' }}>
+                ✓ Hired · since {subscription?.startedAt || '—'}
+              </div>
+              {subscription?.id && (
+                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'block', padding: '12px', borderRadius: 10, background: palette.accent, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none' }}>
+                  Configure →
+                </Link>
+              )}
+              <Link href="/console" style={{ display: 'block', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none' }}>
+                Open Console
+              </Link>
+              <button
+                type="button"
+                disabled={cancel.processing}
+                onClick={onCancel}
+                style={{ width: '100%', padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${palette.border}`, color: palette.red, fontSize: 12, fontFamily: 'inherit', cursor: cancel.processing ? 'wait' : 'pointer', opacity: cancel.processing ? 0.6 : 1 }}
+              >
+                {cancel.processing ? 'Cancelling…' : 'Cancel subscription'}
+              </button>
+            </div>
+          ) : isAuthenticated ? (
+            <div style={{ marginTop: 18 }}>
+              <button
+                type="button"
+                disabled={hire.processing}
+                onClick={onHire}
+                style={{ width: '100%', padding: '14px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: hire.processing ? 'wait' : 'pointer', opacity: hire.processing ? 0.65 : 1 }}
+              >
+                {hire.processing ? `Hiring ${agent.name}…` : `Hire ${agent.name} →`}
+              </button>
+              {hireError && (
+                <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,99,99,0.08)', border: `1px solid ${palette.red}`, color: palette.red, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>
+                  ✗ {hireError}
+                </div>
+              )}
+            </div>
+          ) : (
+            <a href={`/login?intended=${encodeURIComponent('/agent/' + agent.id)}`} style={{ display: 'block', textDecoration: 'none' }}>
+              <button style={{ width: '100%', padding: '14px', borderRadius: 10, marginTop: 18, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>
+                Sign in to hire →
+              </button>
+            </a>
+          )}
+          <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, textAlign: 'center', marginTop: 10 }}>Hires instantly · cancel anytime</div>
         </Glass>
       </div>
     </div>
-  );
+    );
+  };
+
+  // ---- Setup requirements ----
+  // Shows the buyer what they need to set up to actually use the agent:
+  // 1. OAuth providers required by oauth_proxy skills
+  // 2. Configuration variables the vendor declared (settingDefs)
+  // Renders nothing when the agent has zero requirements.
+  const SetupRequirements = ({ oauthChecklist = [], settingDefs = [], subscription = null, isAuthenticated = false }) => {
+    if (oauthChecklist.length === 0 && settingDefs.length === 0) return null;
+    const needsOauth = oauthChecklist.filter(o => !o.connected || o.expired);
+    const isSet = (d) => d.value !== null && d.value !== undefined && d.value !== '';
+    // Only count variables as "pending" once the buyer has a subscription —
+    // on the public view there's nothing to configure yet.
+    const pendingVars = subscription ? settingDefs.filter(d => d.isRequired && !isSet(d)) : [];
+    const pendingCount = needsOauth.length + pendingVars.length;
+    const allReady = pendingCount === 0;
+
+    return (
+      <div style={{ padding: '0 40px 28px' }}>
+        <Glass style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>Setup checklist</div>
+              <div style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 500, color: palette.text, marginTop: 2 }}>
+                {subscription ? 'Configure your deployment' : 'What you need to run this agent'}
+              </div>
+            </div>
+            {isAuthenticated && (
+              <span style={{ padding: '4px 10px', borderRadius: 4, background: allReady ? palette.accentDim : 'rgba(255,184,77,0.12)', color: allReady ? palette.accent : palette.amber, fontFamily: 'Geist Mono, monospace', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                {allReady ? '✓ ready' : `${pendingCount} pending`}
+              </span>
+            )}
+          </div>
+
+          {oauthChecklist.length > 0 && (
+            <div style={{ marginBottom: settingDefs.length > 0 ? 22 : 0 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Integrations</div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {oauthChecklist.map(o => {
+                  const ok = o.connected && !o.expired;
+                  return (
+                    <div key={o.provider} style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: 14, alignItems: 'center', padding: '12px 14px', background: 'var(--p-inset-soft)', border: `1px solid ${ok ? palette.accentDim : palette.border}`, borderRadius: 8 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 7, background: ok ? palette.accentDim : 'var(--p-chip)', color: ok ? palette.accent : palette.textDim, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                        {o.provider.slice(0, 3).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, color: palette.text, fontWeight: 500, textTransform: 'capitalize' }}>{o.provider}</div>
+                        <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: ok ? palette.accent : palette.textMute, marginTop: 2 }}>
+                          {ok ? `✓ connected${o.accountLabel ? ' · ' + o.accountLabel : ''}` : o.expired ? 'expired · reconnect' : 'not connected'}
+                        </div>
+                      </div>
+                      {isAuthenticated && (
+                        <a href={`/oauth/${o.provider}/connect?return=${encodeURIComponent(window.location.pathname)}`} style={{ padding: '7px 12px', borderRadius: 6, background: ok ? 'transparent' : palette.accent, color: ok ? palette.textDim : palette.onAccent, border: ok ? `1px solid ${palette.border}` : 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                          {ok ? 'Reconnect' : 'Connect →'}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {settingDefs.length > 0 && (
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Variables you'll configure</div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {settingDefs.map(d => {
+                  const set = isSet(d);
+                  return (
+                    <div key={d.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '8px 12px', background: 'var(--p-inset-soft)', border: `1px solid ${set ? palette.accentDim : palette.border}`, borderRadius: 6 }}>
+                      <div>
+                        <span style={{ fontSize: 13, color: palette.text, fontWeight: 500 }}>{d.label}</span>
+                        {/* Once configured show the saved value; before that show
+                            "required" only when there's a subscription to fill. */}
+                        {set ? (
+                          <span style={{ marginLeft: 8, fontSize: 11, color: palette.accent, fontFamily: 'Geist Mono, monospace' }}>✓ {String(d.value)}</span>
+                        ) : d.isRequired && subscription ? (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: palette.red, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>
+                        ) : d.isRequired ? (
+                          <span style={{ marginLeft: 8, fontSize: 10, color: palette.textMute, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>required</span>
+                        ) : null}
+                        {d.description && <div style={{ fontSize: 11, color: palette.textMute, marginTop: 2 }}>{d.description}</div>}
+                      </div>
+                      <code style={{ color: palette.textMute, fontFamily: 'Geist Mono, monospace', fontSize: 11 }}>{d.type}</code>
+                    </div>
+                  );
+                })}
+              </div>
+              {subscription && (
+                <Link href={`/console/subscriptions/${subscription.id}/configure`} style={{ display: 'inline-block', marginTop: 12, padding: '8px 14px', borderRadius: 8, background: pendingVars.length > 0 ? palette.accent : 'transparent', color: pendingVars.length > 0 ? palette.onAccent : palette.textDim, border: pendingVars.length > 0 ? 0 : `1px solid ${palette.border}`, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+                  {pendingVars.length > 0 ? 'Configure now →' : 'Edit configuration →'}
+                </Link>
+              )}
+            </div>
+          )}
+        </Glass>
+      </div>
+    );
+  };
+
+  // Run-task panel — only shown to subscribed buyers. Posts to
+  // /agent/{slug}/run which debits power and logs a UsageEvent.
+  // Chat-style run panel — scrollable conversation history above an
+  // input field. After each submit we reload only the `recentRuns` prop
+  // so the new turn appears in the history without a full page swap.
+  const RunTaskPanel = ({ agent, recentRuns = [] }) => {
+    const rates = useRates();
+    const draftKey = `hs.chatDraft.${agent.slug || agent.id}`;
+    const [input, setInput] = useState(() => {
+      try { return window.localStorage.getItem(draftKey) || ''; } catch { return ''; }
+    });
+    const [runs, setRuns] = useState(recentRuns);
+    const [pending, setPending] = useState(null);    // { input } while the agent works
+    const [streamText, setStreamText] = useState(''); // live tokens for the in-flight turn
+    const [error, setError] = useState(null);
+    const [balance, setBalance] = useState(null);
+    const [atBottom, setAtBottom] = useState(true);   // is the thread scrolled to the latest?
+    const historyRef = useRef(null);
+
+    const sending = pending !== null;
+
+    // Persist the draft so a refresh / accidental nav doesn't lose typing.
+    useEffect(() => {
+      try { input ? window.localStorage.setItem(draftKey, input) : window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+    }, [input, draftKey]);
+
+    const scrollToBottom = () => {
+      if (historyRef.current) historyRef.current.scrollTop = historyRef.current.scrollHeight;
+    };
+
+    // Auto-stick to the bottom as content grows — but only if the user
+    // hasn't scrolled up to read earlier turns.
+    useEffect(() => {
+      if (atBottom) scrollToBottom();
+    }, [runs.length, pending, streamText, atBottom]);
+
+    const onScroll = () => {
+      const el = historyRef.current;
+      if (!el) return;
+      setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60);
+    };
+
+    // CSRF token for fetch() (axios sends it automatically; fetch doesn't).
+    const xsrf = () => {
+      const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    };
+
+    // Non-stream fallback: used when streaming isn't available / fails.
+    const submitJson = async (text) => {
+      try {
+        const { data } = await window.axios.post(route('agent.run', agent.id), { input: text }, { headers: { Accept: 'application/json' } });
+        setRuns(prev => [...prev, data.turn]);
+        if (typeof data.powerBalance === 'number') setBalance(data.powerBalance);
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.response?.data?.errors?.input?.[0] || 'Something went wrong — please try again.';
+        setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: msg, ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+      }
+    };
+
+    const submit = async (e) => {
+      e?.preventDefault();
+      const text = input.trim();
+      if (!text || sending) return;
+
+      setError(null);
+      setPending({ input: text });
+      setStreamText('');
+      setInput('');
+      setAtBottom(true);
+
+      // Try the streaming endpoint (SSE). On any hiccup — non-OK response,
+      // wrong content-type, parse/network error — fall back to the plain
+      // JSON endpoint so the chat always works.
+      try {
+        const resp = await fetch(route('agent.run.stream', agent.id), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', 'X-XSRF-TOKEN': xsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ input: text }),
+          credentials: 'same-origin',
+        });
+
+        const ctype = resp.headers.get('Content-Type') || '';
+        if (!resp.ok || !resp.body || !ctype.includes('text/event-stream')) {
+          // 422 (guard) or no streaming → JSON path.
+          if (resp.status === 422) {
+            const body = await resp.json().catch(() => ({}));
+            setRuns(prev => [...prev, { id: `err-${Date.now()}`, input: text, output: '', error: body.message || 'Cannot run.', ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+          } else {
+            await submitJson(text);
+          }
+          return;
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let done = false;
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) break;
+          buf += decoder.decode(value, { stream: true });
+          let sep;
+          while ((sep = buf.indexOf('\n\n')) !== -1) {
+            const frame = buf.slice(0, sep);
+            buf = buf.slice(sep + 2);
+            const line = frame.split('\n').find(l => l.startsWith('data:'));
+            if (!line) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+            if (evt.type === 'delta') {
+              setStreamText(prev => prev + (evt.text || ''));
+            } else if (evt.type === 'done') {
+              setRuns(prev => [...prev, evt.turn]);
+              if (typeof evt.powerBalance === 'number') setBalance(evt.powerBalance);
+              done = true;
+            } else if (evt.type === 'error') {
+              setRuns(prev => [...prev, evt.turn || { id: `err-${Date.now()}`, input: text, output: '', error: evt.message || 'Run failed.', ok: false, cost: 0, inputTokens: 0, outputTokens: 0, latencyMs: 0, toolCalls: [], at: 'just now' }]);
+              done = true;
+            }
+          }
+        }
+      } catch {
+        await submitJson(text);
+      } finally {
+        setPending(null);
+        setStreamText('');
+      }
+    };
+
+    const onEnterKey = (e) => {
+      // Cmd/Ctrl + Enter to submit — typical chat shortcut.
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim() && !sending) {
+        e.preventDefault();
+        submit(e);
+      }
+    };
+
+    return (
+      <div style={{ padding: '0 40px 36px' }}>
+        <Glass style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${palette.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.accent, letterSpacing: 1, textTransform: 'uppercase' }}>● Chat with {agent.name}</div>
+              <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 22, fontWeight: 600, color: palette.text, margin: '6px 0 0' }}>Send work · see the result inline</h3>
+              <p style={{ fontSize: 13, color: palette.textDim, margin: '4px 0 0' }}>
+                Each run burns <span style={{ color: palette.accent }}>{agent.power}⚡</span> · ≈ €{(agent.power * rates.eurPerPower).toFixed(4)}
+              </p>
+            </div>
+            <Link href="/console" style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, textDecoration: 'none', letterSpacing: 1, textTransform: 'uppercase' }}>full log →</Link>
+          </div>
+
+          {/* Conversation history */}
+          <div style={{ position: 'relative' }}>
+          <div
+            ref={historyRef}
+            onScroll={onScroll}
+            style={{ maxHeight: 480, overflowY: 'auto', padding: '20px 24px', background: 'var(--p-inset-soft)' }}
+          >
+            {runs.length === 0 && !pending ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: palette.textDim }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>▸</div>
+                <div style={{ fontSize: 13, color: palette.text, marginBottom: 4 }}>No runs yet</div>
+                <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>Type a task below — answers land here.</div>
+              </div>
+            ) : (
+              runs.map(run => (
+                <div key={run.id} style={{ marginBottom: 22 }}>
+                  {/* User turn */}
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, flexShrink: 0 }}>YOU</div>
+                    <div style={{ flex: 1, padding: '10px 14px', background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                      {run.input || <span style={{ color: palette.textMute }}>(no input)</span>}
+                    </div>
+                  </div>
+                  {/* Agent turn */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: run.ok ? palette.accentDim : 'rgba(255,99,99,0.12)', color: run.ok ? palette.accent : palette.red, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>AI</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ padding: '10px 14px', background: run.ok ? 'rgba(180,242,91,0.04)' : 'rgba(255,99,99,0.05)', borderRadius: 10, border: `1px solid ${run.ok ? palette.accentDim : 'rgba(255,99,99,0.3)'}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                        {run.error
+                          ? <span style={{ color: palette.red, fontFamily: 'Geist Mono, monospace', fontSize: 12 }}>✗ {run.error}</span>
+                          : (run.output || <span style={{ color: palette.textMute }}>(empty response)</span>)
+                        }
+                      </div>
+                      <div style={{ marginTop: 6, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <span>{run.at}</span>
+                        {run.cost > 0 && <span><span style={{ color: palette.accent }}>{run.cost}⚡</span> burned</span>}
+                        {(run.inputTokens > 0 || run.outputTokens > 0) && <span>{run.inputTokens}+{run.outputTokens} tok</span>}
+                        {run.latencyMs > 0 && <span>{run.latencyMs}ms</span>}
+                        {run.toolCalls?.length > 0 && (
+                          <span style={{ color: palette.cyan }}>{run.toolCalls.length} tool{run.toolCalls.length !== 1 ? 's' : ''} called</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+
+            {/* In-flight turn: show the user's message + an animated
+                "thinking" bubble while the agent works (no page reload). */}
+            {pending && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: 'var(--p-chip)', border: `1px solid ${palette.border}`, color: palette.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, flexShrink: 0 }}>YOU</div>
+                  <div style={{ flex: 1, padding: '10px 14px', background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{pending.input}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>AI</div>
+                  <div style={{ flex: 1, padding: '12px 14px', background: 'rgba(180,242,91,0.04)', borderRadius: 10, border: `1px solid ${palette.accentDim}`, fontSize: 14, color: palette.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    {streamText
+                      ? <>{streamText}<span style={{ display: 'inline-block', width: 7, height: 14, background: palette.accent, marginLeft: 2, verticalAlign: 'text-bottom', animation: 'hsTypingDot 1s infinite' }} /></>
+                      : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.textDim }}>{agent.name} is thinking</span>
+                          <span style={{ display: 'inline-flex', gap: 3 }}>
+                            {[0, 1, 2].map(i => (
+                              <span key={i} style={{ width: 5, height: 5, borderRadius: 99, background: palette.accent, display: 'inline-block', animation: 'hsTypingDot 1s infinite', animationDelay: `${i * 0.15}s` }} />
+                            ))}
+                          </span>
+                        </span>
+                      )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Jump-to-latest — shown when the user scrolled up. */}
+          {!atBottom && (
+            <button type="button" onClick={() => { scrollToBottom(); setAtBottom(true); }} style={{ position: 'absolute', right: 18, bottom: 14, padding: '7px 12px', borderRadius: 20, background: palette.accent, color: palette.onAccent, border: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>↓ Latest</button>
+          )}
+          </div>
+
+          {/* Input */}
+          <form onSubmit={submit} style={{ padding: '16px 24px 20px', borderTop: `1px solid ${palette.border}` }}>
+            <style>{`@keyframes hsTypingDot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }`}</style>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onEnterKey}
+              placeholder={`Ask ${agent.name} to do something. E.g. "${agent.spec || 'process a task'}"`}
+              rows={3}
+              maxLength={8000}
+              style={{ width: '100%', padding: '12px 14px', background: 'var(--p-inset)', border: `1px solid ${error ? palette.red : palette.border}`, borderRadius: 10, color: palette.text, fontFamily: 'inherit', fontSize: 14, outline: 'none', resize: 'vertical', lineHeight: 1.5 }}
+            />
+            {error && <div style={{ fontSize: 11, color: palette.red, marginTop: 4, fontFamily: 'Geist Mono, monospace' }}>{error}</div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
+                {input.length} / 8000 · <span style={{ opacity: 0.7 }}>⌘+Enter to send</span>
+                {balance !== null && <span> · balance {balance}⚡</span>}
+              </div>
+              <button type="submit" disabled={sending || !input.trim()} style={{ padding: '12px 24px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: sending || !input.trim() ? 'not-allowed' : 'pointer', opacity: sending || !input.trim() ? 0.5 : 1 }}>
+                {sending ? 'Running…' : `Send · ${agent.power}⚡`}
+              </button>
+            </div>
+          </form>
+        </Glass>
+      </div>
+    );
+  };
 
   // Spec strip — quick stats row under header
   const SpecStrip = ({ agent }) => (
@@ -244,7 +737,7 @@ const AgentDetail = (() => {
         ))}
       </div>
       <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 0.5 }}>
-        Need another tool? <a href="#/" style={{ color: palette.cyan, textDecoration: 'none' }}>Request integration →</a>
+        Need another tool? <a href="mailto:support@hirespawn.com?subject=Integration%20request" style={{ color: palette.cyan, textDecoration: 'none' }}>Request integration →</a>
       </div>
     </div>
   );
@@ -344,15 +837,15 @@ const AgentDetail = (() => {
   );
 
   // Related agents from same vendor / category
-  const RelatedAgents = ({ agent }) => {
-    const same = ALL.filter(a => a.id !== agent.id && (a.vendor === agent.vendor || a.tone === agent.tone)).slice(0, 4);
+  const RelatedAgents = ({ related = [] }) => {
+    const same = related.slice(0, 4);
     if (same.length === 0) return null;
     return (
       <div style={{ padding: '0 40px 80px' }}>
         <SectionLabel kicker="Reinforcements" title={<>You might also <span style={{ color: palette.accent }}>deploy</span>.</>} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           {same.map(a => (
-            <a key={a.id} href={`#/agent/${a.id}`} style={{ textDecoration: 'none' }}>
+            <Link key={a.id} href={`/agent/${a.id}`} style={{ textDecoration: 'none' }}>
               <Glass style={{ padding: 18, cursor: 'pointer', transition: 'border-color 0.25s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 8, background: palette.accentDim, color: palette.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{CATEGORIES.find(c => c.key === a.tone)?.icon || '◇'}</div>
@@ -366,7 +859,7 @@ const AgentDetail = (() => {
                   <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute }}>★ {a.rating}</span>
                 </div>
               </Glass>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -374,26 +867,50 @@ const AgentDetail = (() => {
   };
 
   // Page
-  const Page = ({ agentId }) => {
-    const agent = ALL.find(a => a.id === agentId);
+  const Page = () => {
+    const {
+      agent = null, relatedAgents = [],
+      subscription = null, isSubscribed = false, isAuthenticated = false,
+      oauthChecklist = [], settingDefs = [], recentRuns = [],
+      auth, workspaceName = 'Workspace', powerBalance = 0,
+    } = usePage().props;
+    const user = auth?.user || null;
+    const isAdmin = !!user?.is_admin;
+
     return (
       <div style={{ background: palette.bg0, minHeight: '100vh', position: 'relative', color: palette.text, fontFamily: 'Inter, sans-serif' }}>
         <Mesh />
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 1440, margin: '0 auto' }}>
-          <Nav />
+          {isAuthenticated
+            ? <BuyerTopBar user={user} isAdmin={isAdmin} workspaceName={workspaceName} powerBalance={powerBalance} agentName={agent?.name} />
+            : <Nav />}
           {!agent ? <NotFound /> : (
             <>
-              <AgentHeader agent={agent} />
+              <AgentHeader
+                agent={agent}
+                isSubscribed={isSubscribed}
+                isAuthenticated={isAuthenticated}
+                subscription={subscription}
+              />
+              {isAuthenticated && (oauthChecklist.length > 0 || settingDefs.length > 0) && (
+                <SetupRequirements
+                  oauthChecklist={oauthChecklist}
+                  settingDefs={settingDefs}
+                  subscription={subscription}
+                  isAuthenticated={isAuthenticated}
+                />
+              )}
+              {isSubscribed && <RunTaskPanel agent={agent} recentRuns={recentRuns} />}
               <SpecStrip agent={agent} />
               <Reveal><Capabilities agent={agent} /></Reveal>
               <Reveal><SampleTasks agent={agent} /></Reveal>
               <Reveal><Integrations agent={agent} /></Reveal>
               <Reveal><SlaPanel agent={agent} /></Reveal>
-              <Reveal><DeployFlow agent={agent} /></Reveal>
-              <Reveal><RelatedAgents agent={agent} /></Reveal>
+              {!isAuthenticated && <Reveal><DeployFlow agent={agent} /></Reveal>}
+              <Reveal><RelatedAgents related={relatedAgents} /></Reveal>
             </>
           )}
-          <Footer />
+          {!isAuthenticated && <Footer />}
         </div>
       </div>
     );

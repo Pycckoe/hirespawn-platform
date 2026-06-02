@@ -2,7 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Menu;
+use App\Models\SiteSetting;
+use App\Models\Translation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -33,6 +38,24 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+            ],
+            'flash' => [
+                'status' => fn () => $request->session()->get('status'),
+                'apiKeySecret' => fn () => $request->session()->get('apiKeySecret'),
+            ],
+            // CMS content — menus + site copy. Cached for 60s so the admin
+            // sees edits within a minute without slamming Postgres on every
+            // navigation. Lazy: only resolved when a page asks for it.
+            'cms' => fn () => Cache::remember('cms.shared', 60, fn () => [
+                'menus' => Menu::allForRender(),
+                'settings' => SiteSetting::all_keyed(),
+            ]),
+            // i18n — translations for the active locale + the list of
+            // available locales. Frontend useTranslation() reads from here.
+            'i18n' => fn () => [
+                'locale' => App::getLocale(),
+                'available' => Translation::availableLocales() ?: [App::getLocale()],
+                'translations' => Translation::forLocale(App::getLocale()),
             ],
         ];
     }

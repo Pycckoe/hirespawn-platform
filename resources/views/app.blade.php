@@ -6,6 +6,16 @@
 
         <title inertia>{{ config('app.name', 'Hirespawn') }}</title>
 
+        {{-- Admin-managed favicon (CMS · /admin/site-settings · site_favicon).
+             Falls back to /favicon.ico when no upload has been done yet. --}}
+        @php($faviconUrl = \App\Models\SiteSetting::lookup('site_favicon'))
+        @if($faviconUrl)
+            <link rel="icon" href="{{ $faviconUrl }}" />
+            <link rel="shortcut icon" href="{{ $faviconUrl }}" />
+        @else
+            <link rel="icon" href="/favicon.ico" />
+        @endif
+
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />

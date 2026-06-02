@@ -1,7 +1,7 @@
 import '@/setup';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
@@ -139,7 +139,6 @@ const Status = (() => {
                   <div>
                     <h3 style={{ fontFamily: 'Geist, sans-serif', fontSize: 18, fontWeight: 600, letterSpacing: -0.4, margin: '0 0 8px 0' }}>{inc.ti}</h3>
                     <p style={{ fontSize: 13, color: palette.textDim, lineHeight: 1.55, margin: 0 }}>{inc.r}</p>
-                    <a href="#" style={{ display: 'inline-block', marginTop: 10, fontSize: 11, color: palette.accent, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Full post-mortem →</a>
                   </div>
                 </div>
               </Glass>

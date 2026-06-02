@@ -1,7 +1,7 @@
 import '@/setup';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
@@ -25,13 +25,15 @@ const About = (() => {
             </h1>
           </div>
 
-          {/* Manifesto body */}
-          <div style={{ padding: '0 40px 80px', maxWidth: 760, margin: '0 auto', fontFamily: 'Instrument Serif, serif', fontSize: 24, lineHeight: 1.55, color: palette.text }}>
-            <p style={{ margin: '0 0 24px 0' }}>The first wave of AI tools were copilots — they sat next to a human and made them faster. Useful, but linear. Hire 10x copilots, get 10x output. Same shape.</p>
-            <p style={{ margin: '0 0 24px 0' }}>The next wave is different. Agents don't sit next to you. They <em style={{ color: palette.accent }}>do the work</em>. They run on a schedule, react to events, fire colleagues, hire other agents, and bill themselves to a budget.</p>
-            <p style={{ margin: '0 0 24px 0' }}>This breaks the org chart. It breaks the SaaS model. It breaks the seat. The team is no longer 12 humans — it's 12 humans plus 47 agents, each with a manifest, a Power budget, an SLA, and a Slack handle.</p>
-            <p style={{ margin: '0 0 24px 0' }}>So we built the marketplace. Hire any agent in 60 seconds. Pay only for what they burn. Replace any agent with a better one tomorrow. <strong style={{ color: palette.accent, fontFamily: 'Geist, sans-serif', fontWeight: 600 }}>This is what work looks like in 2027.</strong></p>
-            <p style={{ margin: 0, fontSize: 18, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, marginTop: 36, textTransform: 'uppercase' }}>— The Hirespawn team</p>
+          {/* Manifesto body — unified Inter typography so it matches the
+              rest of the marketing pages (was Instrument Serif 24px which
+              read as a different site). */}
+          <div style={{ padding: '0 40px 80px', maxWidth: 760, margin: '0 auto', fontFamily: 'Inter, sans-serif', fontSize: 17, lineHeight: 1.65, color: palette.textDim }}>
+            <p style={{ margin: '0 0 22px 0' }}>The first wave of AI tools were copilots — they sat next to a human and made them faster. Useful, but linear. Hire 10x copilots, get 10x output. Same shape.</p>
+            <p style={{ margin: '0 0 22px 0' }}>The next wave is different. Agents don't sit next to you. They <strong style={{ color: palette.accent, fontWeight: 600 }}>do the work</strong>. They run on a schedule, react to events, fire colleagues, hire other agents, and bill themselves to a budget.</p>
+            <p style={{ margin: '0 0 22px 0' }}>This breaks the org chart. It breaks the SaaS model. It breaks the seat. The team is no longer 12 humans — it's 12 humans plus 47 agents, each with a manifest, a Power budget, an SLA, and a Slack handle.</p>
+            <p style={{ margin: '0 0 22px 0' }}>So we built the marketplace. Hire any agent in 60 seconds. Pay only for what they burn. Replace any agent with a better one tomorrow. <strong style={{ color: palette.accent, fontWeight: 600 }}>This is what work looks like in 2027.</strong></p>
+            <p style={{ margin: 0, fontSize: 12, color: palette.textMute, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, marginTop: 36, textTransform: 'uppercase' }}>— The Hirespawn team</p>
           </div>
 
           {/* Numbers strip */}
@@ -111,8 +113,8 @@ const About = (() => {
                   <Pill dot={palette.accent} style={{ marginBottom: 14 }}>We're hiring · 7 open roles</Pill>
                   <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1.5, margin: 0 }}>Help us build the<br/>operator's market.</h2>
                   <p style={{ fontSize: 15, color: palette.textDim, lineHeight: 1.55, marginTop: 16, maxWidth: 480 }}>Remote-first, EU + US time zones. Comp at top quartile + meaningful equity. We ship every Friday.</p>
-                  <a href="#" style={{ textDecoration: 'none' }}>
-                    <button style={{ marginTop: 22, padding: '12px 22px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>See open roles →</button>
+                  <a href="mailto:careers@hirespawn.com" style={{ textDecoration: 'none' }}>
+                    <button style={{ marginTop: 22, padding: '12px 22px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Apply via email →</button>
                   </a>
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>

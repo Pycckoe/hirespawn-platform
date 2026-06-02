@@ -12,6 +12,7 @@ class Subscription extends Model
 
     protected $casts = [
         'metadata' => 'array',
+        'settings' => 'array',
         'started_at' => 'datetime',
         'current_period_start' => 'datetime',
         'current_period_end' => 'datetime',
@@ -38,6 +39,21 @@ class Subscription extends Model
     public function usageEvents(): HasMany
     {
         return $this->hasMany(UsageEvent::class);
+    }
+
+    public function knowledgeSources(): HasMany
+    {
+        return $this->hasMany(KnowledgeSource::class)->latest();
+    }
+
+    public function knowledgeChunks(): HasMany
+    {
+        return $this->hasMany(KnowledgeChunk::class);
+    }
+
+    public function mcpConnections(): HasMany
+    {
+        return $this->hasMany(McpConnection::class)->latest();
     }
 
     public function invoices(): HasMany

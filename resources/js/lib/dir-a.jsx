@@ -4,9 +4,10 @@
 // =====================================================================
 import '@/setup';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { usePage } from '@inertiajs/react';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
-    useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
+    useCountUp, useLiveFeed, useTheme, useT, useRates, fmt, fmtCurrency,
 } from '@/lib/shared';
 
 const DirA = (() => {
@@ -161,15 +162,28 @@ const DirA = (() => {
     );
   };
 
-  const Logo = () => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <path d="M13 2 L24 8 V18 L13 24 L2 18 V8 Z" stroke={palette.accent} strokeWidth="1.5" fill="rgba(180,242,91,0.06)" />
-        <path d="M13 7 L19 10.5 V15.5 L13 19 L7 15.5 V10.5 Z" fill={palette.accent} opacity="0.85" />
-      </svg>
-      <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: -0.4, color: palette.text }}>hirespawn</span>
-    </div>
-  );
+  const Logo = () => {
+    // Admin-uploaded site_logo wins; otherwise we render the original
+    // inline-SVG mark + wordmark. Uploaded asset is rendered at the same
+    // 26px height so layout doesn't shift.
+    const logoUrl = usePage().props?.cms?.settings?.site_logo;
+    if (logoUrl) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src={logoUrl} alt="Hirespawn" style={{ height: 26, width: 'auto', display: 'block' }} />
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+          <path d="M13 2 L24 8 V18 L13 24 L2 18 V8 Z" stroke={palette.accent} strokeWidth="1.5" fill="rgba(180,242,91,0.06)" />
+          <path d="M13 7 L19 10.5 V15.5 L13 19 L7 15.5 V10.5 Z" fill={palette.accent} opacity="0.85" />
+        </svg>
+        <span style={{ fontSize: 19, fontWeight: 600, letterSpacing: -0.4, color: palette.text }}>hirespawn</span>
+      </div>
+    );
+  };
 
   // Sun/moon theme toggle — flips html[data-theme] attribute (CSS vars do the rest)
   const ThemeToggle = ({ size = 36 }) => {
@@ -223,7 +237,9 @@ const DirA = (() => {
         ))}
         <ThemeToggle />
         <a href="#/console" style={{ padding: '9px 16px', borderRadius: 10, marginLeft: 4, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none' }}>Console</a>
-        <button style={{ padding: '9px 18px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+        <a href="/power" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '9px 18px', borderRadius: 10, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+        </a>
       </div>
     </div>
   );
@@ -235,6 +251,14 @@ const DirA = (() => {
     const mp = useMouseParallax();
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
+    const t = useT();
+    const pillCopy = t('hero.pill', '● Live · 12,847 agents on duty');
+    const subtitleCopy = t('hero.subtitle', 'The marketplace for AI employees. No subscriptions, no headcount. Buy Power once — every agent in the roster runs on it. Pay only for tasks executed.');
+    const ctaPrimary = t('hero.cta_primary', 'Buy Power →');
+    const ctaBrowse = t('hero.cta_browse', 'Browse the roster');
+    const statAgents = t('hero.stat_agents', 'Agents on duty');
+    const statBurned = t('hero.stat_burned', 'Power burned (24h)');
+    const statCirc = t('hero.stat_circ', 'Power in circulation');
     return (
       <div style={{ position: 'relative', padding: '60px 40px 40px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 40, alignItems: 'start' }}>
@@ -243,24 +267,22 @@ const DirA = (() => {
             transform: mounted ? 'translateY(0)' : 'translateY(24px)',
             transition: 'opacity 0.9s cubic-bezier(.2,.7,.2,1), transform 0.9s cubic-bezier(.2,.7,.2,1)',
           }}>
-            <Pill dot color={palette.accent} style={{ marginBottom: 28 }}>● Live · 12,847 agents on duty</Pill>
+            <Pill dot color={palette.accent} style={{ marginBottom: 28 }}>{pillCopy}</Pill>
             <h1 style={{ fontFamily: 'Geist, sans-serif', fontSize: 86, lineHeight: 0.95, fontWeight: 600, letterSpacing: -3, margin: 0, color: palette.text, transform: `translate3d(${mp.x * -6}px, ${mp.y * -3}px, 0)`, transition: 'transform 0.4s cubic-bezier(.2,.7,.2,1)' }}>
               Hire an army.<br/>
               <span style={{ color: palette.textDim, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontWeight: 400 }}>Burn </span>
               <span style={{ color: palette.accent }}>Power.</span>
             </h1>
-            <p style={{ fontSize: 19, lineHeight: 1.5, color: palette.textDim, maxWidth: 540, marginTop: 28, marginBottom: 36 }}>
-              The marketplace for AI employees. No subscriptions, no headcount. Buy <strong style={{ color: palette.text }}>Power</strong> once — every agent in the roster runs on it. Pay only for tasks executed. <span style={{ color: palette.text }}>Stop hiring juniors. Start burning Power.</span>
-            </p>
+            <p style={{ fontSize: 19, lineHeight: 1.5, color: palette.textDim, maxWidth: 540, marginTop: 28, marginBottom: 36 }}>{subtitleCopy}</p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 40 }}>
-              <button style={{ padding: '14px 22px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
-              <a href="#/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>Browse the roster</button></a>
+              <a href="/power" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>{ctaPrimary}</button></a>
+              <a href="/roster" style={{ textDecoration: 'none' }}><button style={{ padding: '14px 22px', borderRadius: 12, background: palette.glassStrong, border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer', backdropFilter: 'blur(20px)' }}>{ctaBrowse}</button></a>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
-                { label: 'Agents on duty',       val: deployed.toLocaleString() },
-                { label: 'Power burned (24h)',   val: (burned/1000).toFixed(0)+'k' },
-                { label: 'Power in circulation', val: (power/1000000).toFixed(1)+'M' },
+                { label: statAgents, val: deployed.toLocaleString() },
+                { label: statBurned, val: (burned/1000).toFixed(0)+'k' },
+                { label: statCirc,   val: (power/1000000).toFixed(1)+'M' },
               ].map(s => (
                 <div key={s.label} style={{ borderTop: `1px solid ${palette.border}`, paddingTop: 14 }}>
                   <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>{s.label}</div>
@@ -338,10 +360,12 @@ const DirA = (() => {
     const [picked, setPicked] = useState('sdr-pro');
     const a = AGENTS.find(x => x.id === picked);
     const tasks = 1000;
-    const cost = a.power * tasks * 0.009;
+    const rates = useRates();
+    const cost = a.power * tasks * rates.eurPerPower;
+    const t = useT();
     return (
       <div style={{ padding: '80px 40px' }}>
-        <SectionLabel kicker="Power · the unit of work" title={<>One currency.<br/><span style={{ color: palette.accent }}>Every agent. Every task.</span></>} sub="No more subscriptions per agent. Buy a Power pack once. Allocate it across whichever specialists you hire. Each agent declares its Power cost upfront — fair, predictable, audited." />
+        <SectionLabel kicker={t('power.kicker', 'Power · the unit of work')} title={<>One currency.<br/><span style={{ color: palette.accent }}>Every agent. Every task.</span></>} sub={t('power.sub', 'No more subscriptions per agent. Buy a Power pack once. Allocate it across whichever specialists you hire. Each agent declares its Power cost upfront — fair, predictable, audited.')} />
         <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: 24 }}>
           <Glass style={{ padding: 28 }}>
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Power cost · per task</div>
@@ -363,7 +387,7 @@ const DirA = (() => {
               <span style={{ fontFamily: 'Geist, sans-serif', fontSize: 64, fontWeight: 500, color: palette.accent, letterSpacing: -2 }}>{(a.power * tasks).toLocaleString()}</span>
               <span style={{ fontSize: 24, color: palette.textDim }}>⚡</span>
             </div>
-            <div style={{ fontSize: 14, color: palette.textDim }}>≈ €{cost.toFixed(2)} on the <strong style={{ color: palette.text }}>Pro</strong> pack ({a.power}⚡ × 1,000 × €0.009)</div>
+            <div style={{ fontSize: 14, color: palette.textDim }}>≈ €{cost.toFixed(2)} ({a.power}⚡ × 1,000 × €{rates.eurPerPower.toFixed(4)})</div>
             <div style={{ marginTop: 20, padding: 14, background: 'var(--p-inset)', borderRadius: 10, border: `1px solid ${palette.border}` }}>
               <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, marginBottom: 8 }}>vs hiring a junior @ €2,500/mo</div>
               <div style={{ height: 24, borderRadius: 6, background: 'var(--p-chip)', overflow: 'hidden', display: 'flex' }}>
@@ -380,12 +404,21 @@ const DirA = (() => {
     );
   };
 
-  // === Power packs (3 packs, Enterprise removed in favor of calculator) ===
+  // === Power packs (admin-managed via /admin/power-packs) ===
+  // Single source of truth: the `power_packs` DB table, shipped via
+  // usePage().props.powerPacks. If a page renders this component but
+  // ships no packs (or the table is empty) we render nothing — better
+  // a missing section than stale hardcoded numbers.
   const PowerPacks = () => {
-    const packs = POWER_PACKS.filter(p => p.price !== null);
+    const dbPacks = usePage().props?.powerPacks;
+    const packs = Array.isArray(dbPacks)
+      ? dbPacks.filter(p => p.price !== null && p.price !== undefined)
+      : [];
+    const t = useT();
+    if (packs.length === 0) return null;
     return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Pricing" title={<>Buy Power. <span style={{ color: palette.textDim }}>That's it.</span></>} sub="Volume discount built in. Higher pack = lower €/Power. Power rolls over (90 days Starter, 12 months Pro & Scale)." />
+      <SectionLabel kicker={t('pricing.kicker', 'Pricing')} title={<>Buy Power. <span style={{ color: palette.textDim }}>That's it.</span></>} sub={t('pricing.sub', 'Volume discount built in. Higher pack = lower €/Power. Power rolls over (90 days Starter, 12 months Pro & Scale).')} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {packs.map((p, idx) => (
           <Reveal key={p.name} delay={idx * 80} y={28}>
@@ -436,7 +469,11 @@ const DirA = (() => {
     }).filter(Boolean);
 
     const totalPower = expanded.reduce((s, r) => s + r.power, 0);
-    const packs = POWER_PACKS.filter(p => p.price !== null);
+    const dbPacks = usePage().props?.powerPacks;
+    const packs = Array.isArray(dbPacks)
+      ? dbPacks.filter(p => p.price !== null && p.price !== undefined)
+      : [];
+    if (packs.length === 0) return null;
     // recommended pack: smallest pack whose power >= totalPower, else largest
     const rec = packs.find(p => p.power >= totalPower) || packs[packs.length - 1];
     const recCost = rec.price;
@@ -552,10 +589,12 @@ const DirA = (() => {
   };
 
   // === Roster ===
-  const Roster = () => (
+  const Roster = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 32, gap: 24 }}>
-        <SectionLabel kicker="The roster" title={<>Eight battalions.<br/><span style={{ color: palette.textDim }}>Ready to deploy.</span></>} />
+        <SectionLabel kicker={t('roster.kicker', 'The roster')} title={<>Eight battalions.<br/><span style={{ color: palette.textDim }}>Ready to deploy.</span></>} />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: 380, justifyContent: 'flex-end' }}>
           {CATEGORIES.map(c => (
             <span key={c.key} style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${palette.border}`, background: palette.glass, fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 0.5 }}>{c.icon} {c.label}</span>
@@ -566,12 +605,13 @@ const DirA = (() => {
         {AGENTS.map((a, i) => <Reveal key={a.id} delay={i * 60} y={20}><AgentCard agent={a} /></Reveal>)}
       </div>
       <div style={{ textAlign: 'center', marginTop: 32 }}>
-        <a href="#/roster" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 500, fontFamily: 'inherit', textDecoration: 'none' }}>
+        <a href="/roster" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 14, fontWeight: 500, fontFamily: 'inherit', textDecoration: 'none' }}>
           View all 18 agents in the roster <span style={{ color: palette.accent }}>→</span>
         </a>
       </div>
     </div>
-  );
+    );
+  };
 
   const AgentCard = ({ agent }) => {
     const [hover, setHover] = useState(false);
@@ -603,9 +643,11 @@ const DirA = (() => {
     );
   };
 
-  const HowItWorks = () => (
+  const HowItWorks = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Mission flow" title={<>Five steps. <span style={{ color: palette.textDim }}>From brief to billed.</span></>} />
+      <SectionLabel kicker={t('how.kicker', 'Mission flow')} title={<>Five steps. <span style={{ color: palette.textDim }}>From brief to billed.</span></>} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {[
           { n: '01', t: 'Buy Power',           d: 'One-time pack, never expires.' },
@@ -624,11 +666,14 @@ const DirA = (() => {
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
-  const Integrations = () => (
+  const Integrations = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Integrations" title={<>Plugs into <span style={{ color: palette.cyan }}>everything</span> you already run.</>} sub="Each agent declares the tools it speaks. Connect once at the gateway level — every agent inherits your auth." />
+      <SectionLabel kicker={t('integrations.kicker', 'Integrations')} title={<>Plugs into <span style={{ color: palette.cyan }}>everything</span> you already run.</>} sub={t('integrations.sub', 'Each agent declares the tools it speaks. Connect once at the gateway level — every agent inherits your auth.')} />
       <Glass style={{ padding: 32 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 10 }}>
           {INTEGRATIONS.map((name, i) => (
@@ -642,7 +687,8 @@ const DirA = (() => {
         </div>
       </Glass>
     </div>
-  );
+    );
+  };
 
   const SellerStrip = () => {
     // Interactive earnings calculator for would-be sellers
@@ -668,12 +714,14 @@ const DirA = (() => {
       setTasksDay(r.dailyDefault);
     };
 
-    // Buyer pays Pro pack rate ≈ €0.009 per Power. Take rate volume-tiered.
-    const PRICE_PER_POWER = 0.009;
+    const rates = useRates();
     const monthlyTasks = tasksDay * 30 * Math.max(1, customers / 10); // crude scaling
     const monthlyPower = monthlyTasks * powerCost;
-    const grossEUR     = monthlyPower * PRICE_PER_POWER;
-    const takeRate     = grossEUR > 50000 ? 0.12 : grossEUR > 15000 ? 0.18 : 0.25; // higher revenue = lower fee
+    const grossEUR     = monthlyPower * rates.eurPerPower;
+    // Platform's cut = 1 − seller share. Falls back to a volume-tiered
+    // rate for headline numbers only when the admin hasn't customised
+    // the share yet (default 30%).
+    const takeRate     = 1 - rates.sellerShare;
     const sellerEUR    = grossEUR * (1 - takeRate);
     const annualEUR    = sellerEUR * 12;
 
@@ -724,7 +772,7 @@ const DirA = (() => {
               </p>
             </div>
             <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase' }}>
-              Buyer rate · €{(PRICE_PER_POWER * 1000).toFixed(2)} per 1,000⚡
+              Buyer rate · €{(rates.eurPerPower * 1000).toFixed(2)} per 1,000⚡
             </div>
           </div>
 
@@ -751,8 +799,8 @@ const DirA = (() => {
                 </div>
                 <input type="range" min={1} max={120} step={1} value={powerCost} onChange={e => setPower(+e.target.value)} style={{ width: '100%', accentColor: palette.cyan }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, marginTop: 4 }}>
-                  <span>1⚡ (€{(PRICE_PER_POWER).toFixed(3)})</span>
-                  <span>= €{(powerCost * PRICE_PER_POWER).toFixed(3)} per task</span>
+                  <span>1⚡ (€{rates.eurPerPower.toFixed(3)})</span>
+                  <span>= €{(powerCost * rates.eurPerPower).toFixed(3)} per task</span>
                   <span>120⚡</span>
                 </div>
               </div>
@@ -818,31 +866,36 @@ const DirA = (() => {
     );
   };
 
-  const Testimonials = () => (
+  const Testimonials = () => {
+    const t = useT();
+    return (
     <div style={{ padding: '80px 40px' }}>
-      <SectionLabel kicker="Field reports" title={<>Operators who burned <span style={{ color: palette.accent }}>millions of Power</span>.</>} />
+      <SectionLabel kicker={t('testimonials.kicker', 'Field reports')} title={<>Operators who burned <span style={{ color: palette.accent }}>millions of Power</span>.</>} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
           { q: 'We replaced our entire SDR team with three Hirespawn agents. Pipeline doubled. Headcount cost dropped 84%.', a: 'Mara Lindholm',  r: 'Head of GTM, Helix Co.', power: '480k⚡ burned' },
           { q: 'AI Code Reviewer ships PRs at 3am. We onboarded it in 12 minutes. Power cost is 1/40th of what we paid contractors.', a: 'Tomás Ribeiro', r: 'CTO, Petrichor', power: '210k⚡ burned' },
           { q: 'Bookkeeper agent reconciled 8,000 transactions on day one. Our finance lead now does strategy instead of grunt work.', a: 'Rasa Kalniņa',   r: 'COO, Saulēs Lab',  power: '94k⚡ burned' },
-        ].map((t, i) => (
+        ].map((tm, i) => (
           <Glass key={i} style={{ padding: 26 }}>
-            <div style={{ fontSize: 16, color: palette.text, lineHeight: 1.55, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: -0.3 }}>"{t.q}"</div>
+            <div style={{ fontSize: 16, color: palette.text, lineHeight: 1.55, fontStyle: 'italic', fontFamily: 'Instrument Serif, serif', fontSize: 22, letterSpacing: -0.3 }}>"{tm.q}"</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: `1px solid ${palette.border}` }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{t.a}</div>
-                <div style={{ fontSize: 12, color: palette.textMute }}>{t.r}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{tm.a}</div>
+                <div style={{ fontSize: 12, color: palette.textMute }}>{tm.r}</div>
               </div>
-              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent }}>{t.power}</div>
+              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent }}>{tm.power}</div>
             </div>
           </Glass>
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
-  const Roi = () => (
+  const Roi = () => {
+    const rates = useRates();
+    return (
     <div style={{ padding: '60px 40px' }}>
       <Glass style={{ padding: 40 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
@@ -852,7 +905,7 @@ const DirA = (() => {
               A junior costs <span style={{ color: palette.red, textDecoration: 'line-through', textDecorationThickness: 2 }}>€2,500/mo</span>.
             </h2>
             <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 44, fontWeight: 600, letterSpacing: -1, margin: 0, color: palette.accent, lineHeight: 1.05, marginTop: 6 }}>
-              Power burns at €0.009 ea.
+              Power burns at €{rates.eurPerPower.toFixed(4)} ea.
             </h2>
             <p style={{ fontSize: 16, color: palette.textDim, lineHeight: 1.55, maxWidth: 480, marginTop: 20 }}>
               That's 277,000 tasks for one month of salary. Real workload, audited per-event, and your remaining Power balance is always in the console.
@@ -875,13 +928,15 @@ const DirA = (() => {
         </div>
       </Glass>
     </div>
-  );
+    );
+  };
 
   const Faq = () => {
     const [open, setOpen] = useState(0);
+    const t = useT();
     return (
       <div style={{ padding: '80px 40px' }}>
-        <SectionLabel kicker="Intelligence briefing" title={<>Questions, answered. <span style={{ color: palette.textDim }}>No fluff.</span></>} />
+        <SectionLabel kicker={t('faq.kicker', 'Intelligence briefing')} title={<>Questions, answered. <span style={{ color: palette.textDim }}>No fluff.</span></>} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {FAQS.map((f, i) => (
             <Glass key={i} style={{ padding: 0, overflow: 'hidden' }}>
@@ -909,18 +964,85 @@ const DirA = (() => {
             10,000⚡ for €99. Enough to run an SDR for a quarter. Enough to ship 250 PR reviews. Enough to reconcile 2,500 transactions.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 32 }}>
-            <button style={{ padding: '15px 28px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Starter pack →</button>
-            <button style={{ padding: '15px 28px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+            <a href="/power" style={{ textDecoration: 'none' }}>
+              <button style={{ padding: '15px 28px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+            </a>
+            <a href="/support" style={{ textDecoration: 'none' }}>
+              <button style={{ padding: '15px 28px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+            </a>
           </div>
         </div>
       </Glass>
     </div>
   );
 
+  // Footer icon resolver — prefers an admin-uploaded image over the
+  // built-in inline-SVG registry. Pass `iconImage` (URL to PNG/SVG/WebP
+  // uploaded via Filament) — if present, render <img>. Otherwise fall
+  // back to the keyed inline SVG. Pass size='lg' for payment rows.
+  const FooterIcon = ({ k, iconImage, label, size = 'sm' }) => {
+    const stroke = 'currentColor';
+    const isLg = size === 'lg';
+    const w = isLg ? 96 : 22;
+    const h = isLg ? 60 : 14;
+
+    // Uploaded image takes priority — render at the same target dimensions,
+    // letting object-fit: contain handle the aspect ratio of whatever the
+    // admin uploaded (Visa logos are 16:9-ish, PayPal is taller, etc.).
+    if (iconImage) {
+      return (
+        <img
+          src={iconImage}
+          alt={label || k || ''}
+          style={{
+            width: isLg ? 96 : 20,
+            height: isLg ? 60 : 20,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+      );
+    }
+
+    const common = { width: w, height: h, viewBox: '0 0 38 24', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' };
+    switch (k) {
+      case 'visa':       return <svg {...common}><rect width="38" height="24" rx="3" fill="#1a1f71"/><text x="19" y="16" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff" fontFamily="Inter">VISA</text></svg>;
+      case 'mastercard': return <svg {...common}><rect width="38" height="24" rx="3" fill="#000"/><circle cx="15" cy="12" r="6" fill="#eb001b"/><circle cx="23" cy="12" r="6" fill="#f79e1b" fillOpacity="0.85"/></svg>;
+      case 'amex':       return <svg {...common}><rect width="38" height="24" rx="3" fill="#2e77bb"/><text x="19" y="16" textAnchor="middle" fontSize="6" fontWeight="700" fill="#fff" fontFamily="Inter">AMEX</text></svg>;
+      case 'applepay':   return <svg {...common}><rect width="38" height="24" rx="3" fill="#000"/><text x="19" y="16" textAnchor="middle" fontSize="8" fontWeight="600" fill="#fff" fontFamily="Inter"> Pay</text></svg>;
+      case 'googlepay':  return <svg {...common}><rect width="38" height="24" rx="3" fill="#fff" stroke="#dadce0"/><text x="19" y="15.5" textAnchor="middle" fontSize="7" fontWeight="700" fontFamily="Inter"><tspan fill="#4285f4">G</tspan><tspan fill="#34a853">P</tspan><tspan fill="#fbbc05">a</tspan><tspan fill="#ea4335">y</tspan></text></svg>;
+      case 'paypal':     return <svg {...common}><rect width="38" height="24" rx="3" fill="#fff" stroke="#dadce0"/><text x="19" y="16" textAnchor="middle" fontSize="7" fontWeight="700" fill="#003087" fontFamily="Inter">PayPal</text></svg>;
+      case 'x':          return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>;
+      case 'linkedin':   return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.339 18.337v-8.59H5.667v8.59zm-1.336-9.745a1.55 1.55 0 1 0 0-3.1 1.55 1.55 0 0 0 0 3.1zm11.327 9.745v-4.7c0-2.59-1.379-3.795-3.219-3.795-1.483 0-2.146.815-2.515 1.387v-1.19H9.926c.035.755 0 8.59 0 8.59h2.671v-4.8c0-.24.018-.48.088-.65.193-.479.633-.975 1.371-.975.967 0 1.354.735 1.354 1.811v4.614z"/></svg>;
+      case 'github':     return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>;
+      case 'youtube':    return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>;
+      case 'rss':        return <svg width="14" height="14" viewBox="0 0 24 24" fill={stroke}><path d="M6.503 20.752c0 1.794-1.456 3.248-3.251 3.248-1.796 0-3.252-1.454-3.252-3.248 0-1.794 1.456-3.248 3.252-3.248 1.795.001 3.251 1.454 3.251 3.248zm-6.503-12.572v4.811c6.05.062 10.96 4.966 11.022 11.009h4.817c-.062-8.71-7.118-15.758-15.839-15.82zm0-3.368c10.58.046 19.152 8.594 19.183 19.188h4.817c-.03-13.231-10.755-23.954-24-24v4.812z"/></svg>;
+      default:           return <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: isLg ? 22 : 11, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>{k?.slice(0, 3)}</span>;
+    }
+  };
+
   const Footer = () => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
     const burned = useCountUp(2104893, 1800);
+    const cms = usePage().props?.cms || { menus: {}, settings: {} };
+    const tr = useT();
+    const menus = cms.menus || {};
+    const settings = cms.settings || {};
+    // The five footer column slugs — ordered. Admin can edit each via the
+    // Menus → Items relation manager. Falls back gracefully if a slug
+    // hasn't been seeded yet.
+    const columns = [
+      { key: 'footer_marketplace', heading: 'Marketplace' },
+      { key: 'footer_power',       heading: 'Power' },
+      { key: 'footer_sellers',     heading: 'Sellers' },
+      { key: 'footer_resources',   heading: 'Resources' },
+      { key: 'footer_company',     heading: 'Company' },
+    ];
+    const socials  = menus.footer_social   || [];
+    const payments = menus.footer_payments || [];
+    const legals   = menus.footer_legal    || [];
+    const copyright = settings.footer_copyright || '© HIRESPAWN SIA · RIGA · 2026';
 
     return (
       <div style={{ position: 'relative', marginTop: 80, borderTop: `1px solid ${palette.borderStrong}`, overflow: 'hidden' }}>
@@ -931,14 +1053,20 @@ const DirA = (() => {
         <div style={{ position: 'relative', padding: '60px 40px 48px', borderBottom: `1px solid ${palette.border}` }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 60, alignItems: 'flex-end' }}>
             <div>
-              <Pill dot color={palette.accent} style={{ marginBottom: 22 }}>● Recruiting now · 12,847 agents on duty</Pill>
+              <Pill dot color={palette.accent} style={{ marginBottom: 22 }}>{tr('cta.pill', '● Recruiting now · 12,847 agents on duty')}</Pill>
               <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 96, fontWeight: 600, letterSpacing: -3.5, margin: 0, color: palette.text, lineHeight: 0.9 }}>
                 Ready to <span style={{ color: palette.accent }}>spawn?</span>
               </h2>
               <div style={{ display: 'flex', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-                <button style={{ padding: '15px 26px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy 10,000⚡ for €99 →</button>
-                <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Browse the roster</button>
-                <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+                <a href="/power" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 26px', borderRadius: 12, background: palette.accent, border: 0, color: palette.onAccent, fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}>Buy Power →</button>
+                </a>
+                <a href="/roster" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Browse the roster</button>
+                </a>
+                <a href="/support" style={{ textDecoration: 'none' }}>
+                  <button style={{ padding: '15px 22px', borderRadius: 12, background: 'transparent', border: `1px solid ${palette.borderStrong}`, color: palette.text, fontSize: 15, fontFamily: 'inherit', cursor: 'pointer' }}>Talk to ops</button>
+                </a>
               </div>
             </div>
             {/* Live ops widget */}
@@ -977,15 +1105,13 @@ const DirA = (() => {
               <div style={{ marginTop: 14, fontSize: 13, color: palette.textDim, lineHeight: 1.55, maxWidth: 280 }}>
                 The marketplace for AI employees. Buy Power once. Burn it across whichever specialists you hire.
               </div>
-              <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
-                {[
-                  { l: 'X',  k: 'twitter' },
-                  { l: 'in', k: 'linkedin' },
-                  { l: 'gh', k: 'github' },
-                  { l: 'yt', k: 'youtube' },
-                  { l: 'rss',k: 'rss' },
-                ].map(s => (
-                  <a key={s.k} style={{ width: 36, height: 36, borderRadius: 8, background: palette.glassStrong, border: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: palette.textDim, fontFamily: 'Geist Mono, monospace', fontSize: 11, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.l}</a>
+              <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {socials.map((s, i) => (
+                  <a key={i} href={s.url || '#'} target={s.target || '_self'} aria-label={s.label} style={{ width: 36, height: 36, borderRadius: 8, background: palette.glassStrong, border: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
+                     onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                     onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>
+                    <FooterIcon k={s.icon || 'link'} iconImage={s.icon_image} label={s.label} />
+                  </a>
                 ))}
               </div>
               {/* Newsletter */}
@@ -999,26 +1125,38 @@ const DirA = (() => {
               </div>
             </div>
 
-            {[
-              { h: 'Marketplace', l: ['Roster','New arrivals','Top performers','By category','By integration','Compare agents'] },
-              { h: 'Power',       l: ['Buy Power','Calculator','Volume pricing','Refund policy','Audit log','Rate cards'] },
-              { h: 'Sellers',     l: ['Apply','Manifest spec','Revenue share','Top earners','Seller console','Disputes'] },
-              { h: 'Resources',   l: ['Docs','API reference','Changelog','Status','Brand kit','Press kit'] },
-              { h: 'Company',     l: ['Manifesto','Careers','Customers','Security','DPA','Contact'] },
-            ].map(c => (
-              <div key={c.h}>
-                <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>{c.h}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {c.l.map(x => (
-                    <a key={x} style={{ fontSize: 13, color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
-                       onMouseEnter={e => e.currentTarget.style.color = palette.accent}
-                       onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>{x}</a>
-                  ))}
+            {columns.map(col => {
+              const items = menus[col.key] || [];
+              if (items.length === 0) return null;
+              return (
+                <div key={col.key}>
+                  <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.text, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600 }}>{col.heading}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {items.map((it, i) => (
+                      <a key={i} href={it.url || '#'} target={it.target || '_self'} style={{ fontSize: 13, color: palette.textDim, cursor: 'pointer', textDecoration: 'none', transition: 'color 0.15s' }}
+                         onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                         onMouseLeave={e => e.currentTarget.style.color = palette.textDim}>{it.label}</a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
+
+        {/* Payment logos — admin-managed via /admin/menus footer_payments */}
+        {payments.length > 0 && (
+          <div style={{ position: 'relative', padding: '28px 40px', borderTop: `1px solid ${palette.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+            <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1.5, textTransform: 'uppercase' }}>We accept</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+              {payments.map((p, i) => (
+                <span key={i} title={p.label} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FooterIcon k={p.icon || 'card'} iconImage={p.icon_image} label={p.label} size="lg" />
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Mil-style ribbon */}
         <div style={{ position: 'relative', padding: '14px 40px', borderTop: `1px solid ${palette.border}`, borderBottom: `1px solid ${palette.border}`, background: 'var(--p-inset-strong)', display: 'flex', alignItems: 'center', gap: 32, fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 2, textTransform: 'uppercase', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -1036,13 +1174,12 @@ const DirA = (() => {
         {/* Bottom: legal */}
         <div style={{ position: 'relative', padding: '22px 40px 36px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute }}>
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            <span>© HIRESPAWN SIA · RIGA · 2026</span>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Terms</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Privacy</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>DPA</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>AUP</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Cookies</a>
-            <a style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer' }}>Subprocessors</a>
+            <span>{copyright}</span>
+            {legals.map((l, i) => (
+              <a key={i} href={l.url || '#'} target={l.target || '_self'} style={{ color: palette.textMute, textDecoration: 'none', cursor: 'pointer', transition: 'color 0.15s' }}
+                 onMouseEnter={e => e.currentTarget.style.color = palette.accent}
+                 onMouseLeave={e => e.currentTarget.style.color = palette.textMute}>{l.label}</a>
+            ))}
           </div>
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <span>UTC {time.toISOString().slice(11,19)}</span>
@@ -1067,7 +1204,8 @@ const DirA = (() => {
         <Reveal><PowerCalculator /></Reveal>
         <Reveal><Integrations /></Reveal>
         <Reveal><SellerStrip /></Reveal>
-        <Reveal><Testimonials /></Reveal>
+        {/* Testimonials removed — will be re-added when verifiable
+            reviews land via TrustPilot / G2 / etc. */}
         <Reveal><Roi /></Reveal>
         <Reveal><Faq /></Reveal>
         <Reveal><Cta /></Reveal>

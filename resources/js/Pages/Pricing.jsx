@@ -1,22 +1,29 @@
 import '@/setup';
+import { usePage } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
-// Pricing standalone page
+// Pricing standalone page — reads `powerPacks` from PageController@pricing.
 const Pricing = (() => {
   const { palette, Glass, Pill, Mesh, Nav, Footer } = DirA;
 
-  const PACKS = [
-    { name: 'Starter', power: 25000, eur: 249, perPower: 0.0099, audience: 'Solo operators · 1-3 agents · light usage', features: ['25k⚡ + 5k free on signup', 'All public agents', 'Standard 90d log retention', 'Email support · 24h SLA'] },
-    { name: 'Pro',     power: 100000, eur: 899, perPower: 0.0089, audience: 'Growth teams · 5-15 agents · daily runs', features: ['100k⚡ · ≈ 1,700 runs', 'Featured + early-access agents', '180d log retention', 'Slack Connect support', 'SSO via Okta/Google', 'Audit log + RBAC'], popular: true },
-    { name: 'Scale',   power: 500000, eur: 3999, perPower: 0.0079, audience: 'Heavy ops · 20+ agents · production critical', features: ['500k⚡ · ≈ 8,500 runs', 'Volume bulk discount', '365d log retention + cold storage', 'Dedicated CSM', 'Custom data residency', 'SLA refunds in EUR (not Power)'] },
-    { name: 'Fleet',   power: null, eur: null, perPower: null, custom: true, audience: 'Enterprise · 100+ agents · multi-region', features: ['Unlimited Power · custom rate', 'White-glove agent onboarding', 'Private vendor agreements', 'On-prem gateway option', 'Procurement-friendly invoicing', '24/7 phone + Slack'] },
-  ];
+  // Single row in the compare-packs table. Pulled out so the JSX
+  // generating the rows from PACKS reads as a flat list.
+  const Row = ({ label, cells }) => (
+    <tr style={{ borderBottom: `1px solid ${palette.border}` }}>
+      <td style={{ padding: '12px 18px', color: palette.textDim, fontWeight: 500 }}>{label}</td>
+      {cells.map((c, j) => (
+        <td key={j} style={{ padding: '12px 18px', color: c === '—' ? palette.textMute : palette.text, fontFamily: 'Geist Mono, monospace' }}>{c}</td>
+      ))}
+    </tr>
+  );
 
   const Page = () => {
+    const { powerPacks = [] } = usePage().props;
+    const PACKS = powerPacks;
     return (
       <div style={{ minHeight: '100vh', background: palette.bg0, color: palette.text, fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
         <Mesh />
@@ -106,43 +113,46 @@ const Pricing = (() => {
             </Glass>
           </div>
 
-          {/* Comparison table */}
-          <div style={{ padding: '40px 40px', maxWidth: 1280, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 38, fontWeight: 600, letterSpacing: -1.2, margin: 0, marginBottom: 24 }}>Compare packs side-by-side.</h2>
-            <Glass style={{ padding: 0, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--p-inset)' }}>
-                    {['', 'Starter', 'Pro', 'Scale', 'Fleet'].map(h => (
-                      <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['Price',                  '€249',      '€899',     '€3,999',   'Custom'],
-                    ['Power',                  '25k⚡',     '100k⚡',   '500k⚡',   'Unlimited'],
-                    ['Approx runs / month',    '~ 400',     '~ 1,700',  '~ 8,500',  'unlimited'],
-                    ['€/⚡',                   '0.0099',    '0.0089',   '0.0079',   'custom'],
-                    ['Log retention',          '90d',       '180d',     '365d',     'custom'],
-                    ['SSO',                    '—',         '✓',        '✓',        '✓'],
-                    ['Audit log',              '—',         '✓',        '✓',        '✓'],
-                    ['Custom data residency',  '—',         '—',        '✓',        '✓'],
-                    ['SLA refunds in €',       '—',         '—',        '✓',        '✓'],
-                    ['Dedicated CSM',          '—',         '—',        '✓',        '✓'],
-                    ['On-prem gateway',        '—',         '—',        '—',        '✓'],
-                    ['Phone support',          '—',         '—',        '—',        '24/7'],
-                  ].map((row, i) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${palette.border}` }}>
-                      {row.map((c, j) => (
-                        <td key={j} style={{ padding: '12px 18px', color: j === 0 ? palette.textDim : (c === '—' ? palette.textMute : palette.text), fontWeight: j === 0 ? 500 : 400, fontFamily: j === 0 ? 'Inter, sans-serif' : 'Geist Mono, monospace' }}>{c}</td>
+          {/* Comparison table — Price / Power / €-per-⚡ are derived from
+              the same PACKS array the cards above use. Feature bullets
+              come straight from each pack's `perks` field, so admins
+              control the whole comparison from /admin/power-packs. */}
+          {PACKS.length > 0 && (() => {
+            // Union of all feature strings across packs so each row is
+            // a feature name with ✓/— per pack.
+            const allFeatures = Array.from(new Set(
+              PACKS.flatMap(p => p.features || p.perks || [])
+            ));
+            return (
+              <div style={{ padding: '40px 40px', maxWidth: 1280, margin: '0 auto' }}>
+                <h2 style={{ fontFamily: 'Geist, sans-serif', fontSize: 38, fontWeight: 600, letterSpacing: -1.2, margin: 0, marginBottom: 24 }}>Compare packs side-by-side.</h2>
+                <Glass style={{ padding: 0, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--p-inset)' }}>
+                        <th style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }} />
+                        {PACKS.map(p => (
+                          <th key={p.name} style={{ padding: '14px 18px', textAlign: 'left', fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', borderBottom: `1px solid ${palette.border}` }}>{p.name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <Row label="Price"      cells={PACKS.map(p => p.custom ? 'Custom' : `€${(+p.eur).toLocaleString()}`)} />
+                      <Row label="Power"      cells={PACKS.map(p => p.custom ? 'Unlimited' : `${(p.power/1000).toLocaleString()}k⚡`)} />
+                      <Row label="€ per ⚡"   cells={PACKS.map(p => p.custom ? 'custom' : p.perPower.toFixed(4))} />
+                      {allFeatures.map(feat => (
+                        <Row
+                          key={feat}
+                          label={feat}
+                          cells={PACKS.map(p => (p.features || p.perks || []).includes(feat) ? '✓' : '—')}
+                        />
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Glass>
-          </div>
+                    </tbody>
+                  </table>
+                </Glass>
+              </div>
+            );
+          })()}
 
           {/* FAQ */}
           <div style={{ padding: '60px 40px', maxWidth: 1280, margin: '0 auto' }}>

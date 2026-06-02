@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    // Platform-owned embeddings key for the knowledge base (RAG). This is
+    // OUR cost/responsibility: buyers enrich any agent with knowledge and
+    // sellers don't configure anything. Set EMBEDDINGS_API_KEY in the
+    // environment (falls back to OPENAI_API_KEY).
+    'embeddings' => [
+        'key' => env('EMBEDDINGS_API_KEY', env('OPENAI_API_KEY')),
+        'model' => env('EMBEDDINGS_MODEL', 'text-embedding-3-small'),
+    ],
+
 ];

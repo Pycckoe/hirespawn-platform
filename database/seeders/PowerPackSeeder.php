@@ -9,16 +9,75 @@ use Illuminate\Support\Str;
 class PowerPackSeeder extends Seeder
 {
     /**
-     * Mirrors POWER_PACKS in resources/js/lib/shared.jsx so the pricing page,
-     * checkout, and console all read from the same source.
+     * Power packs that back the Pricing page and PowerCheckout. Numbers,
+     * audience copy and feature lists are taken from the original
+     * Hirespawn design's standalone Pricing tiers.
      */
     public function run(): void
     {
         $packs = [
-            ['name' => 'Starter',    'power' => 10000,   'price' => 99,   'per_power' => 0.0099, 'popular' => false, 'perks' => ['1 agent', 'Email support', 'Usage dashboard']],
-            ['name' => 'Pro',        'power' => 50000,   'price' => 449,  'per_power' => 0.0090, 'popular' => true,  'perks' => ['5 agents', 'Priority support', 'Webhook routing', 'Team seats × 5']],
-            ['name' => 'Scale',      'power' => 250000,  'price' => 1990, 'per_power' => 0.0080, 'popular' => false, 'perks' => ['Unlimited agents', 'Slack channel', 'Custom SLA', 'Team seats × 20']],
-            ['name' => 'Enterprise', 'power' => 9999999, 'price' => null, 'per_power' => 0.0065, 'popular' => false, 'perks' => ['Volume pricing', 'Private agents', 'SSO + audit log', 'Dedicated success']],
+            [
+                'name' => 'Starter',
+                'power' => 25000,
+                'price' => 249,
+                'per_power' => 0.0099,
+                'popular' => false,
+                'audience' => 'Solo operators · 1-3 agents · light usage',
+                'perks' => [
+                    '25k⚡ + 5k free on signup',
+                    'All public agents',
+                    'Standard 90d log retention',
+                    'Email support · 24h SLA',
+                ],
+            ],
+            [
+                'name' => 'Pro',
+                'power' => 100000,
+                'price' => 899,
+                'per_power' => 0.0089,
+                'popular' => true,
+                'audience' => 'Growth teams · 5-15 agents · daily runs',
+                'perks' => [
+                    '100k⚡ · ≈ 1,700 runs',
+                    'Featured + early-access agents',
+                    '180d log retention',
+                    'Slack Connect support',
+                    'SSO via Okta/Google',
+                    'Audit log + RBAC',
+                ],
+            ],
+            [
+                'name' => 'Scale',
+                'power' => 500000,
+                'price' => 3999,
+                'per_power' => 0.0079,
+                'popular' => false,
+                'audience' => 'Heavy ops · 20+ agents · production critical',
+                'perks' => [
+                    '500k⚡ · ≈ 8,500 runs',
+                    'Volume bulk discount',
+                    '365d log retention + cold storage',
+                    'Dedicated CSM',
+                    'Custom data residency',
+                    'SLA refunds in EUR (not Power)',
+                ],
+            ],
+            [
+                'name' => 'Fleet',
+                'power' => 2000000,
+                'price' => 13999,
+                'per_power' => 0.0070,
+                'popular' => false,
+                'audience' => 'Enterprise · 100+ agents · multi-region',
+                'perks' => [
+                    'Unlimited Power · custom rate',
+                    'White-glove agent onboarding',
+                    'Private vendor agreements',
+                    'On-prem gateway option',
+                    'Procurement-friendly invoicing',
+                    '24/7 phone + Slack',
+                ],
+            ],
         ];
 
         foreach ($packs as $i => $pack) {
@@ -31,6 +90,7 @@ class PowerPackSeeder extends Seeder
                     'currency' => 'EUR',
                     'per_power_eur' => $pack['per_power'],
                     'is_popular' => $pack['popular'],
+                    'audience' => $pack['audience'],
                     'perks' => $pack['perks'],
                     'sort_order' => $i,
                 ],

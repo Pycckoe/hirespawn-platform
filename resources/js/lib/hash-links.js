@@ -22,7 +22,6 @@ const ROUTE_MAP = {
     '#/customers': '/customers',
     '#/security': '/security',
     '#/status': '/status',
-    '#/blog': '/blog',
     '#/legal': '/legal',
     '#/emails': '/emails',
 };
@@ -30,13 +29,11 @@ const ROUTE_MAP = {
 function hashToPath(hash) {
     if (!hash || hash === '#' || hash === '#/') return '/';
     if (ROUTE_MAP[hash]) return ROUTE_MAP[hash];
-    // Dynamic segments: #/agent/{id}, #/run/{id}, #/blog/{slug}
+    // Dynamic segments: #/agent/{id}, #/run/{id}
     const agent = hash.match(/^#\/agent\/(.+)$/);
     if (agent) return `/agent/${agent[1]}`;
     const run = hash.match(/^#\/run\/(.+)$/);
     if (run) return `/run/${run[1]}`;
-    const blogPost = hash.match(/^#\/blog\/(.+)$/);
-    if (blogPost) return `/blog/${blogPost[1]}`;
     // Strip the leading "#" as a default.
     return hash.startsWith('#') ? hash.slice(1) : hash;
 }

@@ -1,7 +1,8 @@
 import '@/setup';
+import { Link } from '@inertiajs/react';
 import { DirA } from '@/lib/dir-a';
 import {
-    AGENTS, CATEGORIES, OPS_FEED, POWER_PACKS, FAQS, INTEGRATIONS,
+    AGENTS, CATEGORIES, OPS_FEED, FAQS, INTEGRATIONS,
     useCountUp, useLiveFeed, useTheme, fmt, fmtCurrency,
 } from '@/lib/shared';
 
@@ -27,9 +28,9 @@ const Hire = (() => {
           {/* TopBar */}
           <div style={{ padding: '20px 32px', borderBottom: `1px solid ${palette.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <a href="#/" style={{ textDecoration: 'none' }}><Logo /></a>
+              <Link href="/" style={{ textDecoration: 'none' }}><Logo /></Link>
               <span style={{ color: palette.textMute }}>/</span>
-              <a href="#/roster" style={{ fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Roster</a>
+              <Link href="/roster" style={{ fontSize: 12, color: palette.textDim, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase', textDecoration: 'none' }}>Roster</Link>
               <span style={{ color: palette.textMute }}>/</span>
               <span style={{ fontSize: 12, color: palette.text, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>Hire · AI SDR</span>
             </div>

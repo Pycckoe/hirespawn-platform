@@ -15,6 +15,7 @@ class Agent extends Model
         'languages' => 'array',
         'integrations' => 'array',
         'is_featured' => 'boolean',
+        'accepts_knowledge' => 'boolean',
         'rating_avg' => 'float',
         'sla_uptime_pct' => 'float',
         'featured_until' => 'datetime',
@@ -34,6 +35,26 @@ class Agent extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(AgentCategory::class, 'category_id');
+    }
+
+    public function llmModel(): BelongsTo
+    {
+        return $this->belongsTo(LlmModel::class, 'llm_model_id');
+    }
+
+    public function skills(): HasMany
+    {
+        return $this->hasMany(AgentSkill::class)->where('is_active', true)->orderBy('sort_order');
+    }
+
+    public function allSkills(): HasMany
+    {
+        return $this->hasMany(AgentSkill::class)->orderBy('sort_order');
+    }
+
+    public function settingDefs(): HasMany
+    {
+        return $this->hasMany(AgentSettingDef::class)->orderBy('sort_order');
     }
 
     public function capabilities(): HasMany
