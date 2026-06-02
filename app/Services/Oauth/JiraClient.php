@@ -19,11 +19,15 @@ class JiraClient
 {
     public function search(User $user, string $jql, int $limit = 10): array
     {
+        // Atlassian deprecated GET /rest/api/3/search in 2024 and now requires
+        // POST /rest/api/3/search/jql with the params in the JSON body.
+        // The new endpoint paginates by nextPageToken (we don't need it for
+        // these small per-tool result sets) and no longer returns `total`.
         return $this->call($user, fn (string $token, string $cloudId) => Http::withToken($token)->timeout(20)
-            ->get("https://api.atlassian.com/ex/jira/{$cloudId}/rest/api/3/search", [
+            ->post("https://api.atlassian.com/ex/jira/{$cloudId}/rest/api/3/search/jql", [
                 'jql' => $jql,
                 'maxResults' => max(1, min(50, $limit)),
-                'fields' => 'summary,status,assignee,priority,issuetype,project,updated',
+                'fields' => ['summary', 'status', 'assignee', 'priority', 'issuetype', 'project', 'updated'],
             ]), function (array $j) use ($limit) {
             $issues = collect($j['issues'] ?? [])->take($limit)->map(fn ($i) => [
                 'key' => $i['key'] ?? null,
@@ -36,7 +40,7 @@ class JiraClient
                 'updated' => $i['fields']['updated'] ?? null,
             ])->values()->all();
 
-            return ['ok' => true, 'total' => $j['total'] ?? count($issues), 'issues' => $issues];
+            return ['ok' => true, 'count' => count($issues), 'issues' => $issues];
         });
     }
 
