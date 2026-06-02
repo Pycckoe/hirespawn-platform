@@ -117,7 +117,7 @@ class SlackClient
         try {
             $resp = Http::withToken($access)->timeout(20)->post('https://slack.com/api/chat.postMessage', array_filter([
                 'channel' => $channel,
-                'text' => $text,
+                'text' => self::toSlackMrkdwn($text),
                 'thread_ts' => $threadTs,
             ]));
             $json = $resp->json();
@@ -126,6 +126,46 @@ class SlackClient
         } catch (Throwable $e) {
             return ['ok' => false, 'error' => 'request_failed'];
         }
+    }
+
+    /**
+     * Convert standard Markdown (what LLMs emit) into Slack's "mrkdwn"
+     * so headers / bold / links / rules render correctly in the channel
+     * instead of leaking syntax like "**bold**" or "## Heading".
+     *
+     * Slack mrkdwn cheatsheet:
+     *   *bold*   _italic_   ~strike~   `code`   ```block```   <url|text>
+     *   No headers, no horizontal rules — we just bold the heading text
+     *   and drop "---" separators.
+     */
+    public static function toSlackMrkdwn(string $text): string
+    {
+        // Protect fenced code blocks (``` ... ```) from any other rewrites.
+        $blocks = [];
+        $text = preg_replace_callback('/```[\s\S]*?```/', function ($m) use (&$blocks) {
+            $blocks[] = $m[0];
+
+            return "\0CODE".(count($blocks) - 1)."\0";
+        }, $text) ?? $text;
+
+        // Headers (#, ##, ### …) → "*Heading*" on their own line.
+        $text = preg_replace('/^[ \t]*#{1,6}[ \t]+(.+?)[ \t]*$/m', '*$1*', $text) ?? $text;
+        // Horizontal rules (---, ***, ___) → blank line.
+        $text = preg_replace('/^[ \t]*[-_*]{3,}[ \t]*$/m', '', $text) ?? $text;
+        // Bold "**foo**" or "__foo__" → "*foo*".
+        $text = preg_replace('/\*\*(.+?)\*\*/s', '*$1*', $text) ?? $text;
+        $text = preg_replace('/__(.+?)__/s', '*$1*', $text) ?? $text;
+        // Markdown links "[text](url)" → "<url|text>".
+        $text = preg_replace('/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/', '<$2|$1>', $text) ?? $text;
+        // Collapse 3+ blank lines (left over from stripped rules) to 2.
+        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+
+        // Restore code blocks unchanged.
+        foreach ($blocks as $i => $block) {
+            $text = str_replace("\0CODE{$i}\0", $block, $text);
+        }
+
+        return trim($text);
     }
 
     /**
