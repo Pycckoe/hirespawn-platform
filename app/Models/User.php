@@ -101,6 +101,11 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(PayoutMethod::class);
     }
 
+    public function githubInstallation(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(GithubInstallation::class);
+    }
+
     public function llmCredentials(): HasMany
     {
         return $this->hasMany(SellerLlmCredential::class, 'seller_id');

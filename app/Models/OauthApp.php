@@ -15,7 +15,7 @@ class OauthApp extends Model
         'sort_order' => 'integer',
     ];
 
-    protected $hidden = ['encrypted_client_secret', 'encrypted_signing_secret'];
+    protected $hidden = ['encrypted_client_secret', 'encrypted_signing_secret', 'encrypted_github_private_key'];
 
     public function decryptedClientSecret(): string
     {
@@ -29,7 +29,7 @@ class OauthApp extends Model
         return Crypt::decryptString($this->encrypted_client_secret);
     }
 
-    /** Signing secret for verifying inbound events (Slack). '' if unset. */
+    /** Signing secret for verifying inbound events (Slack/GitHub). '' if unset. */
     public function decryptedSigningSecret(): string
     {
         if (! $this->encrypted_signing_secret) {
@@ -42,6 +42,16 @@ class OauthApp extends Model
     public function setSigningSecret(?string $plain): void
     {
         $this->encrypted_signing_secret = $plain ? Crypt::encryptString(trim($plain)) : null;
+    }
+
+    /** GitHub App's RSA private key (PEM). '' if unset. */
+    public function decryptedGithubPrivateKey(): string
+    {
+        if (! $this->encrypted_github_private_key) {
+            return '';
+        }
+
+        return Crypt::decryptString($this->encrypted_github_private_key);
     }
 
     /** Whether the admin has filled in real credentials. */

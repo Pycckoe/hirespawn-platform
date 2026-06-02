@@ -28,6 +28,11 @@ use Illuminate\Support\Facades\Route;
 Route::get('/integrations/slack/events', [\App\Http\Controllers\SlackEventController::class, 'status']);
 Route::post('/integrations/slack/events', \App\Http\Controllers\SlackEventController::class)->name('slack.events');
 
+// Inbound GitHub webhooks. Public + CSRF-exempt; verified by the
+// X-Hub-Signature-256 HMAC of the raw body.
+Route::get('/integrations/github/events', [\App\Http\Controllers\GithubEventController::class, 'status']);
+Route::post('/integrations/github/events', \App\Http\Controllers\GithubEventController::class)->name('github.events');
+
 // === Public marketplace pages ===
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/roster', [AgentController::class, 'index'])->name('catalog');
@@ -85,6 +90,10 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/oauth/{provider}', [OauthController::class, 'disconnect'])->name('oauth.disconnect');
     // Live resource pickers for the agent-configure UI.
     Route::get('/oauth/slack/channels', [OauthController::class, 'slackChannels'])->name('oauth.slack.channels');
+    // GitHub App: install start + post-install landing (after the buyer
+    // chooses repos on github.com).
+    Route::get('/oauth/github/install', [\App\Http\Controllers\GithubAppController::class, 'start'])->name('github.install');
+    Route::get('/oauth/github/setup', [\App\Http\Controllers\GithubAppController::class, 'setup'])->name('github.setup');
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
     Route::get('/settings', [SettingsController::class, 'show'])->name('settings');

@@ -11,7 +11,7 @@ const SubscriptionConfigure = (() => {
   const { palette, Glass, Pill, Mesh, Logo, ThemeToggle } = DirA;
 
   const Page = () => {
-    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [], mcpConnections = [], mcpCatalog = [] } = usePage().props;
+    const { subscription, defs = [], values = {}, connections = [], routing = {}, acceptsKnowledge = false, knowledgeReady = false, knowledge = [], mcpConnections = [], mcpCatalog = [], github = { ready: false, connected: false, repos: [], selectedRepos: [] } } = usePage().props;
 
     const initial = Object.fromEntries(
       defs.map(d => [d.key, values[d.key] ?? d.defaultValue ?? (d.type === 'boolean' ? false : '')])
@@ -35,7 +35,13 @@ const SubscriptionConfigure = (() => {
     // Knowledge + MCP are available to every deployment, so the page always
     // has something. nothingToConfigure only reflects vendor-declared fields.
     const nothingToConfigure = defs.length === 0 && connections.length === 0;
-    const hasFormFields = connections.length > 0 || defs.length > 0;
+    const hasFormFields = connections.length > 0 || defs.length > 0 || github.ready;
+
+    const toggleGithubRepo = (fullName) => {
+      const current = data.routing?.github?.repos ?? [];
+      const next = current.includes(fullName) ? current.filter(r => r !== fullName) : [...current, fullName];
+      setData('routing', { ...data.routing, github: { ...(data.routing?.github || {}), repos: next } });
+    };
     // MCP is available to every deployment — it enriches any agent with the
     // buyer's own tools, independent of what the vendor declared.
 
@@ -107,6 +113,44 @@ const SubscriptionConfigure = (() => {
                             error={errors[`values.${d.key}`]}
                           />
                         ))}
+                      </Glass>
+                    </div>
+                  )}
+
+                  {github.ready && (
+                    <div style={{ marginBottom: 18 }}>
+                      <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 10, color: palette.textMute, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>GitHub · repos this agent listens to</div>
+                      <Glass style={{ padding: 24 }}>
+                        {!github.connected ? (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                            <div style={{ fontSize: 12, color: palette.textDim, lineHeight: 1.5 }}>Install the Hirespawn GitHub App on the repos you want this agent to review / triage / answer in. After install you'll come back here to pick repos.</div>
+                            <a href={route('github.install', { return: window.location.pathname })} style={{ padding: '10px 16px', borderRadius: 8, background: palette.accent, color: palette.onAccent, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none', whiteSpace: 'nowrap' }}>Install on GitHub →</a>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                              <div style={{ fontFamily: 'Geist Mono, monospace', fontSize: 11, color: palette.accent }}>✓ installed on {github.accountLogin}</div>
+                              <a href={route('github.install', { return: window.location.pathname })} style={{ fontSize: 12, color: palette.textDim, fontFamily: 'inherit', textDecoration: 'underline' }}>Manage repos on GitHub →</a>
+                            </div>
+                            {github.repos.length === 0 ? (
+                              <div style={{ fontSize: 12, color: palette.textMute, fontFamily: 'Geist Mono, monospace' }}>No repos accessible. Grant access on GitHub and reload.</div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                                {github.repos.map(repo => {
+                                  const selected = (data.routing?.github?.repos ?? []).includes(repo.full_name);
+                                  return (
+                                    <label key={repo.full_name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, background: selected ? palette.accentDim : 'var(--p-inset-soft)', border: `1px solid ${selected ? palette.accent : palette.border}`, cursor: 'pointer' }}>
+                                      <input type="checkbox" checked={selected} onChange={() => toggleGithubRepo(repo.full_name)} style={{ accentColor: palette.accent }} />
+                                      <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 12, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{repo.full_name}</span>
+                                      {repo.private && <span style={{ fontSize: 9, color: palette.amber, fontFamily: 'Geist Mono, monospace', letterSpacing: 1, textTransform: 'uppercase' }}>priv</span>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 11, color: palette.textMute, marginTop: 10 }}>The agent will react to events in the selected repos: new issues (triage), new/updated PRs (review), and @-mentions in comments.</div>
+                          </>
+                        )}
                       </Glass>
                     </div>
                   )}

@@ -127,7 +127,23 @@ class SubscriptionSettingsController extends Controller
                     'setupHint' => $s->setup_hint,
                     'docsUrl' => $s->docs_url,
                 ])->values()->all(),
+            'github' => $this->buildGithubPanel($user, $settings),
         ]);
+    }
+
+    private function buildGithubPanel($user, array $settings): array
+    {
+        $ready = \App\Services\Github\GithubAppAuth::fromConfig() !== null;
+        $install = $user?->githubInstallation;
+
+        return [
+            'ready' => $ready,
+            'connected' => $install !== null,
+            'accountLogin' => $install?->account_login,
+            'installationId' => $install?->installation_id,
+            'repos' => $install?->repos ?? [],
+            'selectedRepos' => array_values((array) ($settings['routing']['github']['repos'] ?? [])),
+        ];
     }
 
     public function update(Request $request, Subscription $subscription): RedirectResponse
@@ -142,6 +158,9 @@ class SubscriptionSettingsController extends Controller
             // e.g. routing[slack][channel] = "#sales".
             'routing' => ['nullable', 'array'],
             'routing.*.channel' => ['nullable', 'string', 'max:200'],
+            'routing.github' => ['nullable', 'array'],
+            'routing.github.repos' => ['nullable', 'array', 'max:50'],
+            'routing.github.repos.*' => ['string', 'max:200'],
         ];
 
         foreach ($defs as $d) {

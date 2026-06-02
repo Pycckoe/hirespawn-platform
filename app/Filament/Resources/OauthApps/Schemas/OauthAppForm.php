@@ -31,11 +31,16 @@ class OauthAppForm
                     ->columns(3),
 
                 Section::make('OAuth2 client')
-                    ->description('Register the Hirespawn app with the provider, paste the credentials here.')
+                    ->description('Register the Hirespawn app with the provider, paste the credentials here. For GitHub: Client ID = the GitHub App URL slug (e.g. "hirespawn-dev"), used to build the install URL.')
                     ->schema([
                         TextInput::make('client_id')
                             ->required()
                             ->maxLength(200)
+                            ->columnSpanFull(),
+                        TextInput::make('github_app_id')
+                            ->label('GitHub App ID (numeric, GitHub only)')
+                            ->helperText('GitHub App → General → App ID. Leave blank for non-GitHub rows.')
+                            ->maxLength(40)
                             ->columnSpanFull(),
                         // Both secret fields bind DIRECTLY to the encrypted_*
                         // column with per-field encrypt+blank handling: no
@@ -53,11 +58,19 @@ class OauthAppForm
                             ->dehydrated(fn ($state) => filled($state))
                             ->dehydrateStateUsing(fn ($state) => \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $state))),
                         TextInput::make('encrypted_signing_secret')
-                            ->label('Signing secret (Slack inbound events)')
+                            ->label('Signing secret (Slack / GitHub inbound events)')
                             ->password()
                             ->revealable()
-                            ->helperText('Slack → Basic Information → Signing Secret. Verifies inbound bot mentions at /integrations/slack/events. Leave blank to keep the existing one.')
+                            ->helperText('Slack: Basic Information → Signing Secret. GitHub: the App\'s Webhook secret. Leave blank to keep the existing one.')
                             ->maxLength(400)
+                            ->columnSpanFull()
+                            ->formatStateUsing(fn () => '')
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->dehydrateStateUsing(fn ($state) => \Illuminate\Support\Facades\Crypt::encryptString(trim((string) $state))),
+                        \Filament\Forms\Components\Textarea::make('encrypted_github_private_key')
+                            ->label('GitHub App private key (PEM, GitHub only)')
+                            ->helperText('GitHub App → General → Generate a private key, paste the entire .pem (including -----BEGIN/END----- lines). Stored encrypted. Leave blank to keep the existing one.')
+                            ->rows(6)
                             ->columnSpanFull()
                             ->formatStateUsing(fn () => '')
                             ->dehydrated(fn ($state) => filled($state))
