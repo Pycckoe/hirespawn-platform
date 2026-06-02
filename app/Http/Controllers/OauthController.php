@@ -179,6 +179,16 @@ class OauthController extends Controller
         $user = $request->user();
         abort_unless($user, 401);
 
+        // GitHub: drop the App installation row instead of looking for an
+        // OAuth token (we don't store one). The buyer can fully revoke
+        // access by uninstalling the App on github.com.
+        if ($provider === 'github') {
+            $user->githubInstallation?->delete();
+            audit('github.disconnect', null, ['provider' => 'github']);
+
+            return back()->with('status', 'Disconnected from this workspace. To fully revoke, uninstall the App in your GitHub settings.');
+        }
+
         $token = $user->oauthTokenFor($provider);
         if ($token) {
             $token->delete();

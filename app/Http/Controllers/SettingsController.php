@@ -112,6 +112,27 @@ class SettingsController extends Controller
             ->orderBy('sort_order')
             ->get()
             ->map(function (OauthApp $app) use ($user) {
+                // GitHub uses a GitHub App installation instead of a
+                // UserOauthToken — surface the install as "connected" here
+                // so the panel matches the actual integration state.
+                if ($app->provider === 'github') {
+                    $install = $user?->githubInstallation;
+                    $repoCount = is_array($install?->repos) ? count($install->repos) : 0;
+
+                    return [
+                        'provider' => 'github',
+                        'label' => $app->label,
+                        'icon' => $app->icon,
+                        'scopes' => $app->default_scopes ?? [],
+                        'connected' => $install !== null,
+                        'accountLabel' => $install?->account_login.($repoCount ? " · {$repoCount} repos" : ''),
+                        'connectedAt' => $install?->created_at?->format('M d, Y'),
+                        'expiresAt' => null,
+                        'expired' => false,
+                        'connectUrl' => route('github.install', ['return' => '/settings?tab=integrations']),
+                    ];
+                }
+
                 $token = $user?->oauthTokenFor($app->provider);
 
                 return [
