@@ -65,7 +65,14 @@ class OauthAppsSeeder extends Seeder
                 'authorize_url' => 'https://app.hubspot.com/oauth/authorize',
                 'token_url' => 'https://api.hubapi.com/oauth/v1/token',
                 'api_base_url' => 'https://api.hubapi.com',
-                'default_scopes' => ['crm.objects.contacts.read', 'crm.objects.contacts.write'],
+                'default_scopes' => [
+                    'oauth',
+                    'crm.objects.contacts.read',
+                    'crm.objects.contacts.write',
+                    'crm.objects.companies.read',
+                    'crm.objects.deals.read',
+                    'crm.objects.deals.write',
+                ],
                 'sort_order' => 40,
             ],
             [

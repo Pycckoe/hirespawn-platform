@@ -6,6 +6,7 @@ use App\Models\Subscription;
 use App\Services\Github\GithubAppAuth;
 use App\Services\Github\GithubClient;
 use App\Services\Oauth\GoogleClient;
+use App\Services\Oauth\HubspotClient;
 use App\Services\Oauth\JiraClient;
 use App\Services\Oauth\SlackClient;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +29,7 @@ class BuiltInToolset
         private readonly SlackClient $slack,
         private readonly GoogleClient $google,
         private readonly JiraClient $jira,
+        private readonly HubspotClient $hubspot,
     ) {}
 
     /**
@@ -74,6 +76,14 @@ class BuiltInToolset
             }
         }
 
+        // HubSpot built-ins (when buyer has a HubSpot portal connected).
+        if ($buyer->oauthTokenFor('hubspot')) {
+            foreach ($this->hubspotToolSpecs() as $spec) {
+                $dispatch[$spec['name']] = ['provider' => 'hubspot', 'tool' => $spec['name']];
+                $tools[] = $this->shape($provider, $spec['name'], $spec['description'], $spec['parameters']);
+            }
+        }
+
         return ['tools' => array_values(array_filter($tools)), 'dispatch' => $dispatch];
     }
 
@@ -91,6 +101,7 @@ class BuiltInToolset
                 'slack' => $this->executeSlack($buyer, $target['tool'], $arguments, $subscription),
                 'google' => $this->executeGoogle($buyer, $target['tool'], $arguments),
                 'jira' => $this->executeJira($buyer, $target['tool'], $arguments),
+                'hubspot' => $this->executeHubspot($buyer, $target['tool'], $arguments),
                 default => ['error' => 'Unknown connector provider: '.$target['provider']],
             };
         } catch (Throwable $e) {
@@ -339,6 +350,81 @@ class BuiltInToolset
             'jira_create_issue' => $this->jira->createIssue($buyer, (string) ($args['project_key'] ?? ''), (string) ($args['summary'] ?? ''), $args['description'] ?? null, (string) ($args['issue_type'] ?? 'Task')),
             'jira_add_comment' => $this->jira->addComment($buyer, (string) ($args['key'] ?? ''), (string) ($args['body'] ?? '')),
             default => ['error' => "Unknown jira tool: {$tool}"],
+        };
+    }
+
+    // ── HubSpot ─────────────────────────────────────────────────────
+
+    private function hubspotToolSpecs(): array
+    {
+        return [
+            ['name' => 'hubspot_search_contacts', 'description' => "Search the buyer's HubSpot CRM contacts by free-text query (name, email, company). Returns id + key contact properties.", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Free-text search (matches name, email, company).'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results (default 10, max 50).'],
+                ],
+                'required' => ['query'],
+            ]],
+            ['name' => 'hubspot_get_contact', 'description' => 'Fetch a single HubSpot contact by id (returned by hubspot_search_contacts).', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'description' => 'HubSpot contact id.'],
+                ],
+                'required' => ['id'],
+            ]],
+            ['name' => 'hubspot_create_contact', 'description' => 'Create a new HubSpot contact. Confirm intent before calling — this writes to the buyer\'s CRM.', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'email' => ['type' => 'string', 'description' => 'Required. The contact\'s email — HubSpot uses it as the unique identifier.'],
+                    'firstname' => ['type' => 'string'],
+                    'lastname' => ['type' => 'string'],
+                    'company' => ['type' => 'string'],
+                    'jobtitle' => ['type' => 'string'],
+                    'phone' => ['type' => 'string'],
+                ],
+                'required' => ['email'],
+            ]],
+            ['name' => 'hubspot_search_deals', 'description' => "Search the buyer's HubSpot deals (sales pipeline) by free-text query (deal name).", 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Free-text deal-name search.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results (default 10, max 50).'],
+                ],
+                'required' => ['query'],
+            ]],
+            ['name' => 'hubspot_create_deal', 'description' => 'Create a new HubSpot deal in the buyer\'s default pipeline. Confirm intent first.', 'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'description' => 'Deal name (required).'],
+                    'amount' => ['type' => 'string', 'description' => 'Deal amount as a number string (e.g. "1500").'],
+                    'stage' => ['type' => 'string', 'description' => 'Pipeline stage internal id, e.g. "appointmentscheduled".'],
+                ],
+                'required' => ['name'],
+            ]],
+        ];
+    }
+
+    private function executeHubspot($buyer, string $tool, array $args): array
+    {
+        return match ($tool) {
+            'hubspot_search_contacts' => $this->hubspot->searchContacts($buyer, (string) ($args['query'] ?? ''), (int) ($args['limit'] ?? 10)),
+            'hubspot_get_contact' => $this->hubspot->getContact($buyer, (string) ($args['id'] ?? '')),
+            'hubspot_create_contact' => $this->hubspot->createContact(
+                $buyer,
+                (string) ($args['email'] ?? ''),
+                isset($args['firstname']) ? (string) $args['firstname'] : null,
+                isset($args['lastname']) ? (string) $args['lastname'] : null,
+                array_intersect_key($args, array_flip(['company', 'jobtitle', 'phone'])),
+            ),
+            'hubspot_search_deals' => $this->hubspot->searchDeals($buyer, (string) ($args['query'] ?? ''), (int) ($args['limit'] ?? 10)),
+            'hubspot_create_deal' => $this->hubspot->createDeal(
+                $buyer,
+                (string) ($args['name'] ?? ''),
+                isset($args['amount']) ? (string) $args['amount'] : null,
+                isset($args['stage']) ? (string) $args['stage'] : null,
+            ),
+            default => ['error' => "Unknown hubspot tool: {$tool}"],
         };
     }
 

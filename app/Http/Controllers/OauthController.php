@@ -215,6 +215,26 @@ class OauthController extends Controller
             }
         }
 
+        // HubSpot: the token response carries no portal/user info. Hit the
+        // introspection endpoint (token in the URL, no extra auth) to set a
+        // human-readable account_label = "{user} · Hub {portal_id}".
+        if ($provider === 'hubspot' && $access) {
+            try {
+                $intro = Http::timeout(15)
+                    ->get('https://api.hubapi.com/oauth/v1/access-tokens/'.urlencode($access))
+                    ->json();
+                if (! empty($intro['hub_id'])) {
+                    $token->account_id = (string) $intro['hub_id'];
+                    $token->account_label = ($intro['user'] ?? null)
+                        ? "{$intro['user']} · Hub {$intro['hub_id']}"
+                        : "Hub {$intro['hub_id']}";
+                    $token->save();
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal — agent calls still work without the label.
+            }
+        }
+
         audit('oauth.connect', $token, [
             'provider' => $provider,
             'account_label' => $token->account_label,

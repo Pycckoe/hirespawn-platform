@@ -452,6 +452,14 @@ class LlmGateway
             $lines[] = '  Available tools: jira_search_issues (JQL), jira_get_issue, jira_create_issue, jira_add_comment.';
         }
 
+        // HubSpot: portal + user (from /oauth/v1/access-tokens introspection).
+        $hsToken = $buyer->oauthTokenFor('hubspot');
+        if ($hsToken) {
+            $portal = $hsToken->account_label ?: 'connected HubSpot portal';
+            $lines[] = '- HubSpot CRM: '.$portal;
+            $lines[] = '  Available tools: hubspot_search_contacts, hubspot_get_contact, hubspot_create_contact, hubspot_search_deals, hubspot_create_deal.';
+        }
+
         if ($lines === []) {
             return $systemPrompt;
         }
