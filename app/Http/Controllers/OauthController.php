@@ -36,6 +36,13 @@ class OauthController extends Controller
 
         $returnTo = $request->query('return', '/console');
 
+        // GitHub doesn't use OAuth2 code flow on this platform — it's a
+        // GitHub App with installation-based auth. Redirect to the install
+        // flow so we don't try a redirect_uri that the App doesn't know.
+        if ($provider === 'github') {
+            return redirect()->route('github.install', ['return' => $returnTo]);
+        }
+
         // Find the provider regardless of active flag so we can give a
         // clear message instead of a raw 404 when it's disabled / unconfigured.
         $app = OauthApp::query()->where('provider', $provider)->first();
